@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Distribution bracket{% endblock %}
+{% block content %}
+<h1>Distribution bracket</h1>
+<p class="lede">Each line shows the team most likely to occupy that spot across <b id="nsims">…</b> simulated tournaments;
+the shading is that probability. Hover a game for the full distribution of who gets there and who wins.
+Click a team to follow it through the bracket (click again to clear).</p>
+<div class="toolbar">
+  <label>Follow team <select id="follow"><option value="">—</option></select></label>
+  <span class="legend"><span><span class="swatch" style="background:var(--accent-soft)"></span>P(team is here)</span>
+  <span class="muted" id="follow-note"></span></span>
+</div>
+<div class="bracket-wrap panel"><div id="bracket"></div></div>
+<h2 style="font-size:16px;margin-top:22px">Advancement odds</h2>
+<div class="panel scroll" style="max-height:520px"><table class="data" id="reach"></table></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const s = await (await fetch("/api/summary")).json();
+  document.getElementById("nsims").textContent = s.n_sims.toLocaleString();
+  const view = new BracketView(document.getElementById("bracket"), s, { mode: "dist" });
+  const sel = document.getElementById("follow");
+  const order = s.bracket.teams.map((t, i) => [t, i]).sort((a, b) => a[0].name.localeCompare(b[0].name));
+  for (const [t, i] of order) sel.add(new Option(`${t.name} (${t.region} ${t.seed})`, i));
+  sel.onchange = () => { view.highlight = sel.value === "" ? null : +sel.value; view.refresh(); note(); };
+  document.addEventListener("highlight", (e) => { sel.value = e.detail ?? ""; note(); });
+  function note() {
+    const t = view.highlight;
+    document.getElementById("follow-note").textContent = t == null ? "" :
+      `${s.bracket.teams[t].name}: title ${fmtPct(s.reach[t][7])}, Final Four ${fmtPct(s.reach[t][5])}`;
+  }
+  // Advancement table
+  const cols = ["Round of 64", "Round of 32", "Sweet 16", "Elite 8", "Final Four", "Final", "Champion"];
+  const ratings = Object.fromEntries(s.ratings.map((r) => [r.team, r]));
+  const rows = s.bracket.teams.map((t, i) => ({ t, i, r: s.reach[i], rt: ratings[t.name] }));
+  let sortKey = 7;
+  const tbl = document.getElementById("reach");
+  function draw() {
+    rows.sort((a, b) => (sortKey === "net" ? b.rt.net - a.rt.net : b.r[sortKey] - a.r[sortKey]));
+    tbl.innerHTML = `<tr><th>Team</th><th>Region</th><th class="num">Seed</th><th class="num" data-k="net">Net rtg</th>` +
+      cols.map((c, j) => `<th class="num" data-k="${j + 1}">${c}</th>`).join("") + "</tr>" +
+      rows.map(({ t, r, rt }) => `<tr><td>${t.name}</td><td>${t.region}</td><td class="num">${t.seed}</td>
+        <td class="num">${rt.net.toFixed(1)}</td>` +
+        cols.map((_, j) => `<td class="num">${fmtPct(r[j + 1])}</td>`).join("") + "</tr>").join("");
+    tbl.querySelectorAll("th[data-k]").forEach((th) => (th.onclick = () => {
+      sortKey = th.dataset.k === "net" ? "net" : +th.dataset.k; draw(); }));
+  }
+  draw();
+})();
+</script>
+{% endblock %}

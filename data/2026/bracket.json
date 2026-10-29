@@ -1,0 +1,1099 @@
+{
+ "season": 2026,
+ "start": "2026-03-17T22:40:00+00:00",
+ "regions": [
+  "East",
+  "South",
+  "Midwest",
+  "West"
+ ],
+ "semifinals": [
+  [
+   "East",
+   "South"
+  ],
+  [
+   "Midwest",
+   "West"
+  ]
+ ],
+ "seeds": {
+  "East": {
+   "1": [
+    "Duke"
+   ],
+   "2": [
+    "UConn"
+   ],
+   "3": [
+    "Michigan State"
+   ],
+   "4": [
+    "Kansas"
+   ],
+   "5": [
+    "St. John's"
+   ],
+   "6": [
+    "Louisville"
+   ],
+   "7": [
+    "UCLA"
+   ],
+   "8": [
+    "Ohio State"
+   ],
+   "9": [
+    "TCU"
+   ],
+   "10": [
+    "UCF"
+   ],
+   "11": [
+    "South Florida"
+   ],
+   "12": [
+    "Northern Iowa"
+   ],
+   "13": [
+    "California Baptist"
+   ],
+   "14": [
+    "North Dakota State"
+   ],
+   "15": [
+    "Furman"
+   ],
+   "16": [
+    "Siena"
+   ]
+  },
+  "South": {
+   "1": [
+    "Florida"
+   ],
+   "2": [
+    "Houston"
+   ],
+   "3": [
+    "Illinois"
+   ],
+   "4": [
+    "Nebraska"
+   ],
+   "5": [
+    "Vanderbilt"
+   ],
+   "6": [
+    "North Carolina"
+   ],
+   "7": [
+    "Saint Mary's"
+   ],
+   "8": [
+    "Clemson"
+   ],
+   "9": [
+    "Iowa"
+   ],
+   "10": [
+    "Texas A&M"
+   ],
+   "11": [
+    "VCU"
+   ],
+   "12": [
+    "McNeese"
+   ],
+   "13": [
+    "Troy"
+   ],
+   "14": [
+    "Pennsylvania"
+   ],
+   "15": [
+    "Idaho"
+   ],
+   "16": [
+    "Prairie View A&M",
+    "Lehigh"
+   ]
+  },
+  "Midwest": {
+   "1": [
+    "Michigan"
+   ],
+   "2": [
+    "Iowa State"
+   ],
+   "3": [
+    "Virginia"
+   ],
+   "4": [
+    "Alabama"
+   ],
+   "5": [
+    "Texas Tech"
+   ],
+   "6": [
+    "Tennessee"
+   ],
+   "7": [
+    "Kentucky"
+   ],
+   "8": [
+    "Georgia"
+   ],
+   "9": [
+    "Saint Louis"
+   ],
+   "10": [
+    "Santa Clara"
+   ],
+   "11": [
+    "Miami (OH)",
+    "SMU"
+   ],
+   "12": [
+    "Akron"
+   ],
+   "13": [
+    "Hofstra"
+   ],
+   "14": [
+    "Wright State"
+   ],
+   "15": [
+    "Tennessee State"
+   ],
+   "16": [
+    "Howard",
+    "UMBC"
+   ]
+  },
+  "West": {
+   "1": [
+    "Arizona"
+   ],
+   "2": [
+    "Purdue"
+   ],
+   "3": [
+    "Gonzaga"
+   ],
+   "4": [
+    "Arkansas"
+   ],
+   "5": [
+    "Wisconsin"
+   ],
+   "6": [
+    "BYU"
+   ],
+   "7": [
+    "Miami"
+   ],
+   "8": [
+    "Villanova"
+   ],
+   "9": [
+    "Utah State"
+   ],
+   "10": [
+    "Missouri"
+   ],
+   "11": [
+    "Texas",
+    "NC State"
+   ],
+   "12": [
+    "High Point"
+   ],
+   "13": [
+    "Hawai'i"
+   ],
+   "14": [
+    "Kennesaw State"
+   ],
+   "15": [
+    "Queens University"
+   ],
+   "16": [
+    "Long Island University"
+   ]
+  }
+ },
+ "results": [
+  {
+   "round": "First Four",
+   "region": "Midwest",
+   "teams": [
+    "Howard",
+    "UMBC"
+   ],
+   "score": [
+    86,
+    83
+   ],
+   "winner": "Howard"
+  },
+  {
+   "round": "First Four",
+   "region": "West",
+   "teams": [
+    "NC State",
+    "Texas"
+   ],
+   "score": [
+    66,
+    68
+   ],
+   "winner": "Texas"
+  },
+  {
+   "round": "First Four",
+   "region": "South",
+   "teams": [
+    "Lehigh",
+    "Prairie View A&M"
+   ],
+   "score": [
+    55,
+    67
+   ],
+   "winner": "Prairie View A&M"
+  },
+  {
+   "round": "First Four",
+   "region": "Midwest",
+   "teams": [
+    "SMU",
+    "Miami (OH)"
+   ],
+   "score": [
+    79,
+    89
+   ],
+   "winner": "Miami (OH)"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "Ohio State",
+    "TCU"
+   ],
+   "score": [
+    64,
+    66
+   ],
+   "winner": "TCU"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Nebraska",
+    "Troy"
+   ],
+   "score": [
+    76,
+    47
+   ],
+   "winner": "Nebraska"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "Louisville",
+    "South Florida"
+   ],
+   "score": [
+    83,
+    79
+   ],
+   "winner": "Louisville"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Wisconsin",
+    "High Point"
+   ],
+   "score": [
+    82,
+    83
+   ],
+   "winner": "High Point"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "Duke",
+    "Siena"
+   ],
+   "score": [
+    71,
+    65
+   ],
+   "winner": "Duke"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Vanderbilt",
+    "McNeese"
+   ],
+   "score": [
+    78,
+    68
+   ],
+   "winner": "Vanderbilt"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "Michigan State",
+    "North Dakota State"
+   ],
+   "score": [
+    92,
+    67
+   ],
+   "winner": "Michigan State"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Arkansas",
+    "Hawai'i"
+   ],
+   "score": [
+    97,
+    78
+   ],
+   "winner": "Arkansas"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "North Carolina",
+    "VCU"
+   ],
+   "score": [
+    78,
+    82
+   ],
+   "winner": "VCU"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Michigan",
+    "Howard"
+   ],
+   "score": [
+    101,
+    80
+   ],
+   "winner": "Michigan"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "BYU",
+    "Texas"
+   ],
+   "score": [
+    71,
+    79
+   ],
+   "winner": "Texas"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Saint Mary's",
+    "Texas A&M"
+   ],
+   "score": [
+    50,
+    63
+   ],
+   "winner": "Texas A&M"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Illinois",
+    "Pennsylvania"
+   ],
+   "score": [
+    105,
+    70
+   ],
+   "winner": "Illinois"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Georgia",
+    "Saint Louis"
+   ],
+   "score": [
+    77,
+    102
+   ],
+   "winner": "Saint Louis"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Houston",
+    "Idaho"
+   ],
+   "score": [
+    78,
+    47
+   ],
+   "winner": "Houston"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Gonzaga",
+    "Kennesaw State"
+   ],
+   "score": [
+    73,
+    64
+   ],
+   "winner": "Gonzaga"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Kentucky",
+    "Santa Clara"
+   ],
+   "score": [
+    89,
+    84
+   ],
+   "winner": "Kentucky"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Texas Tech",
+    "Akron"
+   ],
+   "score": [
+    91,
+    71
+   ],
+   "winner": "Texas Tech"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Arizona",
+    "Long Island University"
+   ],
+   "score": [
+    92,
+    58
+   ],
+   "winner": "Arizona"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Virginia",
+    "Wright State"
+   ],
+   "score": [
+    82,
+    73
+   ],
+   "winner": "Virginia"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Iowa State",
+    "Tennessee State"
+   ],
+   "score": [
+    108,
+    74
+   ],
+   "winner": "Iowa State"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Alabama",
+    "Hofstra"
+   ],
+   "score": [
+    90,
+    70
+   ],
+   "winner": "Alabama"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Villanova",
+    "Utah State"
+   ],
+   "score": [
+    76,
+    86
+   ],
+   "winner": "Utah State"
+  },
+  {
+   "round": "1st Round",
+   "region": "Midwest",
+   "teams": [
+    "Tennessee",
+    "Miami (OH)"
+   ],
+   "score": [
+    78,
+    56
+   ],
+   "winner": "Tennessee"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Clemson",
+    "Iowa"
+   ],
+   "score": [
+    61,
+    67
+   ],
+   "winner": "Iowa"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "St. John's",
+    "Northern Iowa"
+   ],
+   "score": [
+    79,
+    53
+   ],
+   "winner": "St. John's"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "UCLA",
+    "UCF"
+   ],
+   "score": [
+    75,
+    71
+   ],
+   "winner": "UCLA"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Purdue",
+    "Queens University"
+   ],
+   "score": [
+    104,
+    71
+   ],
+   "winner": "Purdue"
+  },
+  {
+   "round": "1st Round",
+   "region": "South",
+   "teams": [
+    "Florida",
+    "Prairie View A&M"
+   ],
+   "score": [
+    114,
+    55
+   ],
+   "winner": "Florida"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "Kansas",
+    "California Baptist"
+   ],
+   "score": [
+    68,
+    60
+   ],
+   "winner": "Kansas"
+  },
+  {
+   "round": "1st Round",
+   "region": "West",
+   "teams": [
+    "Miami",
+    "Missouri"
+   ],
+   "score": [
+    80,
+    66
+   ],
+   "winner": "Miami"
+  },
+  {
+   "round": "1st Round",
+   "region": "East",
+   "teams": [
+    "UConn",
+    "Furman"
+   ],
+   "score": [
+    82,
+    71
+   ],
+   "winner": "UConn"
+  },
+  {
+   "round": "2nd Round",
+   "region": "Midwest",
+   "teams": [
+    "Michigan",
+    "Saint Louis"
+   ],
+   "score": [
+    95,
+    72
+   ],
+   "winner": "Michigan"
+  },
+  {
+   "round": "2nd Round",
+   "region": "East",
+   "teams": [
+    "Michigan State",
+    "Louisville"
+   ],
+   "score": [
+    77,
+    69
+   ],
+   "winner": "Michigan State"
+  },
+  {
+   "round": "2nd Round",
+   "region": "East",
+   "teams": [
+    "Duke",
+    "TCU"
+   ],
+   "score": [
+    81,
+    58
+   ],
+   "winner": "Duke"
+  },
+  {
+   "round": "2nd Round",
+   "region": "South",
+   "teams": [
+    "Houston",
+    "Texas A&M"
+   ],
+   "score": [
+    88,
+    57
+   ],
+   "winner": "Houston"
+  },
+  {
+   "round": "2nd Round",
+   "region": "West",
+   "teams": [
+    "Gonzaga",
+    "Texas"
+   ],
+   "score": [
+    68,
+    74
+   ],
+   "winner": "Texas"
+  },
+  {
+   "round": "2nd Round",
+   "region": "South",
+   "teams": [
+    "Illinois",
+    "VCU"
+   ],
+   "score": [
+    76,
+    55
+   ],
+   "winner": "Illinois"
+  },
+  {
+   "round": "2nd Round",
+   "region": "South",
+   "teams": [
+    "Nebraska",
+    "Vanderbilt"
+   ],
+   "score": [
+    74,
+    72
+   ],
+   "winner": "Nebraska"
+  },
+  {
+   "round": "2nd Round",
+   "region": "West",
+   "teams": [
+    "Arkansas",
+    "High Point"
+   ],
+   "score": [
+    94,
+    88
+   ],
+   "winner": "Arkansas"
+  },
+  {
+   "round": "2nd Round",
+   "region": "West",
+   "teams": [
+    "Purdue",
+    "Miami"
+   ],
+   "score": [
+    79,
+    69
+   ],
+   "winner": "Purdue"
+  },
+  {
+   "round": "2nd Round",
+   "region": "Midwest",
+   "teams": [
+    "Iowa State",
+    "Kentucky"
+   ],
+   "score": [
+    82,
+    63
+   ],
+   "winner": "Iowa State"
+  },
+  {
+   "round": "2nd Round",
+   "region": "East",
+   "teams": [
+    "Kansas",
+    "St. John's"
+   ],
+   "score": [
+    65,
+    67
+   ],
+   "winner": "St. John's"
+  },
+  {
+   "round": "2nd Round",
+   "region": "Midwest",
+   "teams": [
+    "Virginia",
+    "Tennessee"
+   ],
+   "score": [
+    72,
+    79
+   ],
+   "winner": "Tennessee"
+  },
+  {
+   "round": "2nd Round",
+   "region": "South",
+   "teams": [
+    "Florida",
+    "Iowa"
+   ],
+   "score": [
+    72,
+    73
+   ],
+   "winner": "Iowa"
+  },
+  {
+   "round": "2nd Round",
+   "region": "West",
+   "teams": [
+    "Arizona",
+    "Utah State"
+   ],
+   "score": [
+    78,
+    66
+   ],
+   "winner": "Arizona"
+  },
+  {
+   "round": "2nd Round",
+   "region": "East",
+   "teams": [
+    "UConn",
+    "UCLA"
+   ],
+   "score": [
+    73,
+    57
+   ],
+   "winner": "UConn"
+  },
+  {
+   "round": "2nd Round",
+   "region": "Midwest",
+   "teams": [
+    "Alabama",
+    "Texas Tech"
+   ],
+   "score": [
+    90,
+    65
+   ],
+   "winner": "Alabama"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "West",
+   "teams": [
+    "Purdue",
+    "Texas"
+   ],
+   "score": [
+    79,
+    77
+   ],
+   "winner": "Purdue"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "South",
+   "teams": [
+    "Nebraska",
+    "Iowa"
+   ],
+   "score": [
+    71,
+    77
+   ],
+   "winner": "Iowa"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "South",
+   "teams": [
+    "Houston",
+    "Illinois"
+   ],
+   "score": [
+    55,
+    65
+   ],
+   "winner": "Illinois"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "West",
+   "teams": [
+    "Arizona",
+    "Arkansas"
+   ],
+   "score": [
+    109,
+    88
+   ],
+   "winner": "Arizona"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "East",
+   "teams": [
+    "Duke",
+    "St. John's"
+   ],
+   "score": [
+    80,
+    75
+   ],
+   "winner": "Duke"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "Midwest",
+   "teams": [
+    "Michigan",
+    "Alabama"
+   ],
+   "score": [
+    90,
+    77
+   ],
+   "winner": "Michigan"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "East",
+   "teams": [
+    "UConn",
+    "Michigan State"
+   ],
+   "score": [
+    67,
+    63
+   ],
+   "winner": "UConn"
+  },
+  {
+   "round": "Sweet 16",
+   "region": "Midwest",
+   "teams": [
+    "Iowa State",
+    "Tennessee"
+   ],
+   "score": [
+    62,
+    76
+   ],
+   "winner": "Tennessee"
+  },
+  {
+   "round": "Elite 8",
+   "region": "South",
+   "teams": [
+    "Illinois",
+    "Iowa"
+   ],
+   "score": [
+    71,
+    59
+   ],
+   "winner": "Illinois"
+  },
+  {
+   "round": "Elite 8",
+   "region": "West",
+   "teams": [
+    "Arizona",
+    "Purdue"
+   ],
+   "score": [
+    79,
+    64
+   ],
+   "winner": "Arizona"
+  },
+  {
+   "round": "Elite 8",
+   "region": "Midwest",
+   "teams": [
+    "Michigan",
+    "Tennessee"
+   ],
+   "score": [
+    95,
+    62
+   ],
+   "winner": "Michigan"
+  },
+  {
+   "round": "Elite 8",
+   "region": "East",
+   "teams": [
+    "Duke",
+    "UConn"
+   ],
+   "score": [
+    72,
+    73
+   ],
+   "winner": "UConn"
+  },
+  {
+   "round": "Final Four",
+   "region": null,
+   "teams": [
+    "UConn",
+    "Illinois"
+   ],
+   "score": [
+    71,
+    62
+   ],
+   "winner": "UConn"
+  },
+  {
+   "round": "Final Four",
+   "region": null,
+   "teams": [
+    "Arizona",
+    "Michigan"
+   ],
+   "score": [
+    73,
+    91
+   ],
+   "winner": "Michigan"
+  },
+  {
+   "round": "National Championship",
+   "region": null,
+   "teams": [
+    "Michigan",
+    "UConn"
+   ],
+   "score": [
+    69,
+    63
+   ],
+   "winner": "Michigan"
+  }
+ ]
+}

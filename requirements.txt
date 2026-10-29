@@ -1,0 +1,7 @@
+numpy>=1.26
+pandas>=2.1
+pyarrow>=14
+jax>=0.4.30
+numpyro>=0.15
+flask>=3.0
+pytest>=8
