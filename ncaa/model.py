@@ -237,7 +237,7 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     if method == "nuts":
         from numpyro.infer import MCMC, NUTS, init_to_value
 
-        start = guide.median(vi.params)
+        start = {k: v for k, v in guide.median(vi.params).items() if f"{k}_auto_scale" in vi.params}
         inv_mass = {(site,): np.asarray(vi.params[f"{site}_auto_scale"]).ravel() ** 2 for site in start}
         kernel = NUTS(numpyro_model, target_accept_prob=0.85, max_tree_depth=max_tree_depth,
                       init_strategy=init_to_value(values=start), inverse_mass_matrix=inv_mass)
