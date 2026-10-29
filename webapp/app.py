@@ -18,6 +18,7 @@ from ncaa.simulate import BOX_STATS, simulate_games
 SEASON = int(os.environ.get("NCAA_SEASON", 2026))
 
 app = Flask(__name__)
+app.json.sort_keys = False  # keep box-score stats in their natural order
 
 
 @lru_cache(maxsize=1)
@@ -102,7 +103,7 @@ def api_matchup():
     pts = res["pts"]
     margin = pts[:, 0] - pts[:, 1]
     lo, hi = int(np.percentile(margin, 0.5)), int(np.percentile(margin, 99.5))
-    edges = np.arange(lo, hi + 2)
+    edges = np.arange(lo, hi + 3, 2)
     box = {s: {"mean": res[s].mean(0).round(1).tolist(),
                "p10": np.percentile(res[s], 10, axis=0).tolist(),
                "p90": np.percentile(res[s], 90, axis=0).tolist()} for s in BOX_STATS}

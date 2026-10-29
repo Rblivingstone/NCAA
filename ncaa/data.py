@@ -75,6 +75,12 @@ def _tournament_games(sched: pd.DataFrame) -> pd.DataFrame:
     return t
 
 
+def _first_half(linescores) -> float:
+    """Points in the first period from ESPN's linescore field (stored as text)."""
+    vals = re.findall(r"'value': ([0-9.]+)", str(linescores))
+    return float(vals[0]) if vals else np.nan
+
+
 def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame:
     """Team-game rows for every completed game strictly before ``cutoff``."""
     sched = sched.drop_duplicates("game_id").set_index("game_id")
@@ -98,6 +104,12 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp) ->
     df["home"] = np.where(neutral, 0, np.where(df.team_home_away == "home", 1, -1))
     periods = sched.status_period.reindex(df.game_id).fillna(2).to_numpy()
     df["ot"] = np.clip(periods - 2, 0, None).astype(int)
+    # First-half points (used to estimate how leads erode in the second half).
+    is_home = (df.team_home_away == "home").to_numpy()
+    home_h1 = sched.home_linescores.reindex(df.game_id).map(_first_half).to_numpy()
+    away_h1 = sched.away_linescores.reindex(df.game_id).map(_first_half).to_numpy()
+    df["h1"] = np.where(is_home, home_h1, away_h1)
+    df["opp_h1"] = np.where(is_home, away_h1, home_h1)
 
     # Drop obviously broken box scores (missing stats recorded as zeros).
     ok = (df.fga > 20) & (df.opp_fga > 20) & (df.fgm <= df.fga) & (df.fg3m <= df.fg3a) \
@@ -112,7 +124,7 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp) ->
     df.loc[df.opponent.isin(rare), "opponent"] = OTHER_TEAM
     df = df[~((df.team == OTHER_TEAM) & (df.opponent == OTHER_TEAM))]
 
-    cols = ["game_id", "date", "team", "opponent", "home", "ot"] + list(BOX_COLUMNS.values()) \
+    cols = ["game_id", "date", "team", "opponent", "home", "ot", "h1", "opp_h1"] + list(BOX_COLUMNS.values()) \
         + ["opp_" + c for c in BOX_COLUMNS.values()]
     return df[cols].sort_values(["date", "game_id", "team"]).reset_index(drop=True)
 

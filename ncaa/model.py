@@ -194,49 +194,64 @@ def _init_strategy(md: ModelData):
     import jax.numpy as jnp
     from numpyro.infer import init_to_value
 
-    return init_to_value(values={k: jnp.asarray(v, dtype="float32") for k, v in init_values(md).items()})
+    return init_to_value(values={k: jnp.asarray(v, dtype=jnp.float64) for k, v in init_values(md).items()})
+
+
+def _fit_vi(md: ModelData, key, steps: int, progress: bool):
+    """Mean-field variational fit; also used to initialise NUTS."""
+    from numpyro.infer import SVI, Trace_ELBO
+    from numpyro.infer.autoguide import AutoNormal
+    from numpyro.optim import Adam
+
+    guide = AutoNormal(numpyro_model, init_loc_fn=_init_strategy(md), init_scale=0.01)
+    lr = lambda i: 1e-2 * 0.02 ** (i / steps)  # noqa: E731  (decays 50x over the run)
+    svi = SVI(numpyro_model, guide, Adam(step_size=lr), Trace_ELBO())
+    res = svi.run(key, steps, md, base_rates(md), progress_bar=progress)
+    return guide, res
 
 
 def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_samples=250, num_chains=4,
-        seed=0, progress=True, max_tree_depth=8, vi_steps=20000) -> Path:
+        seed=0, progress=True, max_tree_depth=8, vi_steps=10000) -> Path:
     """Fit the model and save the posterior draws needed for simulation.
 
-    ``method="nuts"`` runs full MCMC (the default; ~1 hour on 4 CPU cores).
-    ``method="vi"`` fits a mean-field variational approximation in a few
-    minutes; handy for iterating, but it understates posterior uncertainty.
+    ``method="nuts"`` runs full MCMC (the default).  A variational fit is run
+    first and used as the starting point and initial mass matrix, which makes
+    NUTS warm-up far quicker and more reliable in ~8,000 dimensions.
+    ``method="vi"`` stops after the variational fit: fast, but it understates
+    posterior uncertainty.
     """
     os.environ.setdefault("XLA_FLAGS", f"--xla_force_host_platform_device_count={num_chains}")
     import jax
     import numpyro
+    from numpyro.infer import Predictive
 
+    # The log-likelihood sums ~120k terms; float32 rounding there wrecks the
+    # Hamiltonian energy and stalls NUTS.
+    jax.config.update("jax_enable_x64", True)
     numpyro.set_host_device_count(num_chains)
     md = prepare(games)
     key = jax.random.PRNGKey(seed)
+    guide, vi = _fit_vi(md, key, vi_steps, progress)
+    losses = np.asarray(vi.losses)
+    diag = {"vi_final_loss": float(losses[-200:].mean()), "vi_steps": vi_steps}
     if method == "nuts":
-        from numpyro.infer import MCMC, NUTS
+        from numpyro.infer import MCMC, NUTS, init_to_value
 
+        start = guide.median(vi.params)
+        inv_mass = {(site,): np.asarray(vi.params[f"{site}_auto_scale"]).ravel() ** 2 for site in start}
         kernel = NUTS(numpyro_model, target_accept_prob=0.85, max_tree_depth=max_tree_depth,
-                      init_strategy=_init_strategy(md))
+                      init_strategy=init_to_value(values=start), inverse_mass_matrix=inv_mass)
         mcmc = MCMC(kernel, num_warmup=num_warmup, num_samples=num_samples, num_chains=num_chains,
                     chain_method="parallel" if jax.local_device_count() >= num_chains else "sequential",
                     progress_bar=progress)
-        mcmc.run(key, md, base_rates(md), extra_fields=("diverging", "num_steps"))
+        mcmc.run(jax.random.PRNGKey(seed + 1), md, base_rates(md), extra_fields=("diverging", "num_steps"))
         post = mcmc.get_samples()
-        diag = summarize_diagnostics(mcmc, mcmc.get_extra_fields())
+        diag |= summarize_diagnostics(mcmc, mcmc.get_extra_fields())
     elif method == "vi":
-        from numpyro.infer import SVI, Predictive, Trace_ELBO
-        from numpyro.infer.autoguide import AutoNormal
-        from numpyro.optim import ClippedAdam
-
-        guide = AutoNormal(numpyro_model, init_loc_fn=_init_strategy(md), init_scale=0.01)
-        svi = SVI(numpyro_model, guide, ClippedAdam(step_size=5e-3, lrd=0.1 ** (1 / vi_steps)), Trace_ELBO())
-        res = svi.run(key, vi_steps, md, base_rates(md), progress_bar=progress)
         n = num_samples * num_chains
-        post = Predictive(guide, params=res.params, num_samples=n)(jax.random.PRNGKey(seed + 1), md, base_rates(md))
+        post = Predictive(guide, params=vi.params, num_samples=n)(jax.random.PRNGKey(seed + 1), md, base_rates(md))
         post["z"] = Predictive(numpyro_model, posterior_samples=post, return_sites=["z"])(
             jax.random.PRNGKey(seed + 2), md, base_rates(md))["z"]
-        losses = np.asarray(res.losses)
-        diag = {"method": "vi", "final_elbo_loss": float(losses[-500:].mean()), "steps": vi_steps}
     else:
         raise ValueError(method)
 
@@ -281,6 +296,11 @@ class Posterior:
     mu_pace: np.ndarray    # draws
     sigma_pace: np.ndarray
     omega: np.ndarray      # D x D posterior-mean correlation of the latent skills
+    lead_beta: np.ndarray = None  # draws; change in 2nd-half margin per point of half-time lead
+
+    def __post_init__(self):
+        if self.lead_beta is None:
+            self.lead_beta = np.zeros(self.n_draws)
 
     @property
     def n_draws(self) -> int:
@@ -291,9 +311,16 @@ class Posterior:
         return np.array([idx[n] for n in names])
 
 
+def add_to_posterior(season: int, **arrays):
+    path = artifact_dir(season) / "posterior.npz"
+    npz = dict(np.load(path))
+    npz.update(arrays)
+    np.savez_compressed(path, **npz)
+
+
 def load_posterior(season: int) -> Posterior:
     d = artifact_dir(season)
     npz = np.load(d / "posterior.npz")
     teams = json.loads((d / "teams.json").read_text())
-    return Posterior(teams=teams, **{k: npz[k] for k in
-                                     ("z", "mu", "hfa", "phi", "mu_pace", "sigma_pace", "omega")})
+    keys = ("z", "mu", "hfa", "phi", "mu_pace", "sigma_pace", "omega", "lead_beta")
+    return Posterior(teams=teams, **{k: npz[k] for k in keys if k in npz})

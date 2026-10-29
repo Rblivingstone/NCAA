@@ -14,6 +14,7 @@ import time
 from . import data, model
 from .bracket import Bracket, pairwise_win_matrix, save_simulation, simulate_tournament, summarize
 from .ratings import team_ratings
+from .simulate import estimate_lead_beta
 
 
 def cmd_fetch(a):
@@ -29,6 +30,9 @@ def cmd_fit(a):
     out = model.fit(games, a.season, method=a.method, num_warmup=a.warmup, num_samples=a.samples, num_chains=a.chains,
                     seed=a.seed)
     print(f"fit in {time.time() - t:.0f}s -> {out}")
+    beta = estimate_lead_beta(games, model.load_posterior(a.season))
+    model.add_to_posterior(a.season, lead_beta=beta)
+    print(f"second-half lead regression: {beta.mean():.3f} ± {beta.std():.3f} per point of half-time surplus")
     print((out / "diagnostics.json").read_text())
 
 
