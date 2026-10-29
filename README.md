@@ -39,8 +39,35 @@ shooting nights), which matters for realistic upset rates. **Points are never
 modelled directly**: a simulated game's score is whatever its simulated makes
 add up to, and the score decides the winner (ties go to overtime).
 
-Inference is NUTS (NumPyro) over all ~8,000 parameters. `--method vi` gives a
-fast mean-field approximation for iterating, but it understates uncertainty.
+### Within-game dynamics
+
+Simulating possessions independently makes margins too wide (SD ≈ 14 points
+for a given matchup, against ≈ 11 in real games): real teams protect leads
+less as they grow (bench minutes, fouling, effort). The half-time scores in
+the data show that about 17% of an *unexpected* first-half lead is given back
+in the second half. The simulator therefore plays each game in eight
+5-minute segments, and before each segment both teams' shooting shifts
+slightly against whoever is ahead of expectation, at the rate that reproduces
+that half-time regression. The regression's uncertainty is carried into the
+simulations as posterior draws.
+
+### Inference and validation
+
+Inference is NUTS (NumPyro) over all ~8,000 parameters, run in float64 and
+initialised (starting point and mass matrix) from a mean-field variational
+fit. `--method vi` stops after the variational fit: a few minutes instead of
+an hour, but it understates uncertainty.
+
+On a holdout (fit on games before Feb 15 2026, predict the 1,240 games after),
+win probabilities are well calibrated:
+
+| model favourite's win probability | 0.55 | 0.65 | 0.75 | 0.84 | 0.92 |
+|---|---|---|---|---|---|
+| favourite actually won | 0.57 | 0.64 | 0.72 | 0.87 | 0.90 |
+
+Simulated box-score averages and spreads match the real ones for every stat
+except defensive rebounds, which the simulator undercounts by ~2.5 per game
+(rebounds of missed free throws and team rebounds are not simulated).
 
 ## Tournament simulation (`ncaa/bracket.py`, `ncaa/simulate.py`)
 
