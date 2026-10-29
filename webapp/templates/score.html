@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Score a bracket{% endblock %}
+{% block content %}
+<h1>Score a realized bracket</h1>
+<p class="lede">Click the winner of each game (click again to undo). Later rounds fill in as you go; partial brackets
+are fine. The model scores the games entered so far: the probability it assigned to exactly this set of outcomes,
+how that compares to chance, and how it compares with brackets the model itself generates.</p>
+<div class="toolbar">
+  <button class="primary" id="load-actual">Load actual results</button>
+  <button id="load-fav">Fill with model favorites</button>
+  <button id="clear">Clear</button>
+  <span class="legend"><span><span class="swatch" style="background:var(--win-soft)"></span>Model favorite won</span>
+  <span><span class="swatch" style="background:var(--upset-soft)"></span>Upset (model &lt; 50%)</span></span>
+</div>
+<div class="stats" id="stats"></div>
+<div class="bracket-wrap panel" style="margin-top:12px"><div id="bracket"></div></div>
+<div class="cols2" style="margin-top:14px">
+  <div class="panel"><b>Where this bracket falls among model-simulated brackets</b>
+    <div class="muted" style="margin:4px 0 8px">Log-likelihood of the same games for 4,000 brackets drawn from the model.
+      A well-calibrated model should put reality somewhere in the bulk.</div>
+    <div id="hist"></div></div>
+  <div class="panel"><b>Game by game</b> <span class="muted">(sorted by surprise)</span>
+    <div class="scroll"><table class="data" id="games"></table></div></div>
+</div>
+<div class="panel" style="margin-top:14px"><b>Import / export picks</b>
+  <div class="muted" style="margin:4px 0 6px">JSON mapping game id → winning team. Edit and press Import to apply.</div>
+  <textarea id="json"></textarea>
+  <div class="toolbar" style="margin-top:6px"><button id="import">Import</button></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const s = await (await fetch("/api/summary")).json();
+  const KEY = "ncaa-picks-{{ season }}";
+  let timer = null;
+  const view = new BracketView(document.getElementById("bracket"), s, {
+    mode: "pick", onPick: () => schedule() });
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } })();
+  if (saved) view.setPicksByName(saved);
+  schedule();
+
+  document.getElementById("load-actual").onclick = async () => {
+    view.setPicksByName(await (await fetch("/api/actual")).json()); schedule(); };
+  document.getElementById("load-fav").onclick = async () => {
+    view.setPicksByName(await (await fetch("/api/favorites")).json()); schedule(); };
+  document.getElementById("clear").onclick = () => { view.picks = {}; view.refresh(); schedule(); };
+  document.getElementById("import").onclick = () => {
+    try { view.setPicksByName(JSON.parse(document.getElementById("json").value)); schedule(); }
+    catch (e) { alert("Could not parse JSON: " + e.message); } };
+
+  function schedule() { clearTimeout(timer); timer = setTimeout(score, 150); }
+
+  async function score() {
+    const picks = view.picksByName();
+    try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch {}
+    document.getElementById("json").value = JSON.stringify(picks, null, 1);
+    const r = await (await fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ picks }) })).json();
+    view.gameScores = Object.fromEntries((r.games || []).map((g) => [g.id, g]));
+    view.refresh();
+    render(r);
+  }
+
+  function stat(v, k) { return `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`; }
+
+  function render(r) {
+    const st = document.getElementById("stats");
+    if (!r.n_games) { st.innerHTML = stat("0", "games entered"); document.getElementById("games").innerHTML = "";
+      document.getElementById("hist").innerHTML = ""; return; }
+    const odds = Math.exp(-r.log_likelihood);
+    const vsCoin = (r.log_likelihood - r.coin_flip_log_likelihood) / Math.LN2;
+    st.innerHTML = stat(r.n_games, "games scored") +
+      stat(r.log_likelihood.toFixed(2), "log-likelihood (nats)") +
+      stat(`1 in ${odds < 1e6 ? Math.round(odds).toLocaleString() : odds.toExponential(2)}`, "model probability of exactly these outcomes") +
+      stat((vsCoin >= 0 ? "+" : "") + vsCoin.toFixed(1) + " bits", "better than coin flips") +
+      stat(Math.exp(r.per_game_log_likelihood).toFixed(3), "geometric-mean P per game") +
+      stat(r.brier.toFixed(3), "Brier score (lower is better)") +
+      stat(fmtPct(r.accuracy), "favorite won") +
+      (r.percentile ? stat(fmtPct(r.percentile.percentile), "percentile vs model brackets") : "");
+    const rows = r.games.slice().sort((a, b) => b.surprise_bits - a.surprise_bits);
+    document.getElementById("games").innerHTML =
+      `<tr><th>Round</th><th>Winner</th><th>Loser</th><th class="num">P(win | matchup)</th><th class="num">Pre-tournament P</th><th class="num">Surprise</th></tr>` +
+      rows.map((g) => `<tr><td>${g.round}</td><td>${g.winner}</td><td>${g.loser}</td>
+        <td class="num" style="color:${g.p_win < 0.5 ? "var(--upset)" : "inherit"}">${fmtPct(g.p_win)}</td>
+        <td class="num">${(g.p_pretournament * 100).toFixed(1)}%</td><td class="num">${g.surprise_bits.toFixed(2)} bits</td></tr>`).join("");
+    if (r.percentile) drawHist(r.percentile, r.log_likelihood);
+  }
+
+  function drawHist(p, ll) {
+    const W = 520, H = 170, pad = 24;
+    const edges = p.hist_edges, counts = p.hist, max = Math.max(...counts);
+    const lo = Math.min(edges[0], ll), hi = Math.max(edges[edges.length - 1], ll);
+    const x = (v) => pad + (v - lo) / (hi - lo || 1) * (W - 2 * pad);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    counts.forEach((c, i) => {
+      const h = c / max * (H - 2 * pad);
+      svg += `<rect class="hist-bar" x="${x(edges[i])}" y="${H - pad - h}" width="${Math.max(1, x(edges[i + 1]) - x(edges[i]) - 1)}" height="${h}"/>`;
+    });
+    svg += `<line class="hist-mark" x1="${x(ll)}" x2="${x(ll)}" y1="${pad / 2}" y2="${H - pad}"/>`;
+    svg += `<text x="${x(ll) + 4}" y="${pad}" style="fill:var(--upset)">this bracket</text>`;
+    svg += `<text x="${pad}" y="${H - 6}">${lo.toFixed(1)}</text><text x="${W - pad}" y="${H - 6}" text-anchor="end">${hi.toFixed(1)}</text>`;
+    svg += `<text x="${W / 2}" y="${H - 6}" text-anchor="middle">log-likelihood of the same games</text></svg>`;
+    document.getElementById("hist").innerHTML = svg;
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Team ratings{% endblock %}
+{% block content %}
+<h1>Team ratings</h1>
+<p class="lede">Posterior means of each team's latent skills, translated into expected points per 100 possessions
+against an average Division I opponent on a neutral floor. Net rating includes a 90% credible interval.
+Rates are the team's offensive rates against an average defense.</p>
+<div class="toolbar"><label><input type="checkbox" id="field" checked> Tournament teams only</label>
+  <input id="q" placeholder="Filter…"></div>
+<div class="panel scroll" style="max-height:calc(100vh - 220px)"><table class="data" id="t"></table></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const rows = await (await fetch("/api/teams")).json();
+  const cols = [["rank", "#"], ["team", "Team"], ["seed", "Seed"], ["region", "Region"], ["net", "Net"], ["ortg", "ORtg"], ["drtg", "DRtg"], ["tempo", "Tempo"],
+    ["r.to", "TO%"], ["r.three", "3PA rate"], ["r.p2", "2P%"], ["r.p3", "3P%"], ["r.orb", "OR%"], ["r.ftr", "FT trips"], ["r.ft", "FT%"]];
+  let key = "rank", dir = 1;
+  const get = (r, k) => k.startsWith("r.") ? r.rates[k.slice(2)] : r[k];
+  const fmt = (r, k) => { const v = get(r, k); if (v == null) return "";
+    if (k.startsWith("r.")) return (v * 100).toFixed(1);
+    if (k === "net") return `${v.toFixed(1)} <span class="muted">[${r.net_lo.toFixed(1)}, ${r.net_hi.toFixed(1)}]</span>`;
+    return typeof v === "number" && !Number.isInteger(v) ? v.toFixed(1) : v; };
+  const t = document.getElementById("t");
+  function draw() {
+    const only = document.getElementById("field").checked, q = document.getElementById("q").value.toLowerCase();
+    const rs = rows.filter((r) => (!only || r.seed) && r.team.toLowerCase().includes(q))
+      .sort((a, b) => { const x = get(a, key), y = get(b, key); return (x > y ? 1 : x < y ? -1 : 0) * dir; });
+    t.innerHTML = "<tr>" + cols.map(([k, l]) => `<th data-k="${k}" class="${k === "team" || k === "region" ? "" : "num"}">${l}</th>`).join("") + "</tr>" +
+      rs.map((r) => "<tr>" + cols.map(([k]) => `<td class="${k === "team" || k === "region" ? "" : "num"}">${fmt(r, k)}</td>`).join("") + "</tr>").join("");
+    t.querySelectorAll("th").forEach((th) => (th.onclick = () => { dir = key === th.dataset.k ? -dir : 1; key = th.dataset.k; draw(); }));
+  }
+  document.getElementById("field").onchange = draw; document.getElementById("q").oninput = draw;
+  draw();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}NCAA Bracket Model{% endblock %} · {{ season }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav>
+  <span class="brand">🏀 NCAA {{ season }} Bayesian Bracket</span>
+  <a href="/" class="{{ 'active' if page == 'bracket' }}">Distribution bracket</a>
+  <a href="/score" class="{{ 'active' if page == 'score' }}">Score a bracket</a>
+  <a href="/matchup" class="{{ 'active' if page == 'matchup' }}">Simulate a game</a>
+  <a href="/teams" class="{{ 'active' if page == 'teams' }}">Team ratings</a>
+</nav>
+<main>{% block content %}{% endblock %}</main>
+<div id="tooltip"></div>
+<script src="{{ url_for('static', filename='bracket.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

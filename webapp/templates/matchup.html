@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Simulate a game{% endblock %}
+{% block content %}
+<h1>Simulate a game</h1>
+<p class="lede">Every simulated game draws a posterior sample of both teams' latent skills, the night's shooting /
+turnover / rebounding rates, a possession count, and then plays out every possession. The score is whatever the
+simulated box score adds up to.</p>
+<div class="toolbar">
+  <select id="a"></select> <span>vs</span> <select id="b"></select>
+  <select id="home"><option value="0">Neutral court</option><option value="1">First team at home</option><option value="-1">Second team at home</option></select>
+  <select id="n"><option>1000</option><option selected>5000</option><option>20000</option></select>
+  <button class="primary" id="go">Simulate</button>
+</div>
+<div id="out"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const teams = await (await fetch("/api/team_list")).json();
+  const a = document.getElementById("a"), b = document.getElementById("b");
+  for (const t of teams) { a.add(new Option(t)); b.add(new Option(t)); }
+  const q = new URLSearchParams(location.search);
+  a.value = q.get("a") || "Michigan"; b.value = q.get("b") || "UConn";
+  const LABELS = { pts: "Points", fgm: "FGM", fga: "FGA", fg3m: "3PM", fg3a: "3PA", ftm: "FTM", fta: "FTA",
+    oreb: "Off reb", dreb: "Def reb", tov: "Turnovers", ast: "Assists", stl: "Steals", blk: "Blocks", pf: "Fouls", poss: "Possessions" };
+  document.getElementById("go").onclick = run;
+  run();
+  async function run() {
+    const out = document.getElementById("out");
+    out.innerHTML = `<div class="muted">Simulating…</div>`;
+    const r = await fetch(`/api/matchup?a=${encodeURIComponent(a.value)}&b=${encodeURIComponent(b.value)}&n=${document.getElementById("n").value}&home=${document.getElementById("home").value}`);
+    if (!r.ok) { out.innerHTML = `<div class="muted">${await r.text()}</div>`; return; }
+    const m = await r.json();
+    const [A, B] = m.teams;
+    const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+    let h = `<div class="stats">${stat(fmtPct(m.p_a_wins), `${A} wins`)}${stat(fmtPct(1 - m.p_a_wins), `${B} wins`)}
+      ${stat((m.margin.mean >= 0 ? "+" : "") + m.margin.mean.toFixed(1), `avg margin (${A}), sd ${m.margin.sd.toFixed(1)}`)}
+      ${stat(m.total.mean.toFixed(1), "avg total points")}${stat(fmtPct(m.p_ot), "goes to overtime")}</div>`;
+    h += `<div class="cols2" style="margin-top:12px"><div class="panel"><b>Final margin (${A} − ${B})</b>${hist(m.margin)}</div>`;
+    h += `<div class="panel"><b>Average box score</b> <span class="muted">(10th–90th percentile)</span><table class="data">
+      <tr><th>Stat</th><th class="num">${A}</th><th class="num">${B}</th></tr>` +
+      Object.entries(m.box).map(([k, v]) => `<tr><td>${LABELS[k]}</td>
+        <td class="num">${v.mean[0]} <span class="muted">(${v.p10[0]}–${v.p90[0]})</span></td>
+        <td class="num">${v.mean[1]} <span class="muted">(${v.p10[1]}–${v.p90[1]})</span></td></tr>`).join("") + `</table></div></div>`;
+    h += `<div class="panel" style="margin-top:12px"><b>A few simulated box scores</b><div class="scroll"><table class="data"><tr><th>#</th><th>Team</th>` +
+      Object.keys(LABELS).map((k) => `<th class="num">${LABELS[k]}</th>`).join("") + `</tr>`;
+    m.samples.forEach((s, i) => {
+      [A, B].forEach((t, j) => {
+        h += `<tr><td>${j ? "" : i + 1 + (s.ot ? ` (${s.ot}OT)` : "")}</td><td>${s.pts[j] > s.pts[1 - j] ? "<b>" + t + "</b>" : t}</td>` +
+          Object.keys(LABELS).map((k) => `<td class="num">${s[k][j]}</td>`).join("") + "</tr>";
+      });
+    });
+    h += `</table></div></div>`;
+    out.innerHTML = h;
+  }
+  function hist(m) {
+    const W = 520, H = 190, pad = 22, c = m.hist, e = m.edges, max = Math.max(...c);
+    const x = (v) => pad + (v - e[0]) / (e[e.length - 1] - e[0]) * (W - 2 * pad);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    c.forEach((v, i) => { const hh = v / max * (H - 2 * pad);
+      s += `<rect class="hist-bar" style="${e[i] < 0 ? "fill:var(--upset)" : ""}" x="${x(e[i])}" y="${H - pad - hh}" width="${Math.max(1, x(e[i + 1]) - x(e[i]) - 0.5)}" height="${hh}"/>`; });
+    s += `<line x1="${x(0)}" x2="${x(0)}" y1="${pad / 2}" y2="${H - pad}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+    s += `<text x="${pad}" y="${H - 6}">${e[0]}</text><text x="${x(0)}" y="${H - 6}" text-anchor="middle">0</text><text x="${W - pad}" y="${H - 6}" text-anchor="end">+${e[e.length - 1]}</text></svg>`;
+    return s;
+  }
+})();
+</script>
+{% endblock %}
