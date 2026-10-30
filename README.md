@@ -226,6 +226,20 @@ Then open http://127.0.0.1:5000:
   distribution, and the most surprising stats are listed. Tournament box
   scores are saved by `fetch` to `data/<season>/tournament_games.csv` and are
   never used for fitting.
+
+  **Whole-game unusualness** (`ncaa/evaluate.py`). Box-score stats move
+  together, so per-stat percentiles can't simply be multiplied. Instead the
+  real box score is placed by its Mahalanobis distance from the cloud of
+  simulated box scores, using their own correlations. The summary is the
+  share of simulated games at least that far out: 46% is ordinary, 1% is
+  extraordinary. The page also names the stats that drive it, and a
+  tournament-wide panel ranks every game. Over the 66 tournament games of
+  2026 the shares spread evenly, as calibration requires: 6% below 0.05,
+  17% below 0.10, median 0.54. Field-goal and free-throw *attempts* are left
+  out of this joint score. In the simulator they are fixed by possession
+  bookkeeping, while real box scores are looser (team rebounds, end-of-half
+  heaves), and including them made 20% of games score below 0.05. That
+  rigidity is a known limitation of the simulator.
 * **Team ratings** – offensive/defensive efficiency, net rating with 90%
   interval, tempo and component rates.
 

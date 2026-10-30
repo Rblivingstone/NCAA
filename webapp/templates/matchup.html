@@ -14,6 +14,12 @@ simulated box score adds up to.</p>
   <span class="muted" id="meeting-note"></span>
 </div>
 <div id="out"></div>
+<div class="panel" style="margin-top:14px" id="tourney">
+  <b>How unusual was every {{ season }} tournament game?</b>
+  <span class="muted">— each real box score scored jointly against 3,000 simulations of that matchup (share of simulated
+    games at least as unusual). A calibrated model spreads these evenly between 0 and 1. Click a game to load it.</span>
+  <div class="cols2" style="margin-top:8px"><div id="tourney-hist"></div><div class="scroll"><table class="data" id="tourney-table"></table></div></div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -110,9 +116,57 @@ simulated box score adds up to.</p>
       (${act.margin > 0 ? "+" : ""}${act.margin}) sits at the <b>${pctile(act.margin_percentile)}</b> percentile of simulated margins.
       <b>${act.outside_90} of ${act.n_stats}</b> team stats fell outside the model's 90% range
       <span class="muted">(about ${Math.round(act.n_stats / 10)} expected if the model is calibrated)</span>.</div>
-      <div class="muted" style="margin-top:4px">Most surprising: ${rows.map((r) => `${r.k === "poss" ? "" : (r.j ? B : A) + " "}${LABELS[r.k]} ${r.v}
+      ${act.joint ? jointBlock(act.joint, A, B) : ""}
+      <div class="muted" style="margin-top:4px">Most surprising single stats: ${rows.map((r) => `${r.k === "poss" ? "" : (r.j ? B : A) + " "}${LABELS[r.k]} ${r.v}
         (${pctile(r.p)} pct)`).join(" · ")}</div></div>`;
   }
+  const STATNAME = { fgm: "FGM", fg3m: "3PM", fg3a: "3PA", ftm: "FTM", oreb: "off. rebounds", tov: "turnovers",
+    ast: "assists", stl: "steals", blk: "blocks", pf: "fouls" };
+  function jointBlock(j, A, B) {
+    const W = 300, H = 70, e = j.edges, c = j.hist, max = Math.max(...c);
+    const x = (v) => 4 + (v - e[0]) / (e[e.length - 1] - e[0]) * (W - 8);
+    let svg = `<svg viewBox="0 0 ${W} ${H + 14}" width="${W}" role="img" aria-label="distance of simulated games from the centre">`;
+    c.forEach((v, i) => { const h = v / max * H; const far = e[i] >= j.distance;
+      svg += `<rect x="${x(e[i])}" y="${H - h}" width="${Math.max(1, x(e[i + 1]) - x(e[i]) - 1)}" height="${h}" rx="1"
+        fill="${far ? "var(--upset)" : "var(--accent)"}" opacity="${far ? 0.75 : 0.45}"/>`; });
+    svg += `<line class="hist-mark" x1="${x(j.distance)}" x2="${x(j.distance)}" y1="0" y2="${H}"/>` +
+      `<text x="${Math.min(x(j.distance) + 3, W - 70)}" y="10" style="fill:var(--upset)">this game</text>` +
+      `<text x="4" y="${H + 12}">typical</text><text x="${W - 4}" y="${H + 12}" text-anchor="end">unusual →</text></svg>`;
+    const p = j.p_value;
+    const verdict = p < 0.01 ? "extraordinary" : p < 0.05 ? "very unusual" : p < 0.2 ? "somewhat unusual" : "ordinary";
+    const drivers = j.drivers.filter((d) => d.share > 0.1).map((d) => `${d.team === "a" ? A : B} ${STATNAME[d.stat]}`);
+    return `<div class="joint"><div><div class="v">${p < 0.001 ? "<0.1%" : (100 * p).toFixed(p < 0.1 ? 1 : 0) + "%"}</div>
+        <div class="k">of simulated games were at least this unusual<br>(whole box score, ${j.dims} stats jointly): <b>${verdict}</b></div></div>
+      <div>${svg}</div>
+      <div class="muted" style="max-width:340px">Mahalanobis distance from the centre of the simulated box scores, using the
+        simulations' own correlations.${drivers.length ? ` Mostly driven by ${drivers.join(", ")}.` : ""}</div></div>`;
+  }
+
+  // ----- all tournament games -----
+  (async () => {
+    const t = await (await fetch("/api/tournament_unusualness")).json();
+    const W = 420, H = 130, pad = 22, top = 16, max = Math.max(...t.hist), n = t.games.length;
+    let svg = `<svg viewBox="0 ${-top} ${W} ${H + 30 + top}" width="100%" style="max-height:220px" role="img" aria-label="distribution of unusualness across games">`;
+    t.hist.forEach((v, i) => { const h = v / max * H; const bw = (W - 2 * pad) / 10;
+      svg += `<rect x="${pad + i * bw + 1}" y="${H - h}" width="${bw - 2}" height="${h}" rx="2" fill="var(--accent)" opacity=".6"/>` +
+        `<text x="${pad + (i + 0.5) * bw}" y="${H - h - 3}" text-anchor="middle">${v}</text>`; });
+    svg += `<line x1="${pad}" x2="${W - pad}" y1="${H - n / 10 / max * H}" y2="${H - n / 10 / max * H}" stroke="var(--muted)" stroke-dasharray="4 3"/>` +
+      `<text x="${pad}" y="${H + 14}">0 (unusual)</text><text x="${W - pad}" y="${H + 14}" text-anchor="end">1 (typical)</text></svg>`;
+    document.getElementById("tourney-hist").innerHTML = svg + `<div class="muted">Dashed line: an even spread
+      (${(n / 10).toFixed(1)} games per bin). ${n} games: ${fmtPct(t.share_below_05)} below 0.05
+      (5% expected), ${fmtPct(t.share_below_10)} below 0.10 (10% expected), median ${t.median.toFixed(2)} (0.5 expected).</div>`;
+    const tbl = document.getElementById("tourney-table");
+    tbl.innerHTML = `<tr><th>Game</th><th class="num">Score</th><th class="num">Unusualness</th><th class="num">Model's P(winner)</th><th>Driven by</th></tr>` +
+      t.games.map((g) => `<tr data-a="${g.teams[0]}" data-b="${g.teams[1]}" style="cursor:pointer"><td>${g.date} · ${g.teams[0]} vs ${g.teams[1]}</td>
+        <td class="num">${g.score[0]}–${g.score[1]}</td>
+        <td class="num" style="color:${g.p_value < 0.05 ? "var(--upset)" : "inherit"}">${g.p_value < 0.001 ? "<0.001" : g.p_value.toFixed(3)}</td>
+        <td class="num">${fmtPct(g.p_winner)}</td>
+        <td class="muted">${g.drivers.filter((d) => d.share > 0.1).map((d) => `${d.team} ${STATNAME[d.stat]}`).join(", ")}</td></tr>`).join("");
+    tbl.querySelectorAll("tr[data-a]").forEach((tr) => (tr.onclick = async () => {
+      a.value = tr.dataset.a; b.value = tr.dataset.b; await loadMeetings(); run(); window.scrollTo({ top: 0, behavior: "smooth" });
+    }));
+  })();
+
   function kdeCard(stat, label, d, teams, real) {
     const { g, x, y } = kdeScales(d);
     const fmt = (v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1));

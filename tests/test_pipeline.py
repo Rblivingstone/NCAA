@@ -291,3 +291,22 @@ def test_pool_win_probability_matches_monte_carlo(bracket, post):
             ties = (best == top[:, None]).sum(1)
             trials.append(np.where(ours > top, 1.0, np.where(ours == top, 1.0 / (ties + 1), 0.0)).mean())
         assert exact == pytest.approx(np.mean(trials), abs=0.01)
+
+
+def test_unusualness_is_uniform_for_games_from_the_model(post):
+    from types import SimpleNamespace
+
+    from ncaa.evaluate import JOINT_STATS, game_unusualness
+
+    rng = np.random.default_rng(3)
+    n = 3000
+    res = simulate_games(post, rng.integers(20, size=n), np.full(n, 5), np.full(n, 40), rng)
+    fresh = simulate_games(post, rng.integers(20, size=200), np.full(200, 5), np.full(200, 40), rng)
+    ps = []
+    for i in range(200):
+        row = SimpleNamespace(**{s: fresh[s][i, 0] for s in JOINT_STATS + ["pts"]},
+                              **{"opp_" + s: fresh[s][i, 1] for s in JOINT_STATS + ["pts"]})
+        ps.append(game_unusualness(post, 5, 40, 0, row, res=res)["p_value"])
+    ps = np.array(ps)
+    assert 0.4 < np.median(ps) < 0.6
+    assert np.mean(ps < 0.1) < 0.17

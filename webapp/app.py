@@ -15,6 +15,7 @@ from ncaa import data, model
 from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, espn_points, expected_points,
                           favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
                           resolve_picks, score_bracket, simulate_tournament, upset_distribution)
+from ncaa.evaluate import game_unusualness, tournament_unusualness
 from ncaa.pool import Pool, PublicModel, best_pool_bracket
 from ncaa.simulate import BOX_STATS, simulate_games
 
@@ -298,6 +299,22 @@ def _meeting_rows(a: str, b: str):
     return g[(g.team == a) & (g.opponent == b)].sort_values("date", ascending=False)
 
 
+@lru_cache(maxsize=1)
+def tournament_report() -> dict:
+    """Every tournament game's whole-box-score unusualness, plus how they spread."""
+    games = tournament_unusualness(state()[4], data.load_tournament_games(SEASON))
+    p = np.array([g["p_value"] for g in games])
+    return {"games": sorted(games, key=lambda g: g["p_value"]),
+            "hist": np.histogram(p, bins=10, range=(0, 1))[0].tolist(),
+            "share_below_05": float((p < 0.05).mean()), "share_below_10": float((p < 0.10).mean()),
+            "median": float(np.median(p))}
+
+
+@app.route("/api/tournament_unusualness")
+def api_tournament_unusualness():
+    return jsonify(tournament_report())
+
+
 @app.route("/api/meetings")
 def api_meetings():
     """Real games between two teams, tournament games first."""
@@ -362,7 +379,10 @@ def api_matchup():
         rows = _meeting_rows(a, b)
         rows = rows[rows.game_id == int(request.args["game_id"])]
         if len(rows):
-            actual_game = compare_to_game(res, next(rows.itertuples()))
+            row = next(rows.itertuples())
+            actual_game = compare_to_game(res, row)
+            u = game_unusualness(post, ia, ib, home, row, res=res)
+            actual_game["joint"] = {k: u[k] for k in ("distance", "p_value", "dims", "hist", "edges", "drivers")}
     return jsonify({
         "teams": [a, b], "n": n, "p_a_wins": float(res["a_wins"].mean()),
         "p_ot": float((res["ot"] > 0).mean()),

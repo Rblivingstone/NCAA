@@ -176,3 +176,8 @@ table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
 .kde-card.surprise { border-color: var(--upset); }
 .real { color: var(--ink); font-weight: 600; }
 .real-panel { border-left: 3px solid var(--accent); }
+
+.joint { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.joint .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.joint .k { color: var(--muted); font-size: 12px; max-width: 280px; }
+.joint .k b { color: var(--ink); }
