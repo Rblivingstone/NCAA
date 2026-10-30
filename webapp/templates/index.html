@@ -7,6 +7,9 @@ the shading is that probability. Hover a game for the full distribution of who g
 Click a team to follow it through the bracket (click again to clear).</p>
 <div class="toolbar">
   <label class="switch"><input type="checkbox" id="compare"> Compare with actual results</label>
+  <label class="switch"><input type="checkbox" id="alert-on" checked> Flag potential upsets</label>
+  <select id="alert-at" title="Flag when the worse seed's chance is at least"><option value="0.35">≥ 35%</option>
+    <option value="0.4" selected>≥ 40%</option><option value="0.45">≥ 45%</option><option value="0.5">≥ 50% (model favors the lower seed)</option></select>
   <label>Follow team <select id="follow"><option value="">—</option></select></label>
   <span class="legend"><span><span class="swatch" style="background:var(--accent-soft)"></span>P(team is here)</span>
   <span class="muted" id="follow-note"></span></span>
@@ -30,6 +33,15 @@ Click a team to follow it through the bracket (click again to clear).</p>
   const s = await (await fetch("/api/summary")).json();
   document.getElementById("nsims").textContent = s.n_sims.toLocaleString();
   const view = new BracketView(document.getElementById("bracket"), s, { mode: "dist" });
+
+  // ----- potential-upset flags -----
+  {
+    const h2h = await (await fetch("/api/h2h")).json();
+    view.h2h = h2h.p;
+    const on = document.getElementById("alert-on"), at = document.getElementById("alert-at");
+    const apply = () => { view.alertAt = on.checked ? +at.value : null; view.refresh(); };
+    on.onchange = apply; at.onchange = apply; apply();
+  }
   const sel = document.getElementById("follow");
   let cmp = null;
   document.getElementById("compare").onchange = async (e) => {

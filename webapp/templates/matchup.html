@@ -42,6 +42,12 @@ simulated box score adds up to.</p>
       Object.entries(m.box).map(([k, v]) => `<tr><td>${LABELS[k]}</td>
         <td class="num">${v.mean[0]} <span class="muted">(${v.p10[0]}–${v.p90[0]})</span></td>
         <td class="num">${v.mean[1]} <span class="muted">(${v.p10[1]}–${v.p90[1]})</span></td></tr>`).join("") + `</table></div></div>`;
+    h += `<div class="panel" style="margin-top:12px"><b>Distribution of every box-score stat</b>
+      <span class="muted">— kernel density over ${m.n.toLocaleString()} simulated games; dashed lines mark each team's mean.
+      Hover a chart to read the chance of reaching a value.</span>
+      <div class="kde-legend"><span class="key"><i style="background:var(--series-1)"></i>${A}</span>
+        <span class="key"><i style="background:var(--series-2)"></i>${B}</span></div>
+      <div class="kde-grid">` + Object.keys(LABELS).map((k) => kdeCard(k, LABELS[k], m.density[k], [A, B])).join("") + `</div></div>`;
     h += `<div class="panel" style="margin-top:12px"><b>A few simulated box scores</b><div class="scroll"><table class="data"><tr><th>#</th><th>Team</th>` +
       Object.keys(LABELS).map((k) => `<th class="num">${LABELS[k]}</th>`).join("") + `</tr>`;
     m.samples.forEach((s, i) => {
@@ -52,6 +58,64 @@ simulated box score adds up to.</p>
     });
     h += `</table></div></div>`;
     out.innerHTML = h;
+    out.querySelectorAll(".kde-card").forEach((card) => wireKde(card, m.density[card.dataset.stat], [A, B]));
+  }
+
+  // ----- density small multiples -----
+  const KW = 260, KH = 110, KP = { l: 6, r: 6, t: 8, b: 18 };
+  function kdeScales(d) {
+    const g = d.grid, ymax = Math.max(...d.y[0], ...d.y[1]) || 1;
+    const x = (v) => KP.l + (v - g[0]) / (g[g.length - 1] - g[0]) * (KW - KP.l - KP.r);
+    const y = (v) => KH - KP.b - v / ymax * (KH - KP.t - KP.b);
+    return { g, x, y };
+  }
+  function kdeCard(stat, label, d, teams) {
+    const { g, x, y } = kdeScales(d);
+    const fmt = (v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1));
+    let svg = `<svg viewBox="0 0 ${KW} ${KH}" role="img" aria-label="${label} distribution for ${teams.join(" and ")}">`;
+    svg += `<line class="axis" x1="${KP.l}" x2="${KW - KP.r}" y1="${KH - KP.b}" y2="${KH - KP.b}"/>`;
+    [0, 1].forEach((j) => {
+      const pts = g.map((v, i) => `${x(v).toFixed(1)},${y(d.y[j][i]).toFixed(1)}`);
+      const col = `var(--series-${j + 1})`;
+      svg += `<path class="area" fill="${col}" d="M${x(g[0])},${KH - KP.b}L${pts.join("L")}L${x(g[g.length - 1])},${KH - KP.b}Z"/>`;
+      svg += `<path class="curve" stroke="${col}" d="M${pts.join("L")}"/>`;
+      svg += `<line class="mean" stroke="${col}" x1="${x(d.mean[j])}" x2="${x(d.mean[j])}" y1="${KP.t}" y2="${KH - KP.b}"/>`;
+    });
+    const ticks = [g[0] + 2, (g[0] + g[g.length - 1]) / 2, g[g.length - 1] - 2];
+    ticks.forEach((v, i) => (svg += `<text x="${x(v)}" y="${KH - 4}" text-anchor="${["start", "middle", "end"][i]}">${fmt(v)}</text>`));
+    svg += `<line class="cross" y1="${KP.t}" y2="${KH - KP.b}" x1="-10" x2="-10"/>` +
+      `<circle class="dot" r="4" cx="-10" cy="-10" fill="var(--series-1)"/><circle class="dot" r="4" cx="-10" cy="-10" fill="var(--series-2)"/>`;
+    svg += `<rect x="0" y="0" width="${KW}" height="${KH}" fill="transparent" class="hit"/></svg>`;
+    return `<div class="kde-card" data-stat="${stat}"><div class="t">${label}<span>${fmt(d.mean[0])} vs ${fmt(d.mean[1])}</span></div>${svg}<div class="kde-tip"></div></div>`;
+  }
+  function wireKde(card, d, teams) {
+    const { g, x, y } = kdeScales(d);
+    const svg = card.querySelector("svg"), tip = card.querySelector(".kde-tip");
+    const cross = svg.querySelector(".cross"), dots = svg.querySelectorAll(".dot");
+    // Upper-tail probabilities P(stat >= v) from the density, by the trapezoid rule.
+    const tail = d.y.map((ys) => {
+      const c = new Array(g.length).fill(0);
+      for (let i = g.length - 2; i >= 0; i--) c[i] = c[i + 1] + (ys[i] + ys[i + 1]) / 2 * (g[i + 1] - g[i]);
+      return c.map((v) => v / (c[0] || 1));
+    });
+    svg.addEventListener("mousemove", (e) => {
+      const r = svg.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width * KW;
+      let i = 0, best = Infinity;
+      g.forEach((v, k) => { const dd = Math.abs(x(v) - px); if (dd < best) { best = dd; i = k; } });
+      cross.setAttribute("x1", x(g[i])); cross.setAttribute("x2", x(g[i]));
+      dots.forEach((dot, j) => { dot.setAttribute("cx", x(g[i])); dot.setAttribute("cy", y(d.y[j][i])); });
+      const v = g[i];
+      tip.innerHTML = `<b>${v.toFixed(Math.abs(v) >= 10 ? 0 : 1)} or more</b><br>` + teams.map((t, j) =>
+        `<i style="background:var(--series-${j + 1})"></i>${t} ${fmtPct(tail[j][i])}`).join("<br>");
+      tip.style.display = "block";
+      card.classList.add("hover");
+      const left = (x(g[i]) / KW) * card.clientWidth;
+      tip.style.left = Math.min(card.clientWidth - tip.offsetWidth - 4, Math.max(4, left + 10)) + "px";
+      tip.style.top = "26px";
+    });
+    svg.addEventListener("mouseleave", () => { tip.style.display = "none"; card.classList.remove("hover"); cross.setAttribute("x1", -10); cross.setAttribute("x2", -10);
+      dots.forEach((dot) => { dot.setAttribute("cx", -10); dot.setAttribute("cy", -10); }); });
   }
   function hist(m) {
     const W = 520, H = 190, pad = 22, c = m.hist, e = m.edges, max = Math.max(...c);

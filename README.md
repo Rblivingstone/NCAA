@@ -195,6 +195,11 @@ Then open http://127.0.0.1:5000:
   distribution of who reaches it and who wins it, and the most likely
   matchups. Click a team (or use *Follow team*) to trace its odds through the
   bracket. An advancement-odds table sits below.
+* **Potential-upset flags** (both bracket pages, on by default) – a ⚠ badge
+  marks any game whose worse-seeded team has at least a 35/40/45/50%
+  head-to-head chance (threshold selectable). It uses the picked matchup on
+  the build page, the actual one in compare mode, and the most likely one in
+  the distribution view.
 * **Compare with actual results** (toggle on the distribution bracket) –
   each line shows the team that really got there, shaded by the model's
   pre-tournament probability of that. Games where the model's head-to-head
@@ -210,7 +215,9 @@ Then open http://127.0.0.1:5000:
   the full box score, and the seed is shown so a run can be replayed. The
   simulated bracket is scored like any other.
 * **Simulate a game** – any two Division I teams, neutral or home court:
-  win probability, margin distribution, average box score and sample box scores.
+  win probability, margin distribution, average box score and sample box
+  scores, plus a kernel-density chart of every box-score stat for both teams
+  (with mean lines; hover for the chance of reaching a value).
 * **Team ratings** – offensive/defensive efficiency, net rating with 90%
   interval, tempo and component rates.
 

@@ -311,7 +311,33 @@ def api_matchup():
                    "hist": np.histogram(margin, bins=edges)[0].tolist(), "edges": edges.tolist()},
         "total": {"mean": float(pts.sum(1).mean()), "sd": float(pts.sum(1).std())},
         "box": box, "samples": samples,
+        # Density of every box-score stat for both teams over the simulated games.
+        "density": {s: (lambda g: {"grid": g.round(2).tolist(),
+                                   "y": [kde(res[s][:, j], g).round(5).tolist() for j in range(2)],
+                                   "mean": res[s].mean(0).round(2).tolist()})(
+            np.linspace(np.percentile(res[s], 0.5) - 2, np.percentile(res[s], 99.5) + 2, 90))
+            for s in BOX_STATS},
     })
+
+
+def kde(samples: np.ndarray, grid: np.ndarray) -> np.ndarray:
+    """Gaussian kernel density (Silverman bandwidth, at least 0.6 so integer counts read as a smooth curve)."""
+    x = samples.astype(float)
+    n = len(x)
+    sd = x.std()
+    iqr = np.subtract(*np.percentile(x, [75, 25]))
+    bw = max(0.9 * min(sd, iqr / 1.34 if iqr > 0 else sd) * n ** -0.2, 0.6)
+    dens = np.zeros_like(grid)
+    for chunk in np.array_split(x, max(1, n // 2000)):
+        dens += np.exp(-0.5 * ((grid[:, None] - chunk[None, :]) / bw) ** 2).sum(1)
+    return dens / (n * bw * np.sqrt(2 * np.pi))
+
+
+@app.route("/api/h2h")
+def api_h2h():
+    """Head-to-head win probabilities between tournament teams (row beats column)."""
+    br, _, _, W, _ = state()
+    return jsonify({"teams": br.teams, "p": np.round(W.mean(0), 4).tolist()})
 
 
 @app.route("/api/team_list")

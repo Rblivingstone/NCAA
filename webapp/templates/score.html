@@ -44,6 +44,9 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   <button id="load-fav">Game-by-game favorites</button>
   <button id="clear">Clear</button>
   <label class="switch"><input type="checkbox" id="mark-actual"> Mark picks against actual results</label>
+  <label class="switch"><input type="checkbox" id="alert-on" checked> Flag potential upsets</label>
+  <select id="alert-at" title="Flag when the worse seed's chance is at least"><option value="0.35">≥ 35%</option>
+    <option value="0.4" selected>≥ 40%</option><option value="0.45">≥ 45%</option><option value="0.5">≥ 50% (model favors the lower seed)</option></select>
   <span class="legend"><span><span class="swatch" style="background:var(--win-soft)"></span>Model favorite won</span>
   <span><span class="swatch" style="background:var(--upset-soft)"></span>Upset (model &lt; 50%)</span></span>
 </div>
@@ -202,6 +205,15 @@ how it compares with brackets the model itself generates. Or let the optimizer b
 
   function stat(v, k) { return `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`; }
 
+
+  // ----- potential-upset flags -----
+  {
+    const h2h = await (await fetch("/api/h2h")).json();
+    view.h2h = h2h.p;
+    const on = document.getElementById("alert-on"), at = document.getElementById("alert-at");
+    const apply = () => { view.alertAt = on.checked ? +at.value : null; view.refresh(); };
+    on.onchange = apply; at.onchange = apply; apply();
+  }
   const markBox = document.getElementById("mark-actual");
   let cmp = null;
   markBox.onchange = async () => {

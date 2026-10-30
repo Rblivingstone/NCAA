@@ -1,4 +1,5 @@
 :root {
+  --series-1: #2a78d6; --series-2: #eb6834;
   --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #d9d9de;
   --accent: #2563eb; --accent-soft: rgba(37, 99, 235, 0.16); --win: #15803d; --win-soft: rgba(21, 128, 61, 0.14);
   --upset: #b91c1c; --upset-soft: rgba(185, 28, 28, 0.13); --hl: #f59e0b; --hl-soft: rgba(245, 158, 11, 0.22);
@@ -6,6 +7,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
+    --series-1: #3987e5; --series-2: #d95926;
     --bg: #141417; --panel: #1e1e22; --ink: #ececf0; --muted: #9a9aa3; --line: #34343b;
     --accent: #60a5fa; --accent-soft: rgba(96, 165, 250, 0.2); --win: #4ade80; --win-soft: rgba(74, 222, 128, 0.15);
     --upset: #f87171; --upset-soft: rgba(248, 113, 113, 0.16); --hl: #fbbf24; --hl-soft: rgba(251, 191, 36, 0.2);
@@ -50,7 +52,9 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .first-four .game { width: 170px; }
 .ff-title { font-weight: 700; margin-right: 4px; }
 
-.game { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; cursor: default; }
+.game { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; cursor: default; }
+.game .slot:first-child { border-radius: 4px 4px 0 0; }
+.game .slot:last-child { border-radius: 0 0 4px 4px; }
 .game:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .slot { --p: 0%; display: flex; align-items: center; gap: 3px; padding: 2px 4px; font-size: 12px; height: 20px; white-space: nowrap; cursor: pointer;
   background: linear-gradient(to right, var(--accent-soft) var(--p), transparent var(--p)); }
@@ -134,3 +138,32 @@ table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
 .tip-table.box td, .tip-table.box th { padding-right: 7px; text-align: right; }
 .tip-table.box td:first-child { text-align: left; }
 #tooltip:has(.box) { max-width: 760px; }
+
+/* ---- box-score density small multiples ---- */
+.kde-legend { display: flex; gap: 16px; align-items: center; margin: 4px 0 10px; color: var(--muted); }
+.kde-legend .key { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); }
+.kde-legend .key i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.kde-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.kde-card { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px 4px; }
+.kde-card .t { font-weight: 600; font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
+.kde-card .t span { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.kde-card svg { display: block; width: 100%; height: auto; overflow: visible; }
+.kde-card .axis { stroke: var(--line); }
+.kde-card .area { stroke: none; opacity: .1; }
+.kde-card .curve { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.kde-card .mean { stroke-width: 1.5; stroke-dasharray: 3 3; }
+.kde-card .cross { stroke: var(--muted); stroke-width: 1; }
+.kde-card .cross, .kde-card .dot { visibility: hidden; }
+.kde-card.hover .cross, .kde-card.hover .dot { visibility: visible; }
+.kde-card .dot { stroke: var(--panel); stroke-width: 2; }
+.kde-card text { fill: var(--muted); font-size: 10px; }
+.kde-tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: var(--shadow); padding: 5px 8px; font-size: 11px; white-space: nowrap; z-index: 3; display: none; }
+.kde-tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+
+/* ---- potential-upset flag ---- */
+.game.upset-alert { border-color: var(--hl); }
+.game.upset-alert::before { content: attr(data-alert); position: absolute; top: -9px; left: 6px; z-index: 2;
+  background: var(--hl); color: #1d1d1f; font-size: 9px; font-weight: 700; line-height: 14px; padding: 0 5px;
+  border-radius: 7px; box-shadow: 0 0 0 2px var(--panel); white-space: nowrap; }
+.tip-alert { color: var(--ink); background: var(--hl-soft); border-radius: 4px; padding: 3px 6px; margin-bottom: 4px; }

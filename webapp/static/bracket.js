@@ -24,6 +24,9 @@ class BracketView {
     this.compare = null;      // /api/compare data: overlay the real results
     this.markActual = false;  // pick mode: mark picks right/wrong against the real results
     this.simGames = null;     // pick mode: a simulated tournament's games (scores, box scores)
+    this.h2h = null;          // head-to-head win probabilities (row beats column), for upset alerts
+    this.alertAt = null;      // flag a game when the worse seed's chance is at least this (null = off)
+    this.alerts = {};
     this.games = {};
     this.b.games.forEach((g, i) => (this.games[g.id] = { ...g, dist: summary.games[i], idx: i }));
     this.tip = document.getElementById("tooltip");
@@ -92,7 +95,41 @@ class BracketView {
     return this.picks[v] ?? null;
   }
 
+  // The matchup a game shows: the picked teams, the actual ones, or the most likely pair.
+  matchupOf(g) {
+    if (this.mode === "pick") {
+      const a = this.pickedSide(g, 0), b = this.pickedSide(g, 1);
+      return a == null || b == null ? null : [a, b];
+    }
+    const c = this.compare && this.compare.games[g.id];
+    if (c) return c.teams.map((n) => this.b.teams.findIndex((t) => t.name === n));
+    const m = g.dist.matchups[0];
+    return m ? m.teams : null;
+  }
+
+  // Potential upset: the worse-seeded team's head-to-head chance is at least alertAt.
+  updateAlerts() {
+    this.alerts = {};
+    if (this.alertAt == null || !this.h2h) return;
+    for (const g of Object.values(this.games)) {
+      const mu = this.matchupOf(g);
+      if (!mu) continue;
+      const [a, b] = mu, sa = this.team(a).seed, sb = this.team(b).seed;
+      if (sa === sb) continue;
+      const [dog, fav] = sa > sb ? [a, b] : [b, a];
+      const p = this.h2h[dog][fav];
+      if (p >= this.alertAt) this.alerts[g.id] = { dog, fav, p };
+    }
+  }
+
   refresh() {
+    this.updateAlerts();
+    this.el.querySelectorAll(".game").forEach((node) => {
+      const al = this.alerts[node.dataset.id];
+      node.classList.toggle("upset-alert", !!al);
+      if (al) node.dataset.alert = `⚠ ${Math.round(al.p * 100)}%`;
+      else delete node.dataset.alert;
+    });
     this.el.querySelectorAll(".game").forEach((node) => {
       const c = this.compare && this.compare.games[node.dataset.id];
       const show = c && (this.mode === "dist");
@@ -249,6 +286,12 @@ class BracketView {
     const teams = d.teams.slice(0, 16);
     const top2 = d.teams.slice(0, 2);
     let h = `<div class="tip-head">${this.roundName(g)}</div>`;
+    const al = this.alerts[id];
+    if (al) {
+      const d = this.team(al.dog), f = this.team(al.fav);
+      h += `<div class="tip-alert">⚠ Potential upset: ${d.seed} ${d.name} has a ${fmtPct(al.p)} chance against ${f.seed} ${f.name}` +
+        `${this.mode === "dist" && !(this.compare && this.compare.games[id]) ? " (in the most likely matchup)" : ""}.</div>`;
+    }
     const sim = this.mode === "pick" && this.simGames && this.simGames[id];
     if (sim) {
       const L = { pts: "PTS", fgm: "FGM", fga: "FGA", fg3m: "3PM", fg3a: "3PA", ftm: "FTM", fta: "FTA", oreb: "OREB",
