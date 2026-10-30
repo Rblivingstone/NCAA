@@ -92,3 +92,16 @@ def tournament_unusualness(post: Posterior, tgames, n: int = 3000) -> list[dict]
                     "drivers": [{"team": [row.team, row.opponent][d["team"] == "b"], "stat": d["stat"],
                                  "share": d["share"]} for d in u["drivers"]]})
     return out
+
+
+def kde(samples: np.ndarray, grid: np.ndarray) -> np.ndarray:
+    """Gaussian kernel density (Silverman bandwidth, at least 0.6 so integer counts read as a smooth curve)."""
+    x = samples.astype(float)
+    n = len(x)
+    sd = x.std()
+    iqr = np.subtract(*np.percentile(x, [75, 25]))
+    bw = max(0.9 * min(sd, iqr / 1.34 if iqr > 0 else sd) * n ** -0.2, 0.6)
+    dens = np.zeros_like(grid)
+    for chunk in np.array_split(x, max(1, n // 2000)):
+        dens += np.exp(-0.5 * ((grid[:, None] - chunk[None, :]) / bw) ** 2).sum(1)
+    return dens / (n * bw * np.sqrt(2 * np.pi))

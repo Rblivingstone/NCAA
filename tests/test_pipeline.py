@@ -376,3 +376,17 @@ def test_preseason_posterior_carries_last_season_over(post):
     slope = (zbar_prev * zbar_new).sum() / (zbar_prev ** 2).sum()
     assert 0.55 < slope < 0.75                                     # shrunk toward average by ~rho
     assert pre.z.std(0).mean() > post.z.std(0).mean()              # and more uncertain
+
+
+def test_shift_probability_superiority():
+    from ncaa.ingame import superiority
+
+    rng = np.random.default_rng(0)
+    x = rng.poisson(10, 5000)
+    assert superiority(x, x) == pytest.approx(0.5)
+    assert superiority(x, rng.poisson(10, 5000)) == pytest.approx(0.5, abs=0.02)
+    assert superiority(x + 20, x) > 0.999 and superiority(x, x + 20) < 0.001
+    # A known final value: q is that value's mid-percentile in the pre-game distribution.
+    pre = rng.poisson(10, 5000)
+    q = superiority(np.full(10, 13), pre)
+    assert q == pytest.approx((pre < 13).mean() + 0.5 * (pre == 13).mean())

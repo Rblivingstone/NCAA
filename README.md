@@ -225,6 +225,21 @@ games were in its training data, which flatters it). In the last two minutes
 ESPN is better; it presumably uses shot-clock and timeout state that this
 model doesn't.
 
+**How far the game has moved the forecast.** The Live page shows the end-of-game
+density of every stat for each team (28 charts). The solid curve is the forecast
+now, after the in-game updates; the dotted curve is the pre-game forecast; a
+thin line marks the count so far. Movement is measured by the probability of
+superiority q = P(final now > final pre-game), with ties counted half. The
+**shift** |2q − 1| is 0 when the two forecasts agree and 1 when they no longer
+overlap. A chart's edge turns red above 0.95 (a two-sided 95% level), and a
+sparkline under each chart traces the shift through the game. (A classic
+two-sample test would be meaningless here: with thousands of simulations
+every difference is "significant", and the live forecast contains the
+observed counts.) At the final whistle q is the real value's mid-percentile
+in the pre-game forecast, so a flag means the stat finished outside the
+model's central 95%. In the 2026 final, Michigan's 3-pointers ↓ and UConn's
+offensive rebounds ↑ drifted throughout and are flagged at the end.
+
 **Live tournament bracket.** `simulate_tournament(forced=..., live=...)` locks
 in finished games and settles games in progress with their current in-game
 win probability. The distribution bracket's *As of* control re-simulates the

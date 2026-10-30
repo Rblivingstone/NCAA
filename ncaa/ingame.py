@@ -225,12 +225,54 @@ def forecast(post: Posterior, a: int, b: int, home: float, state: LiveState, n: 
     }
 
 
-def pregame(post: Posterior, a: int, b: int, home: float, n: int = 4000, seed: int | None = None) -> dict:
+def pregame(post: Posterior, a: int, b: int, home: float, n: int = 4000, seed: int | None = None,
+            samples: bool = False) -> dict:
     """The pre-game forecast (no data yet), for comparison with the live one."""
     rng = np.random.default_rng(seed)
     res = simulate_games(post, rng.integers(post.n_draws, size=n), np.full(n, a), np.full(n, b), rng, home=home)
-    return {"p_win": [float(res["a_wins"].mean()), float(1 - res["a_wins"].mean())],
-            "final": {s: {"mean": res[s].mean(0).round(1).tolist()} for s in STATS if s in res}}
+    out = {"p_win": [float(res["a_wins"].mean()), float(1 - res["a_wins"].mean())],
+           "final": {s: {"mean": res[s].mean(0).round(1).tolist()} for s in STATS if s in res}}
+    if samples:
+        out["samples"] = {s: res[s] for s in STATS}
+    return out
+
+
+def superiority(live: np.ndarray, pre: np.ndarray) -> float:
+    """q = P(X_live > X_pre) + P(X_live = X_pre)/2 for independent draws of two integer-valued stats.
+
+    0.5 when the two forecasts agree; near 1 (or 0) when the game has pushed the
+    final value clearly above (below) what was expected before tip-off.
+    """
+    lo = int(min(live.min(), pre.min()))
+    hi = int(max(live.max(), pre.max()))
+    f_live = np.bincount(live.astype(int) - lo, minlength=hi - lo + 1) / len(live)
+    f_pre = np.bincount(pre.astype(int) - lo, minlength=hi - lo + 1) / len(pre)
+    below = np.cumsum(f_pre) - f_pre
+    return float((f_live * (below + 0.5 * f_pre)).sum())
+
+
+SHIFT_LEVEL = 0.95  # flag a stat when |2q - 1| exceeds this (two-sided, like a 95% level)
+
+
+def shifts(final: dict, pre: dict) -> dict:
+    """q for every stat and both teams: {stat: [q_a, q_b]}."""
+    return {s: [superiority(final[s][:, j], pre[s][:, j]) for j in range(2)] for s in STATS}
+
+
+def stat_densities(final: dict, pre: dict, points: int = 80) -> dict:
+    """End-of-game densities now vs pre-game, on a shared grid per stat, with q per team."""
+    from .evaluate import kde
+
+    out = {}
+    for s in STATS:
+        both = np.concatenate([final[s].ravel(), pre[s].ravel()])
+        grid = np.linspace(np.percentile(both, 0.5) - 2, np.percentile(both, 99.5) + 2, points)
+        out[s] = {"grid": grid.round(2).tolist(),
+                  "live": [kde(final[s][:, j], grid).round(5).tolist() for j in range(2)],
+                  "pre": [kde(pre[s][:, j], grid).round(5).tolist() for j in range(2)],
+                  "mean_live": final[s].mean(0).round(1).tolist(), "mean_pre": pre[s].mean(0).round(1).tolist(),
+                  "q": [superiority(final[s][:, j], pre[s][:, j]) for j in range(2)]}
+    return out
 
 
 def live_unusualness(post: Posterior, a: int, b: int, home: float, state: LiveState, n: int = 3000,

@@ -109,8 +109,8 @@ expected over the same number of possessions.</p>
     } else h += `<div class="muted">One of these teams is not in the model.</div>`;
     h += `</div>`;
     h += `<div class="cols2" style="margin-top:12px"><div class="panel"><b>Win probability for ${H}</b>
-      <div class="kde-legend"><span class="key"><i style="background:var(--series-1)"></i>this model</span>
-      <span class="key"><i style="background:var(--series-2)"></i>ESPN</span></div>${timeline(r.timeline)}</div>`;
+      <div class="kde-legend"><span class="key"><i style="background:var(--ink)"></i>this model</span>
+      <span class="key"><i style="background:var(--muted)"></i>ESPN (dashed)</span></div>${timeline(r.timeline)}</div>`;
     if (m) {
       h += `<div class="panel"><b>Box score: so far → projected final</b> <span class="muted">(posterior mean, 80% interval)</span>
         <table class="data"><tr><th>Stat</th><th class="num">${H} now</th><th class="num">final</th><th class="num">${A} now</th><th class="num">final</th></tr>` +
@@ -122,7 +122,67 @@ expected over the same number of possessions.</p>
           ${m.effective_draws.toFixed(0)} effective posterior draws after the in-game update · ${r.posterior} posterior</div></div>`;
     }
     h += `</div>`;
+    if (m) h += densityPanel(m, st, r.timeline);
     $("live").innerHTML = h;
+  }
+
+  // ----- end-of-game distribution of every stat: now vs pre-game -----
+  const shiftOf = (q) => Math.abs(2 * q - 1);
+  function densityPanel(m, st, tl) {
+    const teams = st.teams, lvl = m.shift_level;
+    const flagged = [];
+    let cards = "";
+    for (const k of Object.keys(LABELS)) {
+      const d = m.densities[k];
+      [0, 1].forEach((j) => {
+        const q = d.q[j], sh = shiftOf(q), sig = sh >= lvl;
+        if (sig) flagged.push(`${teams[j]} ${LABELS[k]} ${q > 0.5 ? "↑" : "↓"}`);
+        const now = st.box[teams[j]] ? st.box[teams[j]][k] : 0;
+        cards += `<div class="kde-card live-kde${sig ? " shifted" : ""}">
+          <div class="t"><span class="ttl"><i class="dot" style="background:var(--series-${j + 1})"></i>${teams[j]} · ${LABELS[k]}</span>
+            <span>${d.mean_live[j]} <em>vs ${d.mean_pre[j]} pre</em></span></div>
+          ${densitySvg(d, j, now)}
+          <div class="shift-row"><span>shift</span><b class="${sig ? "off" : ""}">${q > 0.5 ? "↑" : q < 0.5 ? "↓" : ""} ${(100 * sh).toFixed(0)}%</b></div>
+          ${shiftSpark(tl, k, j, lvl)}</div>`;
+      });
+    }
+    return `<div class="panel" style="margin-top:12px"><b>End-of-game distribution of every stat</b>
+      <span class="muted">— solid: the forecast now, after the Bayesian in-game updates; dotted: the pre-game forecast;
+      thin line: the count so far. <b>Shift</b> = |2q − 1| with q = P(final now &gt; final pre-game): 0 when the forecasts agree,
+      1 when they no longer overlap. Edges turn red at ${(100 * lvl).toFixed(0)}% (a two-sided 95% level). The small chart under
+      each shows the shift through the game.</span>
+      <div class="kde-legend">${teams.map((t, j) => `<span class="key"><i style="background:var(--series-${j + 1})"></i>${t}</span>`).join("")}
+        <span class="muted">${flagged.length ? `Significant shifts: ${flagged.join(", ")}` : "No significant shifts yet."}</span></div>
+      <div class="kde-grid live-grid">${cards}</div></div>`;
+  }
+  function densitySvg(d, j, now) {
+    const W = 240, H = 90, P = { l: 4, r: 4, t: 6, b: 16 }, g = d.grid;
+    const ymax = Math.max(...d.live[j], ...d.pre[j]) || 1;
+    const x = (v) => P.l + (v - g[0]) / (g[g.length - 1] - g[0]) * (W - P.l - P.r);
+    const y = (v) => H - P.b - v / ymax * (H - P.t - P.b);
+    const pts = (ys) => g.map((v, i) => `${x(v).toFixed(1)},${y(ys[i]).toFixed(1)}`).join("L");
+    const col = `var(--series-${j + 1})`;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="end-of-game distribution now vs pre-game">`;
+    s += `<line class="axis" x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}"/>`;
+    s += `<path class="area" fill="${col}" d="M${x(g[0])},${H - P.b}L${pts(d.live[j])}L${x(g[g.length - 1])},${H - P.b}Z"/>`;
+    s += `<path d="M${pts(d.pre[j])}" fill="none" stroke="${col}" stroke-width="1.5" stroke-dasharray="2 3" opacity=".9"/>`;
+    s += `<path class="curve" stroke="${col}" d="M${pts(d.live[j])}"/>`;
+    if (now >= g[0] && now <= g[g.length - 1]) s += `<line x1="${x(now)}" x2="${x(now)}" y1="${P.t}" y2="${H - P.b}" stroke="var(--muted)" stroke-width="1"/>`;
+    const fmt = (v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1));
+    s += `<text x="${P.l}" y="${H - 3}">${fmt(g[0] + 2)}</text><text x="${W - P.r}" y="${H - 3}" text-anchor="end">${fmt(g[g.length - 1] - 2)}</text>`;
+    return s + `</svg>`;
+  }
+  function shiftSpark(tl, k, j, lvl) {
+    const W = 240, H = 34, maxX = Math.max(40, ...tl.map((t) => t.elapsed));
+    const x = (v) => 4 + v / maxX * (W - 8), y = (v) => H - 3 - v * (H - 6);
+    const pts = tl.filter((t) => t.q && t.q[k]).map((t) => `${x(t.elapsed).toFixed(1)},${y(shiftOf(t.q[k][j])).toFixed(1)}`);
+    let s = `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="shift over the game">`;
+    s += `<rect x="4" y="${y(1)}" width="${W - 8}" height="${y(lvl) - y(1)}" fill="var(--upset-soft)"/>`;
+    s += `<line x1="4" x2="${W - 4}" y1="${y(lvl)}" y2="${y(lvl)}" stroke="var(--upset)" stroke-width="1" stroke-dasharray="3 2"/>`;
+    s += `<line x1="4" x2="${W - 4}" y1="${y(0)}" y2="${y(0)}" class="axis"/>`;
+    s += `<line x1="${x(20)}" x2="${x(20)}" y1="${y(1)}" y2="${y(0)}" stroke="var(--line)"/>`;
+    if (pts.length) s += `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--series-${j + 1})" stroke-width="1.5"/>`;
+    return s + `</svg>`;
   }
 
   function timeline(tl) {
@@ -133,13 +193,13 @@ expected over the same number of possessions.</p>
       <text x="${left - 4}" y="${y(p) + 3}" text-anchor="end">${p * 100}%</text>`;
     s += `<line x1="${x(20)}" x2="${x(20)}" y1="${pad / 2}" y2="${H - pad}" stroke="var(--line)"/><text x="${x(20)}" y="${H - 8}" text-anchor="middle">half</text>`;
     s += `<text x="${left}" y="${H - 8}">tip</text><text x="${x(40)}" y="${H - 8}" text-anchor="middle">40'</text>`;
-    const line = (key, j, dash) => {
+    const line = (key, col, dash) => {
       const pts = tl.filter((t) => t[key] != null).map((t) => `${x(t.elapsed).toFixed(1)},${y(t[key]).toFixed(1)}`);
-      return pts.length ? `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--series-${j})" stroke-width="2" ${dash ? 'stroke-dasharray="5 3"' : ""}/>` : "";
+      return pts.length ? `<polyline points="${pts.join(" ")}" fill="none" stroke="${col}" stroke-width="2" ${dash ? 'stroke-dasharray="5 3"' : ""}/>` : "";
     };
-    s += line("espn", 2, true) + line("ours", 1, false);
+    s += line("espn", "var(--muted)", true) + line("ours", "var(--ink)", false);
     const last = tl[tl.length - 1];
-    if (last && last.ours != null) s += `<circle cx="${x(last.elapsed)}" cy="${y(last.ours)}" r="4" fill="var(--series-1)" stroke="var(--panel)" stroke-width="2"/>`;
+    if (last && last.ours != null) s += `<circle cx="${x(last.elapsed)}" cy="${y(last.ours)}" r="4" fill="var(--ink)" stroke="var(--panel)" stroke-width="2"/>`;
     return s + `</svg>`;
   }
 })();

@@ -16,7 +16,7 @@ from ncaa import data, model
 from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, espn_points, expected_points,
                           favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
                           resolve_picks, score_bracket, simulate_tournament, upset_distribution)
-from ncaa.evaluate import game_unusualness, tournament_unusualness
+from ncaa.evaluate import game_unusualness, kde, tournament_unusualness
 from ncaa.pool import Pool, PublicModel, best_pool_bracket
 from ncaa.simulate import BOX_STATS, simulate_games
 
@@ -400,19 +400,6 @@ def api_matchup():
     })
 
 
-def kde(samples: np.ndarray, grid: np.ndarray) -> np.ndarray:
-    """Gaussian kernel density (Silverman bandwidth, at least 0.6 so integer counts read as a smooth curve)."""
-    x = samples.astype(float)
-    n = len(x)
-    sd = x.std()
-    iqr = np.subtract(*np.percentile(x, [75, 25]))
-    bw = max(0.9 * min(sd, iqr / 1.34 if iqr > 0 else sd) * n ** -0.2, 0.6)
-    dens = np.zeros_like(grid)
-    for chunk in np.array_split(x, max(1, n // 2000)):
-        dens += np.exp(-0.5 * ((grid[:, None] - chunk[None, :]) / bw) ** 2).sum(1)
-    return dens / (n * bw * np.sqrt(2 * np.pi))
-
-
 @app.route("/api/h2h")
 def api_h2h():
     """Head-to-head win probabilities between tournament teams (row beats column)."""
@@ -434,7 +421,7 @@ import time as _time
 import pandas as pd
 
 from ncaa import season as season_mod
-from ncaa.ingame import forecast as live_forecast, live_unusualness, pregame
+from ncaa.ingame import SHIFT_LEVEL, forecast as live_forecast, live_unusualness, pregame, shifts, stat_densities
 from ncaa.live import ESPNFeed, ReplayFeed
 
 LIVE_SEASON = int(os.environ.get("NCAA_LIVE_SEASON", 2027))
@@ -520,6 +507,19 @@ def api_replay_games():
                      "score": [int(r.pts), int(r.opp_pts)]} for r in t.itertuples()])
 
 
+@lru_cache(maxsize=64)
+def _pregame_cached(post_id: int, a: int, b: int, home: int, n: int = 3000):
+    return pregame(_posts[post_id], a, b, home, n=n, seed=0, samples=True)
+
+
+_posts: dict = {}
+
+
+def _pre(post, a, b, home):
+    _posts[id(post)] = post
+    return _pregame_cached(id(post), a, b, home)
+
+
 def _model_view(post, state, n=3000):
     """Forecast, pre-game baseline and live unusualness for a state (home team first)."""
     idx = {t: i for i, t in enumerate(post.teams)}
@@ -528,11 +528,13 @@ def _model_view(post, state, n=3000):
     a, b = idx[state.teams[0]], idx[state.teams[1]]
     home = 0 if state.neutral else 1
     f = live_forecast(post, a, b, home, state, n=n, seed=0)
-    pre = pregame(post, a, b, home, n=n, seed=0)
+    pre = _pre(post, a, b, home)
     u = live_unusualness(post, a, b, home, state, seed=0) if state.status != "pre" else None
     return {"p_win": f["p_win"], "final": f["final"], "margin": f["margin"], "p_overtime": f["p_overtime"],
             "possessions_left": f["possessions_left"], "effective_draws": f["effective_draws"],
-            "pregame": pre, "unusualness": u}
+            "pregame": {"p_win": pre["p_win"], "final": pre["final"]}, "unusualness": u,
+            # End-of-game density of every stat now vs pre-game, and how far it has moved.
+            "densities": stat_densities(f["samples"], pre["samples"]), "shift_level": SHIFT_LEVEL}
 
 
 @lru_cache(maxsize=64)
@@ -542,18 +544,20 @@ def _replay_timeline(season: int, game_id: int) -> list:
     out = []
     for m in np.arange(0, length + 0.01, 1.0):
         st = _replay.game(game_id, float(m))
-        v = _model_view_light(post, st)
-        out.append({"elapsed": float(st.elapsed), "ours": v, "espn": st.espn_home_wp,
-                    "score": [st.box[t]["pts"] for t in st.teams]})
+        p, q = _model_view_light(post, st)
+        out.append({"elapsed": float(st.elapsed), "ours": p, "espn": st.espn_home_wp,
+                    "score": [st.box[t]["pts"] for t in st.teams], "q": q})
     return out
 
 
 def _model_view_light(post, state):
+    """Win probability and per-stat shift q at one moment (for timelines)."""
     idx = {t: i for i, t in enumerate(post.teams)}
     if not all(t in idx for t in state.teams):
-        return None
-    return live_forecast(post, idx[state.teams[0]], idx[state.teams[1]], 0 if state.neutral else 1, state,
-                         n=800, seed=1)["p_win"][0]
+        return None, None
+    a, b, home = idx[state.teams[0]], idx[state.teams[1]], 0 if state.neutral else 1
+    f = live_forecast(post, a, b, home, state, n=1500, seed=1)
+    return f["p_win"][0], shifts(f["samples"], _pre(post, a, b, home)["samples"])
 
 
 @app.route("/api/live/game")
@@ -583,7 +587,8 @@ def api_live_game():
             hist = _history.setdefault(gid, [])
             if view and (not hist or hist[-1]["elapsed"] < state.elapsed - 1e-6):
                 hist.append({"elapsed": state.elapsed, "ours": view["p_win"][0], "espn": state.espn_home_wp,
-                             "score": [state.box.get(t, {}).get("pts", 0) for t in state.teams]})
+                             "score": [state.box.get(t, {}).get("pts", 0) for t in state.teams],
+                             "q": {k: v["q"] for k, v in view["densities"].items()}})
             timeline = list(hist)
     return jsonify({"state": state.to_json(), "model": view, "posterior": label, "timeline": timeline})
 
