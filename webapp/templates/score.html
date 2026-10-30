@@ -1,20 +1,37 @@
 {% extends "base.html" %}
 {% block title %}Score a bracket{% endblock %}
 {% block content %}
-<h1>Score a realized bracket</h1>
-<p class="lede">Click the winner of each game (click again to undo). Later rounds fill in as you go; partial brackets
-are fine. The model scores the games entered so far: the probability it assigned to exactly this set of outcomes,
-how that compares to chance, and how it compares with brackets the model itself generates.</p>
-<div class="toolbar">
-  <button class="primary" id="load-actual">Load actual results</button>
-  <button id="load-ml">Most likely bracket</button>
-  <button id="load-ep">Max expected points</button>
+<h1>Build and score brackets</h1>
+<p class="lede">Click the winner of each game (click again to undo); partial brackets are fine. The model scores the
+games entered so far: the probability it assigned to exactly this set of outcomes, how that compares to chance, and
+how it compares with brackets the model itself generates. Or let the optimizer build one below.</p>
+<div class="panel builder">
+  <div class="toolbar" style="margin:0">
+    <b>Optimal bracket</b>
+    <label>Objective <select id="objective">
+      <option value="likelihood">Most likely bracket</option>
+      <option value="points">Max expected points (ESPN)</option></select></label>
+    <label>Champion <select id="champion"><option value="">Best overall</option></select></label>
+    <label class="switch"><input type="checkbox" id="upsets-on"> Upsets</label>
+    <span id="upset-opts" hidden>
+      <input type="number" id="n-upsets" min="0" max="32" style="width:64px">
+      <select id="gap"><option value="1">any lower seed</option><option value="3">3+ seed lines</option>
+        <option value="5">5+ seed lines</option></select>
+      <label><input type="checkbox" id="keep-f4" checked> keep the Final Four</label>
+      <span class="muted" id="upset-hint"></span>
+    </span>
+    <button class="primary" id="build">Build</button>
+  </div>
+  <div class="muted" id="opt-note" style="margin-top:8px"></div>
+  <div id="champ-table" style="margin-top:8px"></div>
+</div>
+<div class="toolbar" style="margin-top:12px">
+  <button id="load-actual">Load actual results</button>
   <button id="load-fav">Game-by-game favorites</button>
   <button id="clear">Clear</button>
   <span class="legend"><span><span class="swatch" style="background:var(--win-soft)"></span>Model favorite won</span>
   <span><span class="swatch" style="background:var(--upset-soft)"></span>Upset (model &lt; 50%)</span></span>
 </div>
-<div class="muted" id="opt-note" style="margin:-4px 0 10px;max-width:980px"></div>
 <div class="stats" id="stats"></div>
 <div class="bracket-wrap panel" style="margin-top:12px"><div id="bracket"></div></div>
 <div class="cols2" style="margin-top:14px">
@@ -47,22 +64,49 @@ how that compares to chance, and how it compares with brackets the model itself 
     view.setPicksByName(await (await fetch("/api/actual")).json()); schedule(); };
   document.getElementById("load-fav").onclick = async () => {
     view.setPicksByName(await (await fetch("/api/favorites")).json()); schedule(); };
-  const optimal = fetch("/api/optimal").then((r) => r.json());
-  document.getElementById("load-ml").onclick = async () => { view.setPicksByName((await optimal).likelihood.picks); schedule(); };
-  document.getElementById("load-ep").onclick = async () => { view.setPicksByName((await optimal).points.picks); schedule(); };
-  optimal.then((o) => {
-    const d = o.likelihood.differs_from_favourites.length;
-    document.getElementById("opt-note").innerHTML =
-      `<b>Most likely bracket</b> (exact search over all brackets): 1 in ${Math.exp(-o.likelihood.log_likelihood).toExponential(2)}, ` +
-      (d ? `${d} pick${d > 1 ? "s" : ""} differ from taking the favorite game by game (1 in ${Math.exp(-o.favourites.log_likelihood).toExponential(2)}). `
-         : `which this year coincides with taking the favorite game by game. `) +
-      `<b>Max expected points</b> (ESPN 10-20-40-80-160-320): ${o.points.expected_points.toFixed(1)} expected, ` +
-      `vs ${o.favourites.expected_points.toFixed(1)} for the favorites; champion ${o.points.champion}.`;
-  });
-  document.getElementById("clear").onclick = () => { view.picks = {}; view.refresh(); schedule(); };
-  document.getElementById("import").onclick = () => {
-    try { view.setPicksByName(JSON.parse(document.getElementById("json").value)); schedule(); }
-    catch (e) { alert("Could not parse JSON: " + e.message); } };
+  // ----- optimal bracket builder -----
+  const $ = (id) => document.getElementById(id);
+  const upsetDist = fetch("/api/upsets").then((r) => r.json());
+  const champSel = $("champion");
+  s.bracket.teams.map((t, i) => [t, s.reach[i][7]]).sort((a, b) => b[1] - a[1])
+    .forEach(([t, p]) => champSel.add(new Option(`${t.name} (${t.seed}, ${fmtPct(p)} title)`, t.name)));
+  async function upsetHint() {
+    const d = (await upsetDist)[$("gap").value];
+    $("upset-hint").textContent = `a simulated tournament has ${d.p10}–${d.p90} (median ${d.median})`;
+    return d;
+  }
+  $("upsets-on").onchange = async () => {
+    $("upset-opts").hidden = !$("upsets-on").checked;
+    if ($("upsets-on").checked && $("n-upsets").value === "") $("n-upsets").value = (await upsetHint()).median;
+  };
+  $("gap").onchange = async () => { $("n-upsets").value = (await upsetHint()).median; };
+  upsetHint();
+  $("build").onclick = () => build();
+
+  async function build(champion) {
+    if (champion !== undefined) champSel.value = champion;
+    const q = new URLSearchParams({ objective: $("objective").value, champion: champSel.value, gap: $("gap").value,
+      keep_final_four: $("keep-f4").checked ? "1" : "0" });
+    if ($("upsets-on").checked) q.set("upsets", $("n-upsets").value || "0");
+    $("opt-note").textContent = "Searching…";
+    const r = await fetch("/api/optimize?" + q);
+    if (!r.ok) { $("opt-note").textContent = "No bracket satisfies those constraints."; return; }
+    const o = await r.json();
+    view.setPicksByName(o.picks); schedule();
+    const ups = o.upsets.map((u) => `${u.seeds[0]} ${u.winner} over ${u.seeds[1]} ${u.loser}`);
+    $("opt-note").innerHTML = `<b>${o.champion}</b> champion · 1 in ${Math.exp(-o.log_likelihood).toExponential(2)} ` +
+      `(log P ${o.log_likelihood.toFixed(2)}) · ${o.expected_points.toFixed(1)} expected ESPN points · ` +
+      `${ups.length} upset${ups.length === 1 ? "" : "s"}${ups.length ? ": " + ups.join(", ") : ""}`;
+    if (o.by_champion.length > 1) {
+      $("champ-table").innerHTML = `<div class="muted" style="margin-bottom:4px">Best bracket for each candidate champion
+        (exact search with that champion held fixed). Click one to load it.</div><table class="data champ"><tr><th>Champion</th>
+        <th class="num">Relative likelihood</th><th class="num">log P</th><th class="num">Title odds</th><th></th></tr>` +
+        o.by_champion.map((c) => `<tr data-champ="${c.champion}"><td>${c.champion}</td><td class="num">${c.relative.toFixed(3)}</td>
+          <td class="num">${c.log_likelihood.toFixed(2)}</td><td class="num">${fmtPct(c.p_title)}</td>
+          <td><span class="bar here" style="width:${c.relative * 120}px"></span></td></tr>`).join("") + "</table>";
+      $("champ-table").querySelectorAll("tr[data-champ]").forEach((tr) => (tr.onclick = () => build(tr.dataset.champ)));
+    }
+  }
 
   function schedule() { clearTimeout(timer); timer = setTimeout(score, 150); }
 

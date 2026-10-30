@@ -152,3 +152,76 @@ def test_max_expected_points_bracket_is_consistent(bracket, post):
     assert res["expected_points"] >= expected_points(bracket, chalk, s) - 1e-9 or \
         len(resolve_picks(bracket, chalk)) < 67
     assert ESPN_POINTS[6] == 320
+
+
+def _random_W(T, seed, draws=4):
+    rng = np.random.default_rng(seed)
+    base = rng.beta(2, 2, size=(T, T))
+    W = np.empty((draws, T, T))
+    for k in range(draws):
+        m = np.clip(base + rng.normal(0, 0.05, base.shape), 0.02, 0.98)
+        m = np.triu(m, 1)
+        W[k] = m + (1 - m.T) * np.tril(np.ones((T, T)), -1)
+        np.fill_diagonal(W[k], 0.5)
+    return W
+
+
+def test_upset_constrained_dp_matches_brute_force(bracket):
+    import itertools
+
+    from ncaa.bracket import Constraints, _dp, is_upset
+
+    T = len(bracket.teams)
+    L = np.log(_random_W(T, 11).mean(0))
+    pod = ["R1-East-0", "R1-East-1", "R1-East-2", "R1-East-3", "R2-East-0", "R2-East-1", "R3-East-0"]
+    # Everything outside the pod is fixed: greedy on L, except the East final
+    # goes to the bottom half so it does not depend on the pod.
+    fixed = {}
+    for g in bracket.games:
+        a, b = (v if kind == "team" else fixed.get(v) for kind, v in g.sources)
+        if g.id in pod:
+            continue
+        if g.id == "R4-East-0":
+            fixed[g.id] = b
+            continue
+        fixed[g.id] = a if L[a, b] >= L[b, a] else b
+    games = {g.id: g for g in bracket.games}
+
+    def score(picks):
+        total, ups = 0.0, 0
+        for g in bracket.games:
+            a, b = (v if kind == "team" else picks[v] for kind, v in g.sources)
+            w = picks[g.id]
+            l = b if w == a else a
+            total += L[w, l]
+            ups += is_upset(bracket, w, l)
+        return total, ups
+
+    best_by_k = {}
+    for choice in itertools.product([0, 1], repeat=len(pod)):
+        picks = dict(fixed)
+        for gid, side in zip(pod, choice):
+            kind, v = games[gid].sources[side]
+            picks[gid] = v if kind == "team" else picks[v]
+        sc, k = score(picks)
+        best_by_k[k] = max(best_by_k.get(k, -np.inf), sc)
+    for k, target in best_by_k.items():
+        picks, val, _ = _dp(bracket, lambda g: L, Constraints(forced=fixed, n_upsets=k))
+        assert val == pytest.approx(target)
+        assert score(picks) == (pytest.approx(target), k)
+
+
+def test_best_bracket_by_champion(bracket):
+    from ncaa.bracket import best_bracket_by_champion, most_likely_bracket
+
+    W = _random_W(len(bracket.teams), 3)
+    T = len(bracket.teams)
+    per_champ = best_bracket_by_champion(bracket, W, range(T))
+    assert all(r["picks"]["R6"] == r["champion"] for r in per_champ)
+    # Restarting from every champion can only help, and the overall search
+    # (which restarts from the most promising champions) is never worse than
+    # any single champion's best bracket that it tried.
+    overall = most_likely_bracket(bracket, W, n_champions=T)
+    assert overall["log_likelihood"] >= per_champ[0]["log_likelihood"] - 1e-9
+    few = most_likely_bracket(bracket, W, n_champions=0)
+    assert overall["log_likelihood"] >= few["log_likelihood"] - 1e-9

@@ -12,8 +12,9 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 from ncaa import data, model
-from ncaa.bracket import (Bracket, actual_picks, bracket_log_likelihood, expected_points, favourites,
-                          load_simulation, max_expected_points_bracket, most_likely_bracket, score_bracket)
+from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, expected_points,
+                          favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
+                          resolve_picks, score_bracket, upset_distribution)
 from ncaa.simulate import BOX_STATS, simulate_games
 
 SEASON = int(os.environ.get("NCAA_SEASON", 2026))
@@ -79,26 +80,68 @@ def api_favorites():
     return jsonify({g: br.teams[t] for g, t in favourites(br, W.mean(0)).items()})
 
 
-@lru_cache(maxsize=1)
-def optimal_brackets():
+FINAL_FOUR_GAMES = ("R4", "R5", "R6")  # region finals onward decide the Final Four and beyond
+
+
+@lru_cache(maxsize=256)
+def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep_final_four: bool) -> dict:
+    """Build the optimal bracket under the requested objective and constraints."""
     br, _, summary, W, _ = state()
-    named = lambda picks: {g: br.teams[t] for g, t in picks.items()}  # noqa: E731
-    greedy = favourites(br, W.mean(0))
-    ml = most_likely_bracket(br, W)
-    ep = max_expected_points_bracket(br, summary)
-    out = {}
-    for key, picks in (("favourites", greedy), ("likelihood", ml["picks"]), ("points", ep["picks"])):
-        out[key] = {"picks": named(picks), "log_likelihood": bracket_log_likelihood(br, picks, W),
-                    "expected_points": expected_points(br, named(picks), summary),
-                    "champion": br.teams[picks["R6"]]}
-    out["likelihood"]["differs_from_favourites"] = [g for g in greedy if greedy[g] != ml["picks"][g]]
-    return out
+    forced = {}
+    if keep_final_four:
+        # Hold the region finals onward at the unconstrained optimum, so any
+        # upsets have to come from games that do not change the Final Four.
+        base = optimize(objective, champion, None, gap, False)
+        forced = {g: br.tidx[t] for g, t in base["picks"].items() if g.startswith(FINAL_FOUR_GAMES)}
+    if champion:
+        forced["R6"] = br.tidx[champion]
+    c = Constraints(forced=forced, n_upsets=n_upsets, upset_gap=gap)
+    by_champion = []
+    if objective == "points":
+        picks = max_expected_points_bracket(br, summary, c)["picks"]
+    else:
+        res = most_likely_bracket(br, W, c, n_champions=1 if champion else 10)
+        picks, by_champion = res["picks"], res["by_champion"]
+    named = {g: br.teams[t] for g, t in picks.items()}
+    played = resolve_picks(br, named)
+    best_ll = max([r["log_likelihood"] for r in by_champion] or [0.0])
+    return {
+        "picks": named,
+        "champion": named["R6"],
+        "log_likelihood": bracket_log_likelihood(br, picks, W),
+        "expected_points": expected_points(br, named, summary),
+        "upsets": [{"id": p["id"], "winner": br.teams[p["winner"]], "loser": br.teams[p["loser"]],
+                    "seeds": [br.seed[br.teams[p["winner"]]], br.seed[br.teams[p["loser"]]]]}
+                   for p in played if is_upset(br, p["winner"], p["loser"], gap)],
+        "by_champion": [{"champion": br.teams[r["champion"]], "log_likelihood": r["log_likelihood"],
+                         "relative": float(np.exp(r["log_likelihood"] - best_ll)),
+                         "p_title": summary["reach"][r["champion"]][-1]} for r in by_champion],
+    }
 
 
-@app.route("/api/optimal")
-def api_optimal():
-    """Globally optimal brackets: most likely, and highest expected (ESPN) score."""
-    return jsonify(optimal_brackets())
+@app.route("/api/optimize")
+def api_optimize():
+    """Optimal bracket: ?objective=likelihood|points&champion=&upsets=&gap=&keep_final_four=0|1"""
+    br = state()[0]
+    objective = request.args.get("objective", "likelihood")
+    champion = request.args.get("champion", "")
+    upsets = request.args.get("upsets", "")
+    gap = int(request.args.get("gap", 1))
+    if objective not in ("likelihood", "points") or (champion and champion not in br.tidx):
+        abort(400, "bad objective or champion")
+    try:
+        n_upsets = int(upsets) if upsets else None
+        keep = n_upsets is not None and request.args.get("keep_final_four") == "1"
+        return jsonify(optimize(objective, champion, n_upsets, gap, keep))
+    except ValueError as e:
+        abort(422, str(e))
+
+
+@app.route("/api/upsets")
+def api_upsets():
+    """How many upsets the simulated tournaments contain, for each seed-gap definition."""
+    br, sims, *_ = state()
+    return jsonify({gap: upset_distribution(br, sims, gap) for gap in (1, 3, 5)})
 
 
 @app.route("/api/teams")

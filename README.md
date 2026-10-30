@@ -39,6 +39,21 @@ shooting nights), which matters for realistic upset rates. **Points are never
 modelled directly**: a simulated game's score is whatever its simulated makes
 add up to, and the score decides the winner (ties go to overtime).
 
+### Form: recent games count more
+
+A team's residual over its last two weeks of games predicts its residual over
+the following month (coefficient 0.15 ± 0.05 in the 2026 data); residuals from
+earlier in the season add nothing. So skill isn't fixed over the season. Each
+team has an offensive and a defensive **form**: random walks in two-week steps,
+measured in points per 100 possessions, acting along the minimum-change
+direction in skill space that adds one point per 100 possessions. Form is
+pinned to zero for the last two weeks, so `z` is the team's skill entering the
+tournament, and an older game sees `z + form(that period)`. The step size is
+learned, so the data decide how quickly old results go stale. With the same
+history, a team that won its last games looks stronger than one that won its
+first ones. (A straight-line season drift was tried first; it did not improve
+holdout predictions.)
+
 ### Within-game dynamics
 
 Simulating possessions independently makes margins too wide (SD ≈ 14 points
@@ -92,24 +107,36 @@ log-likelihoods of brackets the model generates itself, as a calibration check.
 
 Advancing the head-to-head favourite in every game is only *locally*
 optimal: a slight favourite with a brutal next-round matchup can be worth
-passing over. `ncaa/bracket.py` finds the global optimum exactly.
+passing over. `ncaa/bracket.py` searches globally.
 
-* **Most likely bracket.** A bracket's probability is a product over its 67
-  games, and the bracket is a tree, so a dynamic programme finds the best one
-  exactly. For each game and each team that could win it, it keeps the
-  best-scoring way to fill the whole sub-bracket below that game with that
-  team as winner, combining the two sides by trying every possible opponent.
-  The exact objective averages the product over posterior draws, so it isn't a
-  pure sum over games. A minorize–maximize loop handles this: reweight the
-  draws by how well they explain the current bracket, then re-solve the DP.
-  Each step can only raise the exact probability. It runs from three starts
-  and keeps the best; the whole search takes a few hundredths of a second.
-* **Maximum expected points.** For bracket pools (ESPN 10-20-40-80-160-320
-  scoring by default), the same DP maximises
-  Σ points × P(picked team wins that game), using the simulated probabilities.
+* **Dynamic programme.** A bracket's score is a sum over its 67 games, and the
+  bracket is a tree. For every game, every team that could win it, and every
+  upset count, the DP keeps the best way to fill the sub-bracket below that
+  game. At the final this gives the best bracket *for each possible
+  champion*, built back down from that champion, and the overall best is the
+  best of those. It is exact for any per-game score (tested against brute
+  force).
+* **Most likely bracket.** The model's exact probability averages the product
+  over posterior draws, so it isn't quite a per-game sum. A minorize–maximize
+  loop climbs it (reweight the draws by the current bracket, re-solve the
+  DP), and each step can only raise the exact probability. The climb is local,
+  so it restarts from the plug-in optima, the game-by-game favourites, and
+  each of the 10 most promising champions (optimise with the champion held
+  fixed, then release it). Champion restarts do find better brackets that a
+  single climb misses.
+* **Upsets.** A likelihood-optimal bracket has few upsets (7 in 2026, against
+  a median of 16 in simulated tournaments). The builder can require exactly
+  *k* upsets ("winner seeded at least 1/3/5 lines lower"). The DP then
+  spends them where they cost the least probability, and can hold the Final
+  Four fixed so the upsets don't change the outcome. In 2026 the best
+  16-upset bracket is only about 7× less likely than the optimum.
+* **Maximum expected points.** For bracket pools (ESPN 10-20-40-80-160-320),
+  the same DP, with the same constraints, maximises
+  Σ points × P(picked team wins that game).
 
-Both are on the *Score a bracket* page, with how they compare with the
-game-by-game favourites.
+On the *Build and score* page: objective, champion, upset toggle (count,
+definition, keep the Final Four), and a table of each candidate champion's
+best bracket with its relative likelihood.
 
 ## Running it
 
