@@ -134,6 +134,31 @@ passing over. `ncaa/bracket.py` searches globally.
   the same DP, with the same constraints, maximises
   Σ points × P(picked team wins that game).
 
+* **Win a pool.** Pools are won by beating every other entry, not by
+  expected points, so a pick is worth most when it's right and few rivals
+  made it. That only pays where the *public's* picks differ from the true
+  odds, so rivals are simulated from an a-priori model of how people pick,
+  not from the game model. Simulated draws from the game model agree with it
+  everywhere, so the chalk bracket would beat them. Each rival advances a
+  team with probability sigmoid(κ·(u_a − u_b)), where perceived strength u
+  mixes our rating with seed line (weight α), and κ > 1 means favourites are
+  over-picked. α and κ are drawn per rival from a range, so the pool is a
+  mixture over plausible publics (four presets: mixed, chalky, informed,
+  random). Given a simulated tournament, rivals' scores are independent,
+  which gives P(finishing first against N rivals) in closed form for any N.
+  Candidates come from the DP with per-pick value points × p × (p/q)^λ, where
+  q is the public's pick share (λ = 0 is the max-points bracket), with and
+  without a fixed champion. They are chosen on half the simulated
+  tournaments and reported on the other half.
+
+  2026, mixed public: against 10 rivals the max-points bracket is already
+  best (18.7%). Against 100, an Illinois-champion bracket wins 2.9% vs 2.0%;
+  Illinois is a 3-seed the model gives 5.5% for the title but the public
+  picks 3.2% of the time. Against 1,000, a Michigan State champion wins
+  0.63%, versus 0.16% for max-points and 0.10% for a random entry. If the
+  public picks upsets *more* freely than the model, the logic reverses and
+  chalk wins, so the public model is a choice in the UI.
+
 On the *Build and score* page: objective, champion, upset toggle (count,
 definition, keep the Final Four), and a table of each candidate champion's
 best bracket with its relative likelihood. Any bracket also gets **ESPN

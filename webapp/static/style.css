@@ -108,7 +108,8 @@ textarea { width: 100%; height: 90px; font: 12px ui-monospace, monospace; backgr
 /* ---- bracket builder ---- */
 .builder .toolbar label { display: inline-flex; gap: 6px; align-items: center; }
 .builder #upset-opts { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.builder #upset-opts[hidden] { display: none; }
+.builder #upset-opts[hidden], .builder #pool-opts[hidden], .builder label[hidden] { display: none; }
+.builder #pool-opts { display: inline-flex; gap: 8px; align-items: center; }
 table.champ tr[data-champ] { cursor: pointer; }
 table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
 

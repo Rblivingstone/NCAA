@@ -247,3 +247,47 @@ def test_one_shot_tournament_is_reproducible_with_box_scores(bracket, post):
     assert (a["box"]["pts"] == a["scores"]).all()
     named = {g.id: bracket.teams[int(a["winners"][0, i])] for i, g in enumerate(bracket.games)}
     assert len(resolve_picks(bracket, named)) == 67               # a complete, consistent bracket
+
+
+def test_public_brackets_are_valid_and_follow_chalkiness(bracket):
+    from ncaa.pool import PublicModel, simulate_public
+
+    T = len(bracket.teams)
+    Wm = _random_W(T, 8).mean(0)
+    picks = simulate_public(bracket, Wm, 200, PublicModel((0.0, 0.0), (1e4, 1e4)), seed=1)
+    for row in picks[:20]:
+        named = {g.id: bracket.teams[int(t)] for g, t in zip(bracket.games, row)}
+        assert len(resolve_picks(bracket, named)) == 67
+    # Pure seed-following with extreme chalkiness: every R64 game goes to the better seed.
+    r64 = [i for i, g in enumerate(bracket.games) if g.round == 1]
+    seeds = np.array([bracket.seed[t] for t in bracket.teams])
+    for i in r64:
+        g = bracket.games[i]
+        a, b = (v for kind, v in g.sources if kind == "team") if all(k == "team" for k, _ in g.sources) else (None, None)
+        if a is not None:
+            assert (seeds[picks[:, i]] == min(seeds[a], seeds[b])).all()
+
+
+def test_pool_win_probability_matches_monte_carlo(bracket, post):
+    from ncaa.pool import Pool, PublicModel
+
+    sims = simulate_tournament(bracket, post, 400, seed=9)
+    s = summarize(bracket, sims)
+    Wm = _random_W(len(bracket.teams), 4).mean(0)
+    pool = Pool(bracket, sims, Wm, s, PublicModel(), n_public=500, seed=2)
+    mine = pool.leverage_bracket(0.0)
+    rows = np.arange(400)
+    ours = pool.scores(mine)
+    from ncaa.pool import score_brackets
+    opp = score_brackets(pool.public_picks, pool.winners, pool.pts)
+    rng = np.random.default_rng(0)
+    for N in (1, 5, 30):
+        exact = pool.win_probability(mine, N, rows)
+        trials = []
+        for _ in range(40):
+            idx = rng.integers(opp.shape[1], size=(400, N))
+            best = opp[rows[:, None], idx]
+            top = best.max(1)
+            ties = (best == top[:, None]).sum(1)
+            trials.append(np.where(ours > top, 1.0, np.where(ours == top, 1.0 / (ties + 1), 0.0)).mean())
+        assert exact == pytest.approx(np.mean(trials), abs=0.01)

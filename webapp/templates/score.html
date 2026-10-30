@@ -10,7 +10,12 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     <b>Optimal bracket</b>
     <label>Objective <select id="objective">
       <option value="likelihood">Most likely bracket</option>
-      <option value="points">Max expected points (ESPN)</option></select></label>
+      <option value="points">Max expected points (ESPN)</option>
+      <option value="pool">Win a pool</option></select></label>
+    <span id="pool-opts" hidden>
+      <label>rivals <input type="number" id="pool-n" value="100" min="1" max="1000000" style="width:90px"></label>
+      <label>public <select id="pool-public"></select></label>
+    </span>
     <label>Champion <select id="champion"><option value="">Best overall</option></select></label>
     <label class="switch"><input type="checkbox" id="upsets-on"> Upsets</label>
     <span id="upset-opts" hidden>
@@ -103,6 +108,41 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   $("gap").onchange = async () => { $("n-upsets").value = (await upsetHint()).median; };
   upsetHint();
   $("build").onclick = () => build();
+  fetch("/api/publics").then((r) => r.json()).then((pubs) => {
+    for (const [k, label] of Object.entries(pubs)) $("pool-public").add(new Option(`${k} — ${label}`, k));
+  });
+  $("objective").onchange = () => {
+    const pool = $("objective").value === "pool";
+    $("pool-opts").hidden = !pool;
+    for (const id of ["champion", "upsets-on"]) $(id).closest("label").hidden = pool;
+    if (pool) $("upset-opts").hidden = true;
+    else $("upset-opts").hidden = !$("upsets-on").checked;
+  };
+
+  async function buildPool() {
+    $("opt-note").textContent = "Simulating the public's brackets and searching…";
+    const r = await fetch(`/api/pool?n=${$("pool-n").value}&public=${$("pool-public").value}`);
+    if (!r.ok) { $("opt-note").textContent = await r.text(); return; }
+    const o = await r.json();
+    view.setPicksByName(o.picks); schedule();
+    const x = (a, b) => (a / b).toFixed(1) + "×";
+    const changed = o.changed.filter((c) => c.round >= 3).map((c) => `${s.bracket.rounds[c.round]}: ${c.to} instead of ${c.from}`);
+    $("opt-note").innerHTML = `<b>P(finishing first) against ${o.n.toLocaleString()} rivals: ${(100 * o.p_win).toFixed(2)}%</b> ` +
+      `— ${x(o.p_win, o.p_win_max_points)} the max-expected-points bracket (${(100 * o.p_win_max_points).toFixed(2)}%), ` +
+      `${x(o.p_win, o.baseline)} a random entry (${(100 * o.baseline).toFixed(2)}%). Champion <b>${o.champion}</b>; ` +
+      `Final Four ${o.final_four.join(", ")}. ` +
+      (o.changed.length ? `${o.changed.length} picks differ from the max-points bracket` +
+        (changed.length ? ` (Sweet 16 on: ${changed.join("; ")})` : "") + ". " : "Same as the max-points bracket: in a pool this size, chalk is best. ") +
+      `ESPN points: predicted ${o.espn.expected.toFixed(1)}, realized ${o.espn.realized.toFixed(0)}. ` +
+      `<span class="muted">Public model: ${o.public_label}. Chances are measured on simulated tournaments not used to choose the bracket.</span>`;
+    $("champ-table").innerHTML = `<div class="muted" style="margin-bottom:4px">Title odds vs how often the simulated public picks each
+      champion. A ratio above 1 means under-picked relative to its chances, which is where a pool is won.</div>
+      <table class="data"><tr><th>Team</th><th class="num">Seed</th><th class="num">Model title odds</th>
+      <th class="num">Public picks</th><th class="num">Ratio</th></tr>` +
+      o.champions.map((c) => `<tr${c.team === o.champion ? ' style="font-weight:600"' : ""}><td>${c.team}</td><td class="num">${c.seed}</td>
+        <td class="num">${(100 * c.p_model).toFixed(1)}%</td><td class="num">${(100 * c.p_public).toFixed(1)}%</td>
+        <td class="num" style="color:${c.ratio > 1 ? "var(--win)" : "inherit"}">${c.ratio.toFixed(2)}</td></tr>`).join("") + "</table>";
+  }
 
   $("sim-one").onclick = async () => {
     const seed = $("sim-seed").value.trim();
@@ -120,7 +160,8 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   };
 
   async function build(champion) {
-    if (champion !== undefined) champSel.value = champion;
+    if ($("objective").value === "pool" && champion === undefined) return buildPool();
+    if (champion !== undefined) { champSel.value = champion; if ($("objective").value === "pool") $("objective").value = "likelihood"; $("objective").onchange(); }
     const q = new URLSearchParams({ objective: $("objective").value, champion: champSel.value, gap: $("gap").value,
       keep_final_four: $("keep-f4").checked ? "1" : "0" });
     if ($("upsets-on").checked) q.set("upsets", $("n-upsets").value || "0");

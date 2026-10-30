@@ -15,6 +15,7 @@ from ncaa import data, model
 from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, espn_points, expected_points,
                           favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
                           resolve_picks, score_bracket, simulate_tournament, upset_distribution)
+from ncaa.pool import Pool, PublicModel, best_pool_bracket
 from ncaa.simulate import BOX_STATS, simulate_games
 
 SEASON = int(os.environ.get("NCAA_SEASON", 2026))
@@ -187,6 +188,62 @@ def api_optimize():
         return jsonify(optimize(objective, champion, n_upsets, gap, keep))
     except ValueError as e:
         abort(422, str(e))
+
+
+# How the public might pick, a priori: weight on team quality vs seed line,
+# and chalkiness (>1 = favourites advanced more often than they really win).
+PUBLICS = {
+    "mixed": ("A mix of seed-driven and informed entrants, somewhat chalky", PublicModel((0.3, 0.8), (1.0, 2.0))),
+    "chalky": ("Mostly follows seeds, very chalky", PublicModel((0.0, 0.3), (1.5, 2.5))),
+    "informed": ("Picks close to the model's view", PublicModel((0.8, 1.0), (0.9, 1.3))),
+    "random": ("Picks upsets more freely than the model expects", PublicModel((0.3, 0.8), (0.4, 0.8))),
+}
+
+
+@lru_cache(maxsize=len(PUBLICS))
+def pool_for(public: str) -> Pool:
+    br, sims, summary, W, _ = state()
+    return Pool(br, sims, W.mean(0), summary, PUBLICS[public][1])
+
+
+@lru_cache(maxsize=64)
+def pool_result(n: int, public: str) -> dict:
+    br, _, summary, W, _ = state()
+    pool = pool_for(public)
+    res = best_pool_bracket(pool, n, summary)
+    named = {g: br.teams[t] for g, t in res["picks"].items()}
+    mp = {g: br.teams[t] for g, t in res["max_points_picks"].items()}
+    title = np.array(summary["reach"])[:, -1]
+    q_title = pool.q[br.gidx["R6"]]
+    ff = [g.id for g in br.games if g.round == 4]
+    return {
+        "n": n, "public": public, "public_label": PUBLICS[public][0],
+        "picks": named, "champion": named["R6"], "lambda": res["lambda"],
+        "p_win": res["p_win"], "p_win_max_points": res["p_win_max_points"], "baseline": res["baseline"],
+        "final_four": [named[g] for g in ff], "max_points_final_four": [mp[g] for g in ff],
+        "changed": [{"id": g, "round": br.games[br.gidx[g]].round, "from": mp[g], "to": named[g]}
+                    for g in named if named[g] != mp[g]],
+        "log_likelihood": bracket_log_likelihood(br, res["picks"], W),
+        "espn": espn_points(br, named, state()[1], actual()),
+        "champions": [{"team": br.teams[t], "seed": br.seed[br.teams[t]], "p_model": float(title[t]),
+                       "p_public": float(q_title[t]), "ratio": float(title[t] / max(q_title[t], 1e-4))}
+                      for t in np.argsort(-title)[:12]],
+    }
+
+
+@app.route("/api/pool")
+def api_pool():
+    """Bracket maximising P(finishing first) against n rivals: ?n=100&public=mixed"""
+    n = int(request.args.get("n", 100))
+    public = request.args.get("public", "mixed")
+    if public not in PUBLICS or not 1 <= n <= 1_000_000:
+        abort(400, "bad pool size or public model")
+    return jsonify(pool_result(n, public))
+
+
+@app.route("/api/publics")
+def api_publics():
+    return jsonify({k: v[0] for k, v in PUBLICS.items()})
 
 
 @app.route("/api/simulate_one")
