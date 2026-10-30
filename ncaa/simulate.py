@@ -185,17 +185,29 @@ def estimate_lead_beta(games, post: Posterior, n_draws=None, seed=0) -> np.ndarr
 
     Regresses each game's second-half margin on its expected second-half margin
     and its first-half surplus (actual minus expected first-half margin), using
-    the posterior-mean matchup predictions.  Returns draws of the surplus
+    the posterior-mean matchup predictions with each team's skill as of the game date.  Returns draws of the surplus
     coefficient from its (flat-prior) normal posterior.
     """
-    g = games[~games.duplicated("game_id") & (games.ot == 0)].dropna(subset=["h1", "opp_h1"])
+    from .model import season_fraction
+
+    u_all = season_fraction(games.date)
+    keep = (~games.duplicated("game_id") & (games.ot == 0) & games.h1.notna() & games.opp_h1.notna()).to_numpy()
+    g, u = games[keep], u_all[keep]
     idx = {t: i for i, t in enumerate(post.teams)}
     a, b, h = g.team.map(idx).to_numpy(), g.opponent.map(idx).to_numpy(), g.home.to_numpy()
-    mean = Posterior(teams=post.teams, z=post.z.mean(0, keepdims=True), mu=post.mu.mean(0, keepdims=True),
+    # Posterior-mean skills of both teams as of each game's date, laid out as
+    # pseudo-teams (2i = team, 2i+1 = opponent) so the usual helpers apply.
+    zbar, dbar = post.z.mean(0), post.drift.mean(0)
+    za = zbar[a] - u[:, None] * dbar[a]
+    zb = zbar[b] - u[:, None] * dbar[b]
+    z = np.empty((1, 2 * len(g), zbar.shape[1]), dtype=float)
+    z[0, 0::2], z[0, 1::2] = za, zb
+    mean = Posterior(teams=post.teams, z=z, mu=post.mu.mean(0, keepdims=True),
                      hfa=post.hfa.mean(0, keepdims=True), phi=post.phi.mean(0, keepdims=True),
                      mu_pace=post.mu_pace.mean(keepdims=True), sigma_pace=post.sigma_pace.mean(keepdims=True),
                      omega=post.omega)
     k = np.zeros(len(g), dtype=int)
+    a, b = np.arange(0, 2 * len(g), 2), np.arange(1, 2 * len(g), 2)
     pace = np.exp(mean.mu_pace[k] + mean.z[k, a, PACE] + mean.z[k, b, PACE])
     exp_half = pace / 2 * (expected_efficiency(matchup_eta(mean, k, a, b, h))
                            - expected_efficiency(matchup_eta(mean, k, b, a, -h)))

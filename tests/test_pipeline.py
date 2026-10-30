@@ -86,3 +86,69 @@ def test_score_with_coin_flip_matrix(bracket, post):
     assert r["n_games"] == 67
     assert r["log_likelihood"] == pytest.approx(67 * np.log(0.5), rel=1e-5)
     assert 0 <= r["percentile"]["percentile"] <= 1
+
+
+def _greedy(bracket, Wm):
+    winners = {}
+    for g in bracket.games:
+        a, b = (v if kind == "team" else winners[v] for kind, v in g.sources)
+        winners[g.id] = a if Wm[a, b] >= 0.5 else b
+    return winners
+
+
+def test_optimal_bracket_beats_greedy_when_matchups_matter(bracket):
+    from ncaa.bracket import bracket_log_likelihood, most_likely_bracket
+
+    T = len(bracket.teams)
+    W = np.full((3, T, T), 0.5, dtype=np.float64)
+    seed = {(bracket.region_of[t], bracket.seed[t]): bracket.tidx[t] for t in bracket.teams}
+    one, sixteen = seed[("East", 1)], seed[("East", 16)]
+    others = [seed[("East", 8)], seed[("East", 9)]]
+    # Greedy takes the 16 seed (55%), but any bracket through it scores at most
+    # 0.55 * 0.5 in the next game, while the 1 seed path gives 0.45 * 0.99.
+    W[:, sixteen, one], W[:, one, sixteen] = 0.55, 0.45
+    for o in others:
+        W[:, one, o], W[:, o, one] = 0.99, 0.01
+    greedy = _greedy(bracket, W.mean(0))
+    best = most_likely_bracket(bracket, W)
+    assert greedy["R1-East-0"] == sixteen
+    assert best["picks"]["R1-East-0"] == one
+    assert best["log_likelihood"] == pytest.approx(bracket_log_likelihood(bracket, greedy, W)
+                                                   + np.log(0.45 * 0.99 / (0.55 * 0.5)))
+
+
+def test_optimal_bracket_is_at_least_as_good_as_random_brackets(bracket):
+    from ncaa.bracket import bracket_log_likelihood, most_likely_bracket
+
+    rng = np.random.default_rng(5)
+    T = len(bracket.teams)
+    base = rng.beta(2, 2, size=(T, T))
+    W = np.empty((4, T, T))
+    for k in range(4):
+        m = np.clip(base + rng.normal(0, 0.05, base.shape), 0.02, 0.98)
+        m = np.triu(m, 1)
+        W[k] = m + (1 - m.T) * np.tril(np.ones((T, T)), -1)
+        np.fill_diagonal(W[k], 0.5)
+    best = most_likely_bracket(bracket, W)
+    assert best["log_likelihood"] >= bracket_log_likelihood(bracket, _greedy(bracket, W.mean(0)), W) - 1e-9
+    for _ in range(200):
+        winners = {}
+        for g in bracket.games:
+            a, b = (v if kind == "team" else winners[v] for kind, v in g.sources)
+            winners[g.id] = a if rng.random() < 0.5 else b
+        assert best["log_likelihood"] >= bracket_log_likelihood(bracket, winners, W) - 1e-9
+
+
+def test_max_expected_points_bracket_is_consistent(bracket, post):
+    from ncaa.bracket import ESPN_POINTS, expected_points, max_expected_points_bracket
+
+    sims = simulate_tournament(bracket, post, 400, seed=4)
+    s = summarize(bracket, sims)
+    res = max_expected_points_bracket(bracket, s)
+    named = {g: bracket.teams[t] for g, t in res["picks"].items()}
+    assert len(resolve_picks(bracket, named)) == 67               # a valid, complete bracket
+    assert expected_points(bracket, named, s) == pytest.approx(res["expected_points"])
+    chalk = {g["id"]: bracket.teams[max(g["teams"], key=lambda t: t["p_win"])["team"]] for g in s["games"]}
+    assert res["expected_points"] >= expected_points(bracket, chalk, s) - 1e-9 or \
+        len(resolve_picks(bracket, chalk)) < 67
+    assert ESPN_POINTS[6] == 320

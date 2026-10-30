@@ -12,7 +12,8 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 from ncaa import data, model
-from ncaa.bracket import Bracket, actual_picks, load_simulation, score_bracket
+from ncaa.bracket import (Bracket, actual_picks, bracket_log_likelihood, expected_points, favourites,
+                          load_simulation, max_expected_points_bracket, most_likely_bracket, score_bracket)
 from ncaa.simulate import BOX_STATS, simulate_games
 
 SEASON = int(os.environ.get("NCAA_SEASON", 2026))
@@ -66,20 +67,38 @@ def api_score():
     if W is None:
         abort(503, "win matrix missing; run `python -m ncaa simulate`")
     picks = (request.get_json(silent=True) or {}).get("picks", {})
-    return jsonify(score_bracket(br, picks, W, summary, sims))
+    out = score_bracket(br, picks, W, summary, sims)
+    out["expected_points"] = expected_points(br, picks, summary)
+    return jsonify(out)
 
 
 @app.route("/api/favorites")
 def api_favorites():
-    """Fill the bracket by always advancing the team the model favours head to head."""
+    """Fill the bracket game by game, always advancing the head-to-head favourite."""
     br, _, _, W, _ = state()
-    Wm = W.mean(0)
-    winners, picks = {}, {}
-    for g in br.games:
-        a, b = (v if kind == "team" else winners[v] for kind, v in g.sources)
-        winners[g.id] = a if Wm[a, b] >= 0.5 else b
-        picks[g.id] = br.teams[winners[g.id]]
-    return jsonify(picks)
+    return jsonify({g: br.teams[t] for g, t in favourites(br, W.mean(0)).items()})
+
+
+@lru_cache(maxsize=1)
+def optimal_brackets():
+    br, _, summary, W, _ = state()
+    named = lambda picks: {g: br.teams[t] for g, t in picks.items()}  # noqa: E731
+    greedy = favourites(br, W.mean(0))
+    ml = most_likely_bracket(br, W)
+    ep = max_expected_points_bracket(br, summary)
+    out = {}
+    for key, picks in (("favourites", greedy), ("likelihood", ml["picks"]), ("points", ep["picks"])):
+        out[key] = {"picks": named(picks), "log_likelihood": bracket_log_likelihood(br, picks, W),
+                    "expected_points": expected_points(br, named(picks), summary),
+                    "champion": br.teams[picks["R6"]]}
+    out["likelihood"]["differs_from_favourites"] = [g for g in greedy if greedy[g] != ml["picks"][g]]
+    return out
+
+
+@app.route("/api/optimal")
+def api_optimal():
+    """Globally optimal brackets: most likely, and highest expected (ESPN) score."""
+    return jsonify(optimal_brackets())
 
 
 @app.route("/api/teams")

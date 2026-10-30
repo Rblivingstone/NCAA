@@ -88,6 +88,29 @@ simulating 100 games per posterior draw for every pair of tournament teams.
 The realized log-likelihood is also placed within the distribution of
 log-likelihoods of brackets the model generates itself, as a calibration check.
 
+## Optimal brackets
+
+Advancing the head-to-head favourite in every game is only *locally*
+optimal: a slight favourite with a brutal next-round matchup can be worth
+passing over. `ncaa/bracket.py` finds the global optimum exactly.
+
+* **Most likely bracket.** A bracket's probability is a product over its 67
+  games, and the bracket is a tree, so a dynamic programme finds the best one
+  exactly. For each game and each team that could win it, it keeps the
+  best-scoring way to fill the whole sub-bracket below that game with that
+  team as winner, combining the two sides by trying every possible opponent.
+  The exact objective averages the product over posterior draws, so it isn't a
+  pure sum over games. A minorize–maximize loop handles this: reweight the
+  draws by how well they explain the current bracket, then re-solve the DP.
+  Each step can only raise the exact probability. It runs from three starts
+  and keeps the best; the whole search takes a few hundredths of a second.
+* **Maximum expected points.** For bracket pools (ESPN 10-20-40-80-160-320
+  scoring by default), the same DP maximises
+  Σ points × P(picked team wins that game), using the simulated probabilities.
+
+Both are on the *Score a bracket* page, with how they compare with the
+game-by-game favourites.
+
 ## Running it
 
 ```bash

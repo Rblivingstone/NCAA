@@ -31,6 +31,7 @@ whatever the simulated makes add up to.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 from dataclasses import dataclass
@@ -86,9 +87,19 @@ class ModelData:
     g_a: np.ndarray       # pace: one row per game
     g_b: np.ndarray
     log_pace: np.ndarray
+    u: np.ndarray         # time before the end of the data, as a fraction of the season (1 = opening night)
+    g_u: np.ndarray       # same, one per game (pace rows)
+    trend: bool = True    # whether team skills may drift over the season
 
 
-def prepare(games: pd.DataFrame) -> ModelData:
+def season_fraction(dates: pd.Series, end=None, start=None) -> np.ndarray:
+    """How far before the end of the data each date is, as a fraction of the season (0 = last day)."""
+    end = dates.max() if end is None else end
+    start = dates.min() if start is None else start
+    return ((end - dates) / (end - start)).to_numpy(dtype=float)
+
+
+def prepare(games: pd.DataFrame, trend: bool = True) -> ModelData:
     teams = sorted(set(games.team) | set(games.opponent))
     idx = {t: i for i, t in enumerate(teams)}
     g = games
@@ -127,6 +138,9 @@ def prepare(games: pd.DataFrame) -> ModelData:
         g_a=g.team[first].map(idx).to_numpy(),
         g_b=g.opponent[first].map(idx).to_numpy(),
         log_pace=np.log(pace.to_numpy()),
+        u=season_fraction(g.date),
+        g_u=season_fraction(g.date)[first.to_numpy()],
+        trend=trend,
     )
 
 
@@ -159,8 +173,29 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
     z = numpyro.deterministic("z", eps @ (tau[:, None] * L).T)  # T x D, cov = diag(tau) Ω diag(tau)
 
     off, dfn, home = md.off, md.dfn, jnp.array(md.home)
-    zd = jnp.concatenate([z, jnp.zeros((T, 1))], axis=1)  # column -1 -> zero effect
-    eta = mu + z[off, :S] + zd[dfn][:, di] + hfa * home[:, None]  # rows x S
+    z_off, z_def = z[off], z[dfn]
+    pace_a, pace_b = z[md.g_a, PACE], z[md.g_b, PACE]
+    if md.trend:
+        # Skills drift linearly over the season.  ``z`` is anchored at the
+        # average game date (where the data pin it down best, which keeps it
+        # nearly uncorrelated with the drift); ``drift`` is the change from
+        # opening night to the end of the data.  A game a fraction u of the
+        # season before the end sees z - (u - u_bar) * drift, and the skill
+        # entering the tournament (u = 0) is z_end = z + u_bar * drift.
+        # Shrinkage via tau_drift lets the data say how much teams change.
+        tau_d = numpyro.sample("tau_drift", dist.HalfNormal(0.1).expand([D]))
+        d_raw = numpyro.sample("drift_raw", dist.Normal(0.0, 1.0).expand([T, D]))
+        drift = numpyro.deterministic("drift", d_raw * tau_d)
+        u_bar = float(md.u.mean())
+        numpyro.deterministic("z_end", z + u_bar * drift)
+        u = jnp.asarray(md.u - u_bar)[:, None]
+        z_off, z_def = z_off - u * drift[off], z_def - u * drift[dfn]
+        g_u = jnp.asarray(md.g_u - u_bar)
+        pace_a, pace_b = pace_a - g_u * drift[md.g_a, PACE], pace_b - g_u * drift[md.g_b, PACE]
+    else:
+        numpyro.deterministic("z_end", z)
+    z_def = jnp.concatenate([z_def, jnp.zeros((len(dfn), 1))], axis=1)  # column -1 -> zero effect
+    eta = mu + z_off[:, :S] + z_def[:, di] + hfa * home[:, None]  # rows x S
 
     # Beta-binomial log-likelihood for every count stat at once, written out so
     # that only the parameter-dependent lgamma terms are evaluated (the fit is
@@ -179,15 +214,18 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
 
     mu_pace = numpyro.sample("mu_pace", dist.Normal(np.log(68.0), 0.2))
     sigma_pace = numpyro.sample("sigma_pace", dist.HalfNormal(0.2))
-    numpyro.sample("obs_pace", dist.Normal(mu_pace + z[md.g_a, PACE] + z[md.g_b, PACE], sigma_pace),
+    numpyro.sample("obs_pace", dist.Normal(mu_pace + pace_a + pace_b, sigma_pace),
                    obs=jnp.array(md.log_pace))
 
 
 def init_values(md: ModelData) -> dict:
     """A sensible starting point: every team average, league-average rates."""
-    return {"mu": base_rates(md), "hfa": np.zeros(S), "log_phi": np.full(S - 1, 5.0),
-            "tau": np.full(D, 0.1), "L_omega": np.eye(D), "eps": np.zeros((len(md.teams), D)),
-            "mu_pace": float(np.mean(md.log_pace)), "sigma_pace": 0.1}
+    out = {"mu": base_rates(md), "hfa": np.zeros(S), "log_phi": np.full(S - 1, 5.0),
+           "tau": np.full(D, 0.1), "L_omega": np.eye(D), "eps": np.zeros((len(md.teams), D)),
+           "mu_pace": float(np.mean(md.log_pace)), "sigma_pace": 0.1}
+    if md.trend:
+        out |= {"tau_drift": np.full(D, 0.02), "drift_raw": np.zeros((len(md.teams), D))}
+    return out
 
 
 def _init_strategy(md: ModelData):
@@ -211,7 +249,7 @@ def _fit_vi(md: ModelData, key, steps: int, progress: bool):
 
 
 def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_samples=250, num_chains=4,
-        seed=0, progress=True, max_tree_depth=8, vi_steps=10000) -> Path:
+        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, trend=True) -> Path:
     """Fit the model and save the posterior draws needed for simulation.
 
     ``method="nuts"`` runs full MCMC (the default).  A variational fit is run
@@ -229,7 +267,7 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     # Hamiltonian energy and stalls NUTS.
     jax.config.update("jax_enable_x64", True)
     numpyro.set_host_device_count(num_chains)
-    md = prepare(games)
+    md = prepare(games, trend=trend)
     key = jax.random.PRNGKey(seed)
     guide, vi = _fit_vi(md, key, vi_steps, progress)
     losses = np.asarray(vi.losses)
@@ -250,8 +288,9 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     elif method == "vi":
         n = num_samples * num_chains
         post = Predictive(guide, params=vi.params, num_samples=n)(jax.random.PRNGKey(seed + 1), md, base_rates(md))
-        post["z"] = Predictive(numpyro_model, posterior_samples=post, return_sites=["z"])(
-            jax.random.PRNGKey(seed + 2), md, base_rates(md))["z"]
+        sites = ["z_end", "drift"] if md.trend else ["z_end"]
+        post |= Predictive(numpyro_model, posterior_samples=post, return_sites=sites)(
+            jax.random.PRNGKey(seed + 2), md, base_rates(md))
     else:
         raise ValueError(method)
 
@@ -259,11 +298,13 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     out.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         out / "posterior.npz",
-        z=np.asarray(post["z"], dtype=np.float32),
+        z=np.asarray(post["z_end"], dtype=np.float32),  # skill entering the tournament
         mu=np.asarray(post["mu"]), hfa=np.asarray(post["hfa"]),
         phi=np.exp(np.asarray(post["log_phi"])), tau=np.asarray(post["tau"]),
         mu_pace=np.asarray(post["mu_pace"]), sigma_pace=np.asarray(post["sigma_pace"]),
         omega=np.asarray(post["L_omega"] @ np.swapaxes(post["L_omega"], -1, -2)).mean(0),
+        **({"drift": np.asarray(post["drift"], dtype=np.float32),
+            "tau_drift": np.asarray(post["tau_drift"])} if md.trend else {}),
     )
     diag["method"] = method
     (out / "teams.json").write_text(json.dumps(md.teams))
@@ -275,9 +316,9 @@ def summarize_diagnostics(mcmc, extra) -> dict:
     from numpyro.diagnostics import summary
 
     s = summary(mcmc.get_samples(group_by_chain=True), prob=0.9)
-    keys = ["mu", "hfa", "log_phi", "tau", "mu_pace", "sigma_pace", "z"]
+    keys = ["mu", "hfa", "log_phi", "tau", "mu_pace", "sigma_pace", "z_end", "tau_drift", "drift"]
     out = {}
-    for k in keys:
+    for k in (k for k in keys if k in s):
         r = np.asarray(s[k]["r_hat"]).ravel()
         e = np.asarray(s[k]["n_eff"]).ravel()
         out[k] = {"max_r_hat": float(np.nanmax(r)), "min_n_eff": float(np.nanmin(e))}
@@ -297,10 +338,18 @@ class Posterior:
     sigma_pace: np.ndarray
     omega: np.ndarray      # D x D posterior-mean correlation of the latent skills
     lead_beta: np.ndarray = None  # draws; change in 2nd-half margin per point of half-time lead
+    drift: np.ndarray = None      # draws x T x D; change in skill over the season (z is end of season)
 
     def __post_init__(self):
         if self.lead_beta is None:
             self.lead_beta = np.zeros(self.n_draws)
+        if self.drift is None:
+            self.drift = np.zeros_like(self.z)
+
+    def at(self, u: float | np.ndarray = 0.0) -> "Posterior":
+        """The posterior with skills as of ``u`` (fraction of the season before the end of the data)."""
+        u = np.asarray(u, dtype=np.float32)
+        return dataclasses.replace(self, z=self.z - u * self.drift)
 
     @property
     def n_draws(self) -> int:
@@ -322,5 +371,5 @@ def load_posterior(season: int) -> Posterior:
     d = artifact_dir(season)
     npz = np.load(d / "posterior.npz")
     teams = json.loads((d / "teams.json").read_text())
-    keys = ("z", "mu", "hfa", "phi", "mu_pace", "sigma_pace", "omega", "lead_beta")
+    keys = ("z", "mu", "hfa", "phi", "mu_pace", "sigma_pace", "omega", "lead_beta", "drift")
     return Posterior(teams=teams, **{k: npz[k] for k in keys if k in npz})
