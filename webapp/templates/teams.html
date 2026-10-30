@@ -2,8 +2,11 @@
 {% block title %}Team ratings{% endblock %}
 {% block content %}
 <h1>Team ratings</h1>
-<p class="lede">Posterior means of each team's latent skills, translated into expected points per 100 possessions
-against an average Division I opponent on a neutral floor. Net rating includes a 90% credible interval.
+<p class="lede">Posterior means of each team's latent skills entering the tournament, translated into expected points
+per 100 possessions against an average Division I opponent on a neutral floor. Net rating includes a 90% credible
+interval. Season trend is how much the team's form (points per 100 possessions) changed since the opening weeks, green/red
+when its 90% interval excludes zero; the sparkline traces form across the season in two-week steps, ending at the
+tournament (form there is zero by definition, so the line shows how much better or worse the team used to be).
 Rates are the team's offensive rates against an average defense.</p>
 <div class="toolbar"><label><input type="checkbox" id="field" checked> Tournament teams only</label>
   <input id="q" placeholder="Filter…"></div>
@@ -13,15 +16,25 @@ Rates are the team's offensive rates against an average defense.</p>
 <script>
 (async () => {
   const rows = await (await fetch("/api/teams")).json();
-  const cols = [["rank", "#"], ["team", "Team"], ["seed", "Seed"], ["region", "Region"], ["net", "Net"], ["ortg", "ORtg"], ["drtg", "DRtg"], ["tempo", "Tempo"],
+  const cols = [["rank", "#"], ["team", "Team"], ["seed", "Seed"], ["region", "Region"], ["net", "Net"], ["ortg", "ORtg"], ["drtg", "DRtg"], ["tempo", "Tempo"], ["trend", "Season trend"], ["form", "Form"],
     ["r.to", "TO%"], ["r.three", "3PA rate"], ["r.p2", "2P%"], ["r.p3", "3P%"], ["r.orb", "OR%"], ["r.ftr", "FT trips"], ["r.ft", "FT%"]];
   let key = "rank", dir = 1;
-  const get = (r, k) => k.startsWith("r.") ? r.rates[k.slice(2)] : r[k];
+  const get = (r, k) => k.startsWith("r.") ? r.rates[k.slice(2)] : k === "form" ? r.trend : r[k];
   const fmt = (r, k) => { const v = get(r, k); if (v == null) return "";
     if (k.startsWith("r.")) return (v * 100).toFixed(1);
     if (k === "net") return `${v.toFixed(1)} <span class="muted">[${r.net_lo.toFixed(1)}, ${r.net_hi.toFixed(1)}]</span>`;
+    if (k === "form") return spark(r.form);
+    if (k === "trend") return `<span style="color:${r.trend_lo > 0 ? "var(--win)" : r.trend_hi < 0 ? "var(--upset)" : "inherit"}">${v >= 0 ? "+" : ""}${v.toFixed(1)}</span> <span class="muted">[${r.trend_lo.toFixed(1)}, ${r.trend_hi.toFixed(1)}]</span>`;
     return typeof v === "number" && !Number.isInteger(v) ? v.toFixed(1) : v; };
   const t = document.getElementById("t");
+  // Sparkline of net form by two-week period (0 = entering the tournament).
+  function spark(f) {
+    if (!f || f.length < 2) return "";
+    const W = 90, H = 22, m = Math.max(4, ...f.map(Math.abs));
+    const pts = f.map((v, i) => `${(i / (f.length - 1) * W).toFixed(1)},${(H / 2 - v / m * (H / 2 - 2)).toFixed(1)}`).join(" ");
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><line x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" stroke="var(--line)"/>` +
+      `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg>`;
+  }
   function draw() {
     const only = document.getElementById("field").checked, q = document.getElementById("q").value.toLowerCase();
     const rs = rows.filter((r) => (!only || r.seed) && r.team.toLowerCase().includes(q))
