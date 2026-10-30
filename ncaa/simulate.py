@@ -188,19 +188,17 @@ def estimate_lead_beta(games, post: Posterior, n_draws=None, seed=0) -> np.ndarr
     the posterior-mean matchup predictions with each team's skill as of the game date.  Returns draws of the surplus
     coefficient from its (flat-prior) normal posterior.
     """
-    from .model import season_fraction
+    from .model import form_period
 
-    u_all = season_fraction(games.date)
+    period_all = form_period(games.date)
     keep = (~games.duplicated("game_id") & (games.ot == 0) & games.h1.notna() & games.opp_h1.notna()).to_numpy()
-    g, u = games[keep], u_all[keep]
+    g, period = games[keep], period_all[keep]
     idx = {t: i for i, t in enumerate(post.teams)}
     a, b, h = g.team.map(idx).to_numpy(), g.opponent.map(idx).to_numpy(), g.home.to_numpy()
     # Posterior-mean skills of both teams as of each game's date, laid out as
     # pseudo-teams (2i = team, 2i+1 = opponent) so the usual helpers apply.
-    zbar, dbar = post.z.mean(0), post.drift.mean(0)
-    za = zbar[a] - u[:, None] * dbar[a]
-    zb = zbar[b] - u[:, None] * dbar[b]
-    z = np.empty((1, 2 * len(g), zbar.shape[1]), dtype=float)
+    za, zb = post.mean_skill_at(a, period), post.mean_skill_at(b, period)
+    z = np.empty((1, 2 * len(g), za.shape[1]), dtype=float)
     z[0, 0::2], z[0, 1::2] = za, zb
     mean = Posterior(teams=post.teams, z=z, mu=post.mu.mean(0, keepdims=True),
                      hfa=post.hfa.mean(0, keepdims=True), phi=post.phi.mean(0, keepdims=True),

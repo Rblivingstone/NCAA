@@ -31,7 +31,6 @@ whatever the simulated makes add up to.
 """
 from __future__ import annotations
 
-import dataclasses
 import json
 import os
 from dataclasses import dataclass
@@ -87,19 +86,52 @@ class ModelData:
     g_a: np.ndarray       # pace: one row per game
     g_b: np.ndarray
     log_pace: np.ndarray
-    u: np.ndarray         # time before the end of the data, as a fraction of the season (1 = opening night)
-    g_u: np.ndarray       # same, one per game (pace rows)
-    trend: bool = True    # whether team skills may drift over the season
+    period: np.ndarray    # form period of each row: 0 = the last PERIOD_DAYS of the data, 1 = the two weeks before...
+    n_periods: int
+    lam_off: np.ndarray   # D-vector: direction in skill space of +1 point/100 possessions of offense
+    lam_def: np.ndarray   # D-vector: direction of +1 point/100 possessions of defense (fewer allowed)
+    form: bool = True     # whether teams' form may wander over the season
+    form_sigma: float | None = None  # fix the form step size instead of learning it (diagnostics)
 
 
-def season_fraction(dates: pd.Series, end=None, start=None) -> np.ndarray:
-    """How far before the end of the data each date is, as a fraction of the season (0 = last day)."""
+PERIOD_DAYS = 14
+
+
+def form_period(dates: pd.Series, end=None) -> np.ndarray:
+    """Two-week period counted back from the last day of the data (0 = most recent)."""
     end = dates.max() if end is None else end
-    start = dates.min() if start is None else start
-    return ((end - dates) / (end - start)).to_numpy(dtype=float)
+    return ((end - dates).dt.days.to_numpy() // PERIOD_DAYS).astype(int)
 
 
-def prepare(games: pd.DataFrame, trend: bool = True) -> ModelData:
+def efficiency_directions(eta0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Minimum-norm directions in skill space that add one point per 100 possessions.
+
+    The gradient g of expected points per 100 possessions with respect to each
+    stat's logit (at league-average rates) says how much each skill matters;
+    g / |g|^2 moves efficiency by exactly +1 to first order while changing the
+    individual rates as little as possible.  Defense uses the same gradient on
+    the defensive columns, with the sign flipped (good defense = fewer points).
+    """
+    from .simulate import expected_efficiency
+
+    g = np.zeros(S)
+    for j in range(S - 1):
+        up, dn = eta0.copy(), eta0.copy()
+        up[j] += 1e-4
+        dn[j] -= 1e-4
+        g[j] = 100 * (expected_efficiency(up[None])[0] - expected_efficiency(dn[None])[0]) / 2e-4
+    lam_off = np.zeros(D)
+    lam_off[:S] = g / (g @ g)
+    di = def_index()
+    gd = np.array([g[j] if di[j] >= 0 else 0.0 for j in range(S)])
+    lam_def = np.zeros(D)
+    for j in range(S):
+        if di[j] >= 0:
+            lam_def[di[j]] = -gd[j] / (gd @ gd)
+    return lam_off, lam_def
+
+
+def prepare(games: pd.DataFrame, form: bool = True) -> ModelData:
     teams = sorted(set(games.team) | set(games.opponent))
     idx = {t: i for i, t in enumerate(teams)}
     g = games
@@ -138,10 +170,16 @@ def prepare(games: pd.DataFrame, trend: bool = True) -> ModelData:
         g_a=g.team[first].map(idx).to_numpy(),
         g_b=g.opponent[first].map(idx).to_numpy(),
         log_pace=np.log(pace.to_numpy()),
-        u=season_fraction(g.date),
-        g_u=season_fraction(g.date)[first.to_numpy()],
-        trend=trend,
+        period=(period := form_period(g.date)),
+        n_periods=int(period.max()) + 1,
+        lam_off=np.zeros(D), lam_def=np.zeros(D),
+        form=form,
     )
+
+
+def _with_directions(md: ModelData) -> ModelData:
+    md.lam_off, md.lam_def = efficiency_directions(base_rates(md))
+    return md
 
 
 def base_rates(md: ModelData) -> np.ndarray:
@@ -175,25 +213,26 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
     off, dfn, home = md.off, md.dfn, jnp.array(md.home)
     z_off, z_def = z[off], z[dfn]
     pace_a, pace_b = z[md.g_a, PACE], z[md.g_b, PACE]
-    if md.trend:
-        # Skills drift linearly over the season.  ``z`` is anchored at the
-        # average game date (where the data pin it down best, which keeps it
-        # nearly uncorrelated with the drift); ``drift`` is the change from
-        # opening night to the end of the data.  A game a fraction u of the
-        # season before the end sees z - (u - u_bar) * drift, and the skill
-        # entering the tournament (u = 0) is z_end = z + u_bar * drift.
-        # Shrinkage via tau_drift lets the data say how much teams change.
-        tau_d = numpyro.sample("tau_drift", dist.HalfNormal(0.1).expand([D]))
-        d_raw = numpyro.sample("drift_raw", dist.Normal(0.0, 1.0).expand([T, D]))
-        drift = numpyro.deterministic("drift", d_raw * tau_d)
-        u_bar = float(md.u.mean())
-        numpyro.deterministic("z_end", z + u_bar * drift)
-        u = jnp.asarray(md.u - u_bar)[:, None]
-        z_off, z_def = z_off - u * drift[off], z_def - u * drift[dfn]
-        g_u = jnp.asarray(md.g_u - u_bar)
-        pace_a, pace_b = pace_a - g_u * drift[md.g_a, PACE], pace_b - g_u * drift[md.g_b, PACE]
-    else:
-        numpyro.deterministic("z_end", z)
+    if md.form:
+        # Form: each team has an offensive and a defensive random walk in
+        # two-week steps, measured in points per 100 possessions and acting
+        # along the efficiency directions lam_off / lam_def.  It is pinned to
+        # zero over the last two weeks, so ``z`` is the skill entering the
+        # tournament, and earlier games see z + form(period).  The step size
+        # sigma_form is learned: the data decide how fast old games go stale.
+        P = md.n_periods
+        if md.form_sigma is None:
+            sigma_form = numpyro.sample("sigma_form", dist.HalfNormal(2.0).expand([2]))
+        else:
+            sigma_form = numpyro.deterministic("sigma_form", jnp.full(2, md.form_sigma))
+        steps = numpyro.sample("form_raw", dist.Normal(0.0, 1.0).expand([T, 2, P - 1]))
+        form = jnp.concatenate([jnp.zeros((T, 2, 1)),
+                                jnp.cumsum(steps * sigma_form[None, :, None], axis=2)], axis=2)
+        numpyro.deterministic("form", form)
+        lam_off, lam_def = jnp.asarray(md.lam_off), jnp.asarray(md.lam_def)
+        per = jnp.asarray(md.period)
+        z_off = z_off + form[off, 0, per][:, None] * lam_off + form[off, 1, per][:, None] * lam_def
+        z_def = z_def + form[dfn, 0, per][:, None] * lam_off + form[dfn, 1, per][:, None] * lam_def
     z_def = jnp.concatenate([z_def, jnp.zeros((len(dfn), 1))], axis=1)  # column -1 -> zero effect
     eta = mu + z_off[:, :S] + z_def[:, di] + hfa * home[:, None]  # rows x S
 
@@ -223,8 +262,8 @@ def init_values(md: ModelData) -> dict:
     out = {"mu": base_rates(md), "hfa": np.zeros(S), "log_phi": np.full(S - 1, 5.0),
            "tau": np.full(D, 0.1), "L_omega": np.eye(D), "eps": np.zeros((len(md.teams), D)),
            "mu_pace": float(np.mean(md.log_pace)), "sigma_pace": 0.1}
-    if md.trend:
-        out |= {"tau_drift": np.full(D, 0.02), "drift_raw": np.zeros((len(md.teams), D))}
+    if md.form:
+        out |= ({"sigma_form": np.full(2, 1.0)} if md.form_sigma is None else {}) | {"form_raw": np.zeros((len(md.teams), 2, md.n_periods - 1))}
     return out
 
 
@@ -249,7 +288,7 @@ def _fit_vi(md: ModelData, key, steps: int, progress: bool):
 
 
 def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_samples=250, num_chains=4,
-        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, trend=True) -> Path:
+        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, form=True, form_sigma=None) -> Path:
     """Fit the model and save the posterior draws needed for simulation.
 
     ``method="nuts"`` runs full MCMC (the default).  A variational fit is run
@@ -267,7 +306,8 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     # Hamiltonian energy and stalls NUTS.
     jax.config.update("jax_enable_x64", True)
     numpyro.set_host_device_count(num_chains)
-    md = prepare(games, trend=trend)
+    md = _with_directions(prepare(games, form=form))
+    md.form_sigma = form_sigma
     key = jax.random.PRNGKey(seed)
     guide, vi = _fit_vi(md, key, vi_steps, progress)
     losses = np.asarray(vi.losses)
@@ -288,7 +328,7 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     elif method == "vi":
         n = num_samples * num_chains
         post = Predictive(guide, params=vi.params, num_samples=n)(jax.random.PRNGKey(seed + 1), md, base_rates(md))
-        sites = ["z_end", "drift"] if md.trend else ["z_end"]
+        sites = ["z", "form", "sigma_form"] if md.form else ["z"]
         post |= Predictive(numpyro_model, posterior_samples=post, return_sites=sites)(
             jax.random.PRNGKey(seed + 2), md, base_rates(md))
     else:
@@ -298,13 +338,17 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     out.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         out / "posterior.npz",
-        z=np.asarray(post["z_end"], dtype=np.float32),  # skill entering the tournament
+        z=np.asarray(post["z"], dtype=np.float32),  # skill entering the tournament
         mu=np.asarray(post["mu"]), hfa=np.asarray(post["hfa"]),
         phi=np.exp(np.asarray(post["log_phi"])), tau=np.asarray(post["tau"]),
         mu_pace=np.asarray(post["mu_pace"]), sigma_pace=np.asarray(post["sigma_pace"]),
         omega=np.asarray(post["L_omega"] @ np.swapaxes(post["L_omega"], -1, -2)).mean(0),
-        **({"drift": np.asarray(post["drift"], dtype=np.float32),
-            "tau_drift": np.asarray(post["tau_drift"])} if md.trend else {}),
+        lam_off=md.lam_off, lam_def=md.lam_def,
+        **({"form_start": np.asarray(post["form"][:, :, :, -1], dtype=np.float32),
+            "form_mean": np.asarray(post["form"]).mean(0),
+            "form_lo": np.quantile(np.asarray(post["form"]), 0.05, axis=0),
+            "form_hi": np.quantile(np.asarray(post["form"]), 0.95, axis=0),
+            "sigma_form": np.asarray(post["sigma_form"])} if md.form else {}),
     )
     diag["method"] = method
     (out / "teams.json").write_text(json.dumps(md.teams))
@@ -316,7 +360,7 @@ def summarize_diagnostics(mcmc, extra) -> dict:
     from numpyro.diagnostics import summary
 
     s = summary(mcmc.get_samples(group_by_chain=True), prob=0.9)
-    keys = ["mu", "hfa", "log_phi", "tau", "mu_pace", "sigma_pace", "z_end", "tau_drift", "drift"]
+    keys = ["mu", "hfa", "log_phi", "tau", "mu_pace", "sigma_pace", "z", "sigma_form", "form"]
     out = {}
     for k in (k for k in keys if k in s):
         r = np.asarray(s[k]["r_hat"]).ravel()
@@ -338,18 +382,27 @@ class Posterior:
     sigma_pace: np.ndarray
     omega: np.ndarray      # D x D posterior-mean correlation of the latent skills
     lead_beta: np.ndarray = None  # draws; change in 2nd-half margin per point of half-time lead
-    drift: np.ndarray = None      # draws x T x D; change in skill over the season (z is end of season)
+    lam_off: np.ndarray = None    # D; skill direction of +1 pt/100 poss on offense (see efficiency_directions)
+    lam_def: np.ndarray = None    # D; same for defense
+    form_mean: np.ndarray = None  # T x 2 x periods; posterior-mean form (offense, defense), period 0 = last
+    form_lo: np.ndarray = None    # 5% / 95% posterior quantiles of the same
+    form_hi: np.ndarray = None
+    form_start: np.ndarray = None  # draws x T x 2; form in the first period (opening weeks)
 
     def __post_init__(self):
+        T, D_ = self.z.shape[1:]
         if self.lead_beta is None:
             self.lead_beta = np.zeros(self.n_draws)
-        if self.drift is None:
-            self.drift = np.zeros_like(self.z)
+        for name, shape in (("lam_off", (D_,)), ("lam_def", (D_,)), ("form_mean", (T, 2, 1)),
+                            ("form_lo", (T, 2, 1)), ("form_hi", (T, 2, 1)), ("form_start", (self.n_draws, T, 2))):
+            if getattr(self, name) is None:
+                setattr(self, name, np.zeros(shape))
 
-    def at(self, u: float | np.ndarray = 0.0) -> "Posterior":
-        """The posterior with skills as of ``u`` (fraction of the season before the end of the data)."""
-        u = np.asarray(u, dtype=np.float32)
-        return dataclasses.replace(self, z=self.z - u * self.drift)
+    def mean_skill_at(self, teams: np.ndarray, period: np.ndarray) -> np.ndarray:
+        """Posterior-mean skill vectors of ``teams`` as of form ``period`` (0 = entering the tournament)."""
+        period = np.minimum(period, self.form_mean.shape[2] - 1)
+        f = self.form_mean[teams, :, period]                           # n x 2
+        return self.z.mean(0)[teams] + f[:, :1] * self.lam_off + f[:, 1:] * self.lam_def
 
     @property
     def n_draws(self) -> int:
@@ -371,5 +424,6 @@ def load_posterior(season: int) -> Posterior:
     d = artifact_dir(season)
     npz = np.load(d / "posterior.npz")
     teams = json.loads((d / "teams.json").read_text())
-    keys = ("z", "mu", "hfa", "phi", "mu_pace", "sigma_pace", "omega", "lead_beta", "drift")
+    keys = ("z", "mu", "hfa", "phi", "mu_pace", "sigma_pace", "omega", "lead_beta", "lam_off", "lam_def",
+            "form_mean", "form_lo", "form_hi", "form_start")
     return Posterior(teams=teams, **{k: npz[k] for k in keys if k in npz})
