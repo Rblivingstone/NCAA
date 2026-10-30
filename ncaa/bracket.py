@@ -100,12 +100,17 @@ class Bracket:
         }
 
 
-def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: int = 0) -> dict:
+def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: int | None = 0,
+                        full_box: bool = False) -> dict:
     """Play the whole tournament ``n_sims`` times.
 
     Each simulated tournament uses a single posterior draw for every game, so
-    parameter uncertainty is carried through the bracket coherently.
+    parameter uncertainty is carried through the bracket coherently.  With
+    ``full_box`` the complete simulated box score of every game is returned
+    too (``box[stat]`` is sims x games x 2, plus ``ot``).
     """
+    from .simulate import BOX_STATS
+
     rng = np.random.default_rng(seed)
     draws = rng.permutation(np.resize(np.arange(post.n_draws), n_sims))
     pidx = post.team_index(bracket.teams)
@@ -113,6 +118,8 @@ def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: in
     winners = np.full((n_sims, G), -1, dtype=np.int16)
     sides = np.full((n_sims, G, 2), -1, dtype=np.int16)
     scores = np.zeros((n_sims, G, 2), dtype=np.int16)
+    box = {s: np.zeros((n_sims, G, 2), dtype=np.int16) for s in BOX_STATS} if full_box else None
+    ot = np.zeros((n_sims, G), dtype=np.int16)
     for rnd in range(len(ROUNDS)):
         gs = [i for i, g in enumerate(bracket.games) if g.round == rnd]
         if not gs:
@@ -122,11 +129,18 @@ def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: in
                 sides[:, i, side] = v if kind == "team" else winners[:, bracket.gidx[v]]
         top, bot = sides[:, gs, 0].ravel(), sides[:, gs, 1].ravel()
         k = np.repeat(draws, len(gs))
-        res = simulate_games(post, k, pidx[top], pidx[bot], rng, full_box=False)
+        res = simulate_games(post, k, pidx[top], pidx[bot], rng, full_box=full_box)
         win = np.where(res["a_wins"], top, bot).reshape(n_sims, len(gs))
         winners[:, gs] = win
         scores[:, gs] = res["pts"].reshape(n_sims, len(gs), 2)
-    return {"winners": winners, "sides": sides, "scores": scores, "draws": draws}
+        ot[:, gs] = res["ot"].reshape(n_sims, len(gs))
+        if full_box:
+            for s in BOX_STATS:
+                box[s][:, gs] = res[s].reshape(n_sims, len(gs), 2)
+    out = {"winners": winners, "sides": sides, "scores": scores, "draws": draws}
+    if full_box:
+        out |= {"box": box, "ot": ot}
+    return out
 
 
 def summarize(bracket: Bracket, sims: dict, top_n_matchups: int = 5) -> dict:

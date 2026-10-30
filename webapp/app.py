@@ -14,7 +14,7 @@ from flask import Flask, abort, jsonify, render_template, request
 from ncaa import data, model
 from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, espn_points, expected_points,
                           favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
-                          resolve_picks, score_bracket, upset_distribution)
+                          resolve_picks, score_bracket, simulate_tournament, upset_distribution)
 from ncaa.simulate import BOX_STATS, simulate_games
 
 SEASON = int(os.environ.get("NCAA_SEASON", 2026))
@@ -187,6 +187,31 @@ def api_optimize():
         return jsonify(optimize(objective, champion, n_upsets, gap, keep))
     except ValueError as e:
         abort(422, str(e))
+
+
+@app.route("/api/simulate_one")
+def api_simulate_one():
+    """One random tournament, played game by game from the model (?seed= to replay one)."""
+    br, _, _, W, post = state()
+    seed = request.args.get("seed")
+    seed = int(seed) if seed not in (None, "") else int(np.random.default_rng().integers(2**31))
+    sim = simulate_tournament(br, post, 1, seed=seed, full_box=True)
+    games = {}
+    for i, g in enumerate(br.games):
+        a, b = (int(x) for x in sim["sides"][0, i])
+        games[g.id] = {"teams": [br.teams[a], br.teams[b]], "winner": br.teams[int(sim["winners"][0, i])],
+                       "score": sim["scores"][0, i].tolist(), "ot": int(sim["ot"][0, i]),
+                       "box": {s: v[0, i].tolist() for s, v in sim["box"].items()},
+                       "p_winner": float(W.mean(0)[int(sim["winners"][0, i]), b if sim["winners"][0, i] == a else a])}
+    picks = {gid: v["winner"] for gid, v in games.items()}
+    played = resolve_picks(br, picks)
+    return jsonify({
+        "seed": seed, "posterior_draw": int(sim["draws"][0]), "picks": picks, "games": games,
+        "champion": picks["R6"],
+        "upsets": [{"id": p["id"], "winner": br.teams[p["winner"]], "loser": br.teams[p["loser"]],
+                    "seeds": [br.seed[br.teams[p["winner"]]], br.seed[br.teams[p["loser"]]]]}
+                   for p in played if is_upset(br, p["winner"], p["loser"])],
+    })
 
 
 @app.route("/api/upsets")

@@ -23,6 +23,7 @@ class BracketView {
     this.highlight = null;    // team index highlighted in dist mode
     this.compare = null;      // /api/compare data: overlay the real results
     this.markActual = false;  // pick mode: mark picks right/wrong against the real results
+    this.simGames = null;     // pick mode: a simulated tournament's games (scores, box scores)
     this.games = {};
     this.b.games.forEach((g, i) => (this.games[g.id] = { ...g, dist: summary.games[i], idx: i }));
     this.tip = document.getElementById("tooltip");
@@ -164,6 +165,15 @@ class BracketView {
     const w = this.picks[g.id];
     let extra = "";
     const sc = this.gameScores[g.id];
+    const sim = this.simGames && this.simGames[g.id];
+    if (sim && w != null) {
+      // A simulated game: show its final score instead of the model probability.
+      node.classList.add(w === t ? "winner" : "loser");
+      const s = sim.score[sim.teams.indexOf(this.team(t).name)];
+      node.innerHTML = `${teamLabel(this.team(t))}<span class="score">${s}${sim.ot && w === t ? ` <span class="muted">${sim.ot > 1 ? sim.ot : ""}OT</span>` : ""}</span>`;
+      if (w === t && sc && sc.p_win < 0.5) node.classList.add("upset");
+      return;
+    }
     if (w != null) {
       node.classList.add(w === t ? "winner" : "loser");
       const c = this.markActual && this.compare && this.compare.games[g.id];
@@ -191,6 +201,7 @@ class BracketView {
       return;
     }
     const id = node.dataset.id;
+    this.simGames = null;  // editing picks leaves the simulated tournament
     if (this.picks[id] === t) delete this.picks[id];
     else this.picks[id] = t;
     this.prune();
@@ -208,6 +219,7 @@ class BracketView {
   }
 
   setPicksByName(byName) {
+    this.simGames = null;
     const idx = {};
     this.b.teams.forEach((t, i) => (idx[t.name] = i));
     this.picks = {};
@@ -237,6 +249,20 @@ class BracketView {
     const teams = d.teams.slice(0, 16);
     const top2 = d.teams.slice(0, 2);
     let h = `<div class="tip-head">${this.roundName(g)}</div>`;
+    const sim = this.mode === "pick" && this.simGames && this.simGames[id];
+    if (sim) {
+      const L = { pts: "PTS", fgm: "FGM", fga: "FGA", fg3m: "3PM", fg3a: "3PA", ftm: "FTM", fta: "FTA", oreb: "OREB",
+        dreb: "DREB", tov: "TOV", ast: "AST", stl: "STL", blk: "BLK", pf: "PF", poss: "Poss" };
+      h += `<div class="tip-sub">Simulated game${sim.ot ? ` (${sim.ot > 1 ? sim.ot : ""}OT)` : ""} ·
+        model gave ${sim.winner} ${fmtPct(sim.p_winner)} head to head</div><table class="tip-table box"><tr><th></th>` +
+        Object.values(L).map((l) => `<th>${l}</th>`).join("") + "</tr>" +
+        sim.teams.map((t, j) => `<tr><td>${t === sim.winner ? "<b>" + t + "</b>" : t}</td>` +
+          Object.keys(L).map((k) => `<td>${sim.box[k][j]}</td>`).join("") + "</tr>").join("") + "</table>";
+      this.tip.innerHTML = h;
+      this.tip.style.display = "block";
+      this.moveTip(e);
+      return;
+    }
     const c = this.compare && this.compare.games[id];
     if (c && (this.mode === "dist" || this.markActual)) {
       h += `<div class="tip-pick ${c.wrong ? "bad" : "good"}">${c.wrong ? "✗ Model got this wrong" : "✓ Model's favorite won"}:

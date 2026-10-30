@@ -25,6 +25,15 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   <div class="muted" id="opt-note" style="margin-top:8px"></div>
   <div id="champ-table" style="margin-top:8px"></div>
 </div>
+<div class="panel builder" style="margin-top:12px">
+  <div class="toolbar" style="margin:0">
+    <b>Simulate a tournament</b>
+    <span class="muted">one random run of the whole bracket, every game played out by the model — upsets and all</span>
+    <button class="primary" id="sim-one">🎲 Simulate</button>
+    <label>seed <input id="sim-seed" placeholder="random" style="width:110px"></label>
+  </div>
+  <div class="muted" id="sim-note" style="margin-top:8px"></div>
+</div>
 <div class="toolbar" style="margin-top:12px">
   <button id="load-actual">Load actual results</button>
   <button id="load-fav">Game-by-game favorites</button>
@@ -71,6 +80,11 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     view.setPicksByName(await (await fetch("/api/actual")).json()); schedule(); };
   document.getElementById("load-fav").onclick = async () => {
     view.setPicksByName(await (await fetch("/api/favorites")).json()); schedule(); };
+  document.getElementById("clear").onclick = () => { view.picks = {}; view.simGames = null; view.refresh(); schedule(); };
+  document.getElementById("import").onclick = () => {
+    try { view.setPicksByName(JSON.parse(document.getElementById("json").value)); schedule(); }
+    catch (e) { alert("Could not parse JSON: " + e.message); } };
+
   // ----- optimal bracket builder -----
   const $ = (id) => document.getElementById(id);
   const upsetDist = fetch("/api/upsets").then((r) => r.json());
@@ -89,6 +103,21 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   $("gap").onchange = async () => { $("n-upsets").value = (await upsetHint()).median; };
   upsetHint();
   $("build").onclick = () => build();
+
+  $("sim-one").onclick = async () => {
+    const seed = $("sim-seed").value.trim();
+    const o = await (await fetch("/api/simulate_one" + (seed ? `?seed=${encodeURIComponent(seed)}` : ""))).json();
+    view.setPicksByName(o.picks);
+    view.simGames = o.games;
+    view.refresh(); schedule();
+    const close = Object.values(o.games).filter((g) => Math.abs(g.score[0] - g.score[1]) <= 3 || g.ot).length;
+    const ups = o.upsets.map((u) => `${u.seeds[0]} ${u.winner} over ${u.seeds[1]} ${u.loser}`);
+    const f = o.games["R6"];
+    $("sim-note").innerHTML = `Seed <b>${o.seed}</b> (enter it to replay) · champion <b>${o.champion}</b>, beating ` +
+      `${f.teams.find((t) => t !== f.winner)} ${Math.max(...f.score)}–${Math.min(...f.score)}${f.ot ? " in OT" : ""} · ` +
+      `${close} games decided by 3 or fewer or in overtime · ${ups.length} upsets: ${ups.join(", ")}. ` +
+      `Hover any game for its box score.`;
+  };
 
   async function build(champion) {
     if (champion !== undefined) champSel.value = champion;

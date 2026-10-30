@@ -127,3 +127,9 @@ table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
 .tip-pick.bad { color: var(--upset); }
 .tip-pick.good { color: var(--win); }
 .tip-pick b { color: var(--ink); }
+
+/* ---- simulated tournament ---- */
+.slot .score { font-variant-numeric: tabular-nums; font-size: 12px; }
+.tip-table.box td, .tip-table.box th { padding-right: 7px; text-align: right; }
+.tip-table.box td:first-child { text-align: left; }
+#tooltip:has(.box) { max-width: 760px; }

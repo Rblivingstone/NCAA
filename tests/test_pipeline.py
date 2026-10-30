@@ -238,3 +238,12 @@ def test_espn_points_prediction_and_realisation(bracket, post):
     assert r["expected"] == pytest.approx(expected_points(bracket, actual, s))
     assert r["delta"] == pytest.approx(r["realized"] - r["expected"])
     assert sum(b["realized_points"] for b in r["by_round"]) == r["realized"]
+
+
+def test_one_shot_tournament_is_reproducible_with_box_scores(bracket, post):
+    a = simulate_tournament(bracket, post, 1, seed=42, full_box=True)
+    b = simulate_tournament(bracket, post, 1, seed=42, full_box=True)
+    assert (a["winners"] == b["winners"]).all()
+    assert (a["box"]["pts"] == a["scores"]).all()
+    named = {g.id: bracket.teams[int(a["winners"][0, i])] for i, g in enumerate(bracket.games)}
+    assert len(resolve_picks(bracket, named)) == 67               # a complete, consistent bracket

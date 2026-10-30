@@ -179,6 +179,11 @@ Then open http://127.0.0.1:5000:
   log-likelihood, odds of exactly these outcomes, comparison with coin flips,
   Brier score, percentile among model-generated brackets, and the surprise of
   each game. Picks persist in the browser and can be exported/imported as JSON.
+* **Simulate a tournament** (on the build page) – one random run of the whole
+  bracket: one posterior draw, every game played possession by possession,
+  upsets wherever the dice fall. Each game shows its score, hovering shows
+  the full box score, and the seed is shown so a run can be replayed. The
+  simulated bracket is scored like any other.
 * **Simulate a game** – any two Division I teams, neutral or home court:
   win probability, margin distribution, average box score and sample box scores.
 * **Team ratings** – offensive/defensive efficiency, net rating with 90%
