@@ -167,3 +167,12 @@ table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
   background: var(--hl); color: #1d1d1f; font-size: 9px; font-weight: 700; line-height: 14px; padding: 0 5px;
   border-radius: 7px; box-shadow: 0 0 0 2px var(--panel); white-space: nowrap; }
 .tip-alert { color: var(--ink); background: var(--hl-soft); border-radius: 4px; padding: 3px 6px; margin-bottom: 4px; }
+
+/* ---- real game vs simulated ---- */
+.kde-card .realline { stroke-width: 2; }
+.kde-card .realmark { stroke: var(--panel); stroke-width: 1; }
+.kde-card em { font-style: normal; font-size: 10px; color: var(--muted); }
+.kde-card em.off, .real.off { color: var(--upset); font-weight: 600; }
+.kde-card.surprise { border-color: var(--upset); }
+.real { color: var(--ink); font-weight: 600; }
+.real-panel { border-left: 3px solid var(--accent); }

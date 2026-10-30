@@ -81,12 +81,21 @@ def _first_half(linescores) -> float:
     return float(vals[0]) if vals else np.nan
 
 
-def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame:
-    """Team-game rows for every completed game strictly before ``cutoff``."""
+def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
+                tournament: bool = False) -> pd.DataFrame:
+    """Team-game rows for every completed game strictly before ``cutoff``.
+
+    With ``tournament=True``, instead the NCAA tournament games (on or after
+    ``cutoff``): never used for fitting, kept to check predictions against.
+    """
     sched = sched.drop_duplicates("game_id").set_index("game_id")
     box = box[box.game_id.isin(sched.index)].copy()
     box["date"] = pd.to_datetime(box.game_date_time, utc=True)
-    box = box[box.date < cutoff]
+    if tournament:
+        ids = _tournament_games(sched.reset_index()).game_id
+        box = box[(box.date >= cutoff) & box.game_id.isin(ids)]
+    else:
+        box = box[box.date < cutoff]
     # Keep only games where both teams' box scores exist.
     box = box[box.groupby("game_id").game_id.transform("size") == 2]
 
@@ -116,6 +125,11 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp) ->
         & (df.fg3a <= df.fga) & (df.ftm <= df.fta) & (df.pts == 2 * df.fgm + df.fg3m + df.ftm)
     good_games = df[ok].groupby("game_id").size()
     df = df[df.game_id.isin(good_games[good_games == 2].index)]
+
+    if tournament:
+        cols = ["game_id", "date", "team", "opponent", "home", "ot", "h1", "opp_h1"] + list(BOX_COLUMNS.values()) \
+            + ["opp_" + c for c in BOX_COLUMNS.values()]
+        return df[cols].sort_values(["date", "game_id", "team"]).reset_index(drop=True)
 
     # Pool rarely-seen (non-D1) teams into a single pseudo-team.
     counts = df.team.value_counts()
@@ -192,12 +206,19 @@ def fetch(season: int) -> tuple[pd.DataFrame, dict]:
     out = season_dir(season)
     out.mkdir(parents=True, exist_ok=True)
     games.to_csv(out / "games.csv", index=False)
+    build_games(box, sched, cutoff=pd.Timestamp(bracket["start"]), tournament=True).to_csv(
+        out / "tournament_games.csv", index=False)
     (out / "bracket.json").write_text(json.dumps(bracket, indent=1))
     return games, bracket
 
 
 def load_games(season: int) -> pd.DataFrame:
     return pd.read_csv(season_dir(season) / "games.csv", parse_dates=["date"])
+
+
+def load_tournament_games(season: int) -> pd.DataFrame:
+    path = season_dir(season) / "tournament_games.csv"
+    return pd.read_csv(path, parse_dates=["date"]) if path.exists() else pd.DataFrame()
 
 
 def load_bracket(season: int) -> dict:

@@ -283,6 +283,59 @@ def api_teams():
     return jsonify(state()[2]["ratings"])
 
 
+@lru_cache(maxsize=1)
+def real_games():
+    """Every real game with box scores: the tournament (out of sample) and the season (used in fitting)."""
+    import pandas as pd
+
+    t = data.load_tournament_games(SEASON).assign(kind="tournament")
+    r = data.load_games(SEASON).assign(kind="regular season")
+    return pd.concat([t, r], ignore_index=True)
+
+
+def _meeting_rows(a: str, b: str):
+    g = real_games()
+    return g[(g.team == a) & (g.opponent == b)].sort_values("date", ascending=False)
+
+
+@app.route("/api/meetings")
+def api_meetings():
+    """Real games between two teams, tournament games first."""
+    rows = _meeting_rows(request.args.get("a"), request.args.get("b"))
+    rows = rows.sort_values(["kind", "date"], ascending=[False, False])
+    return jsonify([{"game_id": int(r.game_id), "date": r.date.strftime("%b %d, %Y"), "kind": r.kind,
+                     "home": int(r.home), "score": [int(r.pts), int(r.opp_pts)], "ot": int(r.ot)}
+                    for r in rows.itertuples()])
+
+
+def compare_to_game(res: dict, row) -> dict:
+    """Where a real game's box score falls in the simulated distributions.
+
+    ``percentile`` is the mid-p value P(sim < x) + P(sim = x)/2, so a
+    well-calibrated model puts real values uniformly between 0 and 1.
+    """
+    stats = {}
+    for s in BOX_STATS:
+        if s == "poss":
+            real = [row.fga - row.oreb + row.tov + 0.44 * row.fta, row.opp_fga - row.opp_oreb + row.opp_tov + 0.44 * row.opp_fta]
+            real = [round(float(np.mean(real)), 1)] * 2
+        else:
+            real = [int(getattr(row, s)), int(getattr(row, "opp_" + s))]
+        sim = res[s]
+        pct = [float((sim[:, j] < real[j]).mean() + 0.5 * (sim[:, j] == real[j]).mean()) for j in range(2)]
+        stats[s] = {"actual": real, "percentile": pct,
+                    "p5": np.percentile(sim, 5, axis=0).round(1).tolist(),
+                    "p95": np.percentile(sim, 95, axis=0).round(1).tolist()}
+    margin = res["pts"][:, 0] - res["pts"][:, 1]
+    m = int(row.pts - row.opp_pts)
+    pcts = [v for st in stats.values() for v in st["percentile"]]
+    return {"game_id": int(row.game_id), "date": row.date.strftime("%b %d, %Y"), "kind": row.kind, "ot": int(row.ot),
+            "stats": stats, "margin": m,
+            "margin_percentile": float((margin < m).mean() + 0.5 * (margin == m).mean()),
+            "p_actual_winner": float(res["a_wins"].mean() if m > 0 else 1 - res["a_wins"].mean()),
+            "outside_90": sum(1 for p in pcts if p < 0.05 or p > 0.95), "n_stats": len(pcts)}
+
+
 @app.route("/api/matchup")
 def api_matchup():
     """Simulate full box scores for a head-to-head game."""
@@ -301,16 +354,22 @@ def api_matchup():
     lo, hi = int(np.percentile(margin, 0.5)), int(np.percentile(margin, 99.5))
     edges = np.arange(lo, hi + 3, 2)
     box = {s: {"mean": res[s].mean(0).round(1).tolist(),
-               "p10": np.percentile(res[s], 10, axis=0).tolist(),
-               "p90": np.percentile(res[s], 90, axis=0).tolist()} for s in BOX_STATS}
+               "p10": np.percentile(res[s], 10, axis=0).round(1).tolist(),
+               "p90": np.percentile(res[s], 90, axis=0).round(1).tolist()} for s in BOX_STATS}
     samples = [{s: res[s][i].tolist() for s in BOX_STATS} | {"ot": int(res["ot"][i])} for i in range(8)]
+    actual_game = None
+    if request.args.get("game_id"):
+        rows = _meeting_rows(a, b)
+        rows = rows[rows.game_id == int(request.args["game_id"])]
+        if len(rows):
+            actual_game = compare_to_game(res, next(rows.itertuples()))
     return jsonify({
         "teams": [a, b], "n": n, "p_a_wins": float(res["a_wins"].mean()),
         "p_ot": float((res["ot"] > 0).mean()),
         "margin": {"mean": float(margin.mean()), "sd": float(margin.std()),
                    "hist": np.histogram(margin, bins=edges)[0].tolist(), "edges": edges.tolist()},
         "total": {"mean": float(pts.sum(1).mean()), "sd": float(pts.sum(1).std())},
-        "box": box, "samples": samples,
+        "box": box, "samples": samples, "actual": actual_game,
         # Density of every box-score stat for both teams over the simulated games.
         "density": {s: (lambda g: {"grid": g.round(2).tolist(),
                                    "y": [kde(res[s][:, j], g).round(5).tolist() for j in range(2)],

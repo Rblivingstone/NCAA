@@ -217,7 +217,15 @@ Then open http://127.0.0.1:5000:
 * **Simulate a game** – any two Division I teams, neutral or home court:
   win probability, margin distribution, average box score and sample box
   scores, plus a kernel-density chart of every box-score stat for both teams
-  (with mean lines; hover for the chance of reaching a value).
+  (with mean lines; hover for the chance of reaching a value). If the two
+  teams really played, pick the game under *Compare with real game*. A
+  tournament game is out of sample and is chosen by default; a regular-season
+  game is labelled as part of the training data. The venue is matched, every
+  real stat is marked on its density with its percentile (red outside the
+  model's 90% range), the margin is placed in the simulated margin
+  distribution, and the most surprising stats are listed. Tournament box
+  scores are saved by `fetch` to `data/<season>/tournament_games.csv` and are
+  never used for fitting.
 * **Team ratings** – offensive/defensive efficiency, net rating with 90%
   interval, tempo and component rates.
 
