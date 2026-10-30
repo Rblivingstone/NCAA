@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
 
@@ -422,6 +423,210 @@ def api_h2h():
 @app.route("/api/team_list")
 def api_team_list():
     return jsonify(sorted(state()[4].teams))
+
+
+# ---------------------------------------------------------------------------
+# Season tracking and live games
+# ---------------------------------------------------------------------------
+import threading
+import time as _time
+
+import pandas as pd
+
+from ncaa import season as season_mod
+from ncaa.ingame import forecast as live_forecast, live_unusualness, pregame
+from ncaa.live import ESPNFeed, ReplayFeed
+
+LIVE_SEASON = int(os.environ.get("NCAA_LIVE_SEASON", 2027))
+_espn, _replay = ESPNFeed(), ReplayFeed()
+_history: dict = {}          # game id -> [(elapsed, our P(home), ESPN P(home))] seen while polling live
+_lock = threading.Lock()
+
+
+@lru_cache(maxsize=4)
+def _season_post(season: int, stamp: float):
+    return season_mod.current_posterior(season)
+
+
+def season_post(season: int):
+    """Latest posterior for a season (re-read when the nightly update rewrites it)."""
+    path = model.artifact_dir(season) / "posterior.npz"
+    return _season_post(season, path.stat().st_mtime if path.exists() else 0.0)
+
+
+@app.route("/season")
+def season_page():
+    return render_template("season.html", season=SEASON, live_season=LIVE_SEASON, page="season")
+
+
+@app.route("/live")
+def live_page():
+    return render_template("live.html", season=SEASON, live_season=LIVE_SEASON, page="live")
+
+
+@app.route("/api/season/status")
+def api_season_status():
+    """Where the season stands: last update, and how the out-of-sample ledger is scoring."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    team = request.args.get("team", "")
+    post, label = season_post(season)
+    path = model.artifact_dir(season) / "status.json"
+    status = json.loads(path.read_text()) if path.exists() else {}
+    led = season_mod.load_ledger(season)
+    summ = {"games": len(led)}
+    if len(led):
+        won = (led.home_pts > led.away_pts).to_numpy()
+        p = led.p_home.clip(1e-3, 1 - 1e-3).to_numpy()
+        u = led.unusualness.to_numpy()
+        summ |= {"log_loss": float(-np.mean(np.where(won, np.log(p), np.log(1 - p)))),
+                 "brier": float(np.mean((p - won) ** 2)), "accuracy": float(np.mean((p > 0.5) == won)),
+                 "unusual_hist": np.histogram(u, bins=10, range=(0, 1))[0].tolist(),
+                 "share_unusual_05": float(np.mean(u < 0.05))}
+    rows = led[(led.home == team) | (led.away == team)] if team else led
+    rows = rows.sort_values("date", ascending=False).head(300)
+    return jsonify({"season": season, "posterior": label, "status": status, "summary": summ,
+                    "teams": sorted(post.teams) if post is not None else [],
+                    "games": json.loads(rows.to_json(orient="records", date_format="iso"))})
+
+
+@app.route("/api/season/upcoming")
+def api_season_upcoming():
+    season = int(request.args.get("season", LIVE_SEASON))
+    post, label = season_post(season)
+    if post is None:
+        abort(404, "no posterior for this season yet")
+    date = request.args.get("date") or None
+    return jsonify({"posterior": label, "games": season_mod.upcoming(season, post, start=date,
+                                                                     days=int(request.args.get("days", 1)))})
+
+
+@app.route("/api/live/scoreboard")
+def api_live_scoreboard():
+    date = request.args.get("date") or pd.Timestamp.now(tz="America/New_York").strftime("%Y%m%d")
+    try:
+        return jsonify({"date": date, "games": _espn.scoreboard(date.replace("-", ""))})
+    except Exception as e:  # network or feed trouble: say so instead of failing the page
+        return jsonify({"date": date, "games": [], "error": f"ESPN scoreboard unavailable: {e}"})
+
+
+@app.route("/api/live/replay_games")
+def api_replay_games():
+    season = int(request.args.get("season", SEASON))
+    t = data.load_tournament_games(season)
+    if not len(t):
+        return jsonify([])
+    t = t[t.team < t.opponent].sort_values("date", ascending=False)
+    return jsonify([{"game_id": int(r.game_id), "date": r.date.strftime("%b %d"), "teams": [r.team, r.opponent],
+                     "score": [int(r.pts), int(r.opp_pts)]} for r in t.itertuples()])
+
+
+def _model_view(post, state, n=3000):
+    """Forecast, pre-game baseline and live unusualness for a state (home team first)."""
+    idx = {t: i for i, t in enumerate(post.teams)}
+    if not all(t in idx for t in state.teams):
+        return None
+    a, b = idx[state.teams[0]], idx[state.teams[1]]
+    home = 0 if state.neutral else 1
+    f = live_forecast(post, a, b, home, state, n=n, seed=0)
+    pre = pregame(post, a, b, home, n=n, seed=0)
+    u = live_unusualness(post, a, b, home, state, seed=0) if state.status != "pre" else None
+    return {"p_win": f["p_win"], "final": f["final"], "margin": f["margin"], "p_overtime": f["p_overtime"],
+            "possessions_left": f["possessions_left"], "effective_draws": f["effective_draws"],
+            "pregame": pre, "unusualness": u}
+
+
+@lru_cache(maxsize=64)
+def _replay_timeline(season: int, game_id: int) -> list:
+    post, _ = season_post(season)
+    length = _replay.length(game_id)
+    out = []
+    for m in np.arange(0, length + 0.01, 1.0):
+        st = _replay.game(game_id, float(m))
+        v = _model_view_light(post, st)
+        out.append({"elapsed": float(st.elapsed), "ours": v, "espn": st.espn_home_wp,
+                    "score": [st.box[t]["pts"] for t in st.teams]})
+    return out
+
+
+def _model_view_light(post, state):
+    idx = {t: i for i, t in enumerate(post.teams)}
+    if not all(t in idx for t in state.teams):
+        return None
+    return live_forecast(post, idx[state.teams[0]], idx[state.teams[1]], 0 if state.neutral else 1, state,
+                         n=800, seed=1)["p_win"][0]
+
+
+@app.route("/api/live/game")
+def api_live_game():
+    """A game's live state with the model's Bayesian in-game forecast.
+
+    ?source=espn&id=<game id>  — live from ESPN (history builds up as it is polled)
+    ?source=replay&id=<game id>&minute=<m>&season=2026 — a finished game replayed at minute m
+    """
+    source = request.args.get("source", "espn")
+    gid = int(request.args["id"])
+    try:
+        if source == "replay":
+            season = int(request.args.get("season", SEASON))
+            state = _replay.game(gid, float(request.args.get("minute", 0)))
+            timeline = [t for t in _replay_timeline(season, gid) if t["elapsed"] <= state.elapsed + 1e-6]
+        else:
+            season = int(request.args.get("season", LIVE_SEASON))
+            state = _espn.game(gid)
+            timeline = None
+    except Exception as e:
+        return jsonify({"error": f"could not load game {gid}: {e}"}), 502
+    post, label = season_post(season)
+    view = _model_view(post, state) if post is not None else None
+    if timeline is None:
+        with _lock:
+            hist = _history.setdefault(gid, [])
+            if view and (not hist or hist[-1]["elapsed"] < state.elapsed - 1e-6):
+                hist.append({"elapsed": state.elapsed, "ours": view["p_win"][0], "espn": state.espn_home_wp,
+                             "score": [state.box.get(t, {}).get("pts", 0) for t in state.teams]})
+            timeline = list(hist)
+    return jsonify({"state": state.to_json(), "model": view, "posterior": label, "timeline": timeline})
+
+
+@lru_cache(maxsize=32)
+def _bracket_asof(asof: str) -> dict:
+    """The distribution bracket conditioned on every result final before ``asof``."""
+    br, _, _, _, post = state()
+    cut = pd.Timestamp(asof)
+    played = {}
+    for r in br.spec.get("results", []):
+        if "date" in r and pd.Timestamp(r["date"]) + pd.Timedelta(hours=2.5) <= cut:
+            played[frozenset(r["teams"])] = r["winner"]
+    forced = {}
+    for _ in range(7):  # resolve game ids round by round
+        for g in br.games:
+            if g.id in forced:
+                continue
+            teams = [br.teams[v] if kind == "team" else (br.teams[forced[v]] if v in forced else None)
+                     for kind, v in g.sources]
+            if None not in teams and frozenset(teams) in played:
+                forced[g.id] = br.tidx[played[frozenset(teams)]]
+    sims = simulate_tournament(br, post, 4000, seed=11, forced=forced)
+    from ncaa.bracket import summarize
+    out = summarize(br, sims)
+    out["bracket"] = state()[2]["bracket"]
+    out["ratings"] = state()[2]["ratings"]
+    out["asof"], out["games_final"] = cut.isoformat(), len(forced)
+    return out
+
+
+@app.route("/api/bracket_asof")
+def api_bracket_asof():
+    """?asof=<ISO time>: the bracket as it stood then, with every finished game locked in."""
+    return jsonify(_bracket_asof(request.args.get("asof", pd.Timestamp.now(tz="UTC").isoformat())))
+
+
+@app.route("/api/tournament_days")
+def api_tournament_days():
+    br = state()[0]
+    days = sorted({pd.Timestamp(r["date"]).tz_convert("America/New_York").strftime("%Y-%m-%d")
+                   for r in br.spec.get("results", []) if "date" in r})
+    return jsonify(days)
 
 
 if __name__ == "__main__":

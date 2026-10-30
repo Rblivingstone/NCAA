@@ -181,3 +181,12 @@ table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
 .joint .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .joint .k { color: var(--muted); font-size: 12px; max-width: 280px; }
 .joint .k b { color: var(--ink); }
+
+/* ---- live page ---- */
+.live-top { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; }
+.scorebug { min-width: 260px; }
+.scorebug .row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.scorebug .tm { font-size: 16px; font-weight: 600; }
+.scorebug .pts { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ball { color: var(--hl); font-style: normal; font-size: 12px; }
+code { font: 12px ui-monospace, monospace; background: var(--accent-soft); padding: 1px 4px; border-radius: 4px; }

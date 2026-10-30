@@ -31,6 +31,7 @@ whatever the simulated makes add up to.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 from dataclasses import dataclass
@@ -92,6 +93,7 @@ class ModelData:
     lam_def: np.ndarray   # D-vector: direction of +1 point/100 possessions of defense (fewer allowed)
     form: bool = True     # whether teams' form may wander over the season
     form_sigma: float | None = None  # fix the form step size instead of learning it (diagnostics)
+    prior_mean: np.ndarray | None = None  # T x D: last season's skill per team (0 for new teams)
 
 
 PERIOD_DAYS = 14
@@ -208,7 +210,13 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
     tau = numpyro.sample("tau", dist.HalfNormal(0.3).expand([D]))
     L = numpyro.sample("L_omega", dist.LKJCholesky(D, concentration=2.0))
     eps = numpyro.sample("eps", dist.Normal(0.0, 1.0).expand([T, D]))
-    z = numpyro.deterministic("z", eps @ (tau[:, None] * L).T)  # T x D, cov = diag(tau) Ω diag(tau)
+    z = eps @ (tau[:, None] * L).T                           # T x D, cov = diag(tau) Ω diag(tau)
+    if md.prior_mean is not None:
+        # Preseason prior: last season's skill carries over, shrunk by rho (rosters
+        # turn over), and this season's deviations are what the LKJ prior describes.
+        rho = numpyro.sample("rho", dist.Beta(6.0, 3.0))
+        z = rho * jnp.asarray(md.prior_mean) + z
+    z = numpyro.deterministic("z", z)
 
     off, dfn, home = md.off, md.dfn, jnp.array(md.home)
     z_off, z_def = z[off], z[dfn]
@@ -257,11 +265,39 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
                    obs=jnp.array(md.log_pace))
 
 
+def carryover_mean(prior: "Posterior", teams: list[str]) -> np.ndarray:
+    """Last season's posterior-mean skills in this season's team order (zeros for teams it lacks)."""
+    zbar = prior.z.mean(0)
+    idx = {t: i for i, t in enumerate(prior.teams)}
+    out = np.zeros((len(teams), zbar.shape[1]))
+    for i, t in enumerate(teams):
+        if t in idx:
+            out[i] = zbar[idx[t]]
+    return out
+
+
+def preseason_posterior(prior: "Posterior", teams: list[str] | None = None, rho: float = 0.65,
+                        spread: float = 1.0) -> "Posterior":
+    """Before any games: last season's skills shrunk by rho, with this season's
+    uncertainty added back as fresh draws from last season's skill distribution."""
+    teams = teams or prior.teams
+    rng = np.random.default_rng(0)
+    m = carryover_mean(prior, teams)
+    zbar = prior.z.mean(0)
+    sd = zbar.std(0) * np.sqrt(1 - rho ** 2) * spread
+    K = prior.n_draws
+    z = (rho * m[None] + rng.standard_normal((K, len(teams), zbar.shape[1])) * sd).astype(np.float32)
+    return dataclasses.replace(prior, teams=list(teams), z=z, form_mean=None, form_lo=None, form_hi=None,
+                               form_start=None)
+
+
 def init_values(md: ModelData) -> dict:
     """A sensible starting point: every team average, league-average rates."""
     out = {"mu": base_rates(md), "hfa": np.zeros(S), "log_phi": np.full(S - 1, 5.0),
            "tau": np.full(D, 0.1), "L_omega": np.eye(D), "eps": np.zeros((len(md.teams), D)),
            "mu_pace": float(np.mean(md.log_pace)), "sigma_pace": 0.1}
+    if md.prior_mean is not None:
+        out["rho"] = 0.65
     if md.form:
         out |= ({"sigma_form": np.full(2, 1.0)} if md.form_sigma is None else {}) | {"form_raw": np.zeros((len(md.teams), 2, md.n_periods - 1))}
     return out
@@ -288,7 +324,7 @@ def _fit_vi(md: ModelData, key, steps: int, progress: bool):
 
 
 def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_samples=250, num_chains=4,
-        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, form=True, form_sigma=None) -> Path:
+        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, form=True, form_sigma=None, prior: "Posterior | None" = None) -> Path:
     """Fit the model and save the posterior draws needed for simulation.
 
     ``method="nuts"`` runs full MCMC (the default).  A variational fit is run
@@ -308,6 +344,8 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     numpyro.set_host_device_count(num_chains)
     md = _with_directions(prepare(games, form=form))
     md.form_sigma = form_sigma
+    if prior is not None:
+        md.prior_mean = carryover_mean(prior, md.teams)
     key = jax.random.PRNGKey(seed)
     guide, vi = _fit_vi(md, key, vi_steps, progress)
     losses = np.asarray(vi.losses)
@@ -344,6 +382,7 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
         mu_pace=np.asarray(post["mu_pace"]), sigma_pace=np.asarray(post["sigma_pace"]),
         omega=np.asarray(post["L_omega"] @ np.swapaxes(post["L_omega"], -1, -2)).mean(0),
         lam_off=md.lam_off, lam_def=md.lam_def,
+        **({"rho": np.asarray(post["rho"])} if "rho" in post else {}),
         **({"form_start": np.asarray(post["form"][:, :, :, -1], dtype=np.float32),
             "form_mean": np.asarray(post["form"]).mean(0),
             "form_lo": np.quantile(np.asarray(post["form"]), 0.05, axis=0),
@@ -360,7 +399,7 @@ def summarize_diagnostics(mcmc, extra) -> dict:
     from numpyro.diagnostics import summary
 
     s = summary(mcmc.get_samples(group_by_chain=True), prob=0.9)
-    keys = ["mu", "hfa", "log_phi", "tau", "mu_pace", "sigma_pace", "z", "sigma_form", "form"]
+    keys = ["mu", "hfa", "log_phi", "tau", "mu_pace", "sigma_pace", "z", "sigma_form", "form", "rho"]
     out = {}
     for k in (k for k in keys if k in s):
         r = np.asarray(s[k]["r_hat"]).ravel()

@@ -101,14 +101,20 @@ class Bracket:
 
 
 def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: int | None = 0,
-                        full_box: bool = False) -> dict:
+                        full_box: bool = False, forced: dict | None = None, live: dict | None = None) -> dict:
     """Play the whole tournament ``n_sims`` times.
 
     Each simulated tournament uses a single posterior draw for every game, so
     parameter uncertainty is carried through the bracket coherently.  With
     ``full_box`` the complete simulated box score of every game is returned
     too (``box[stat]`` is sims x games x 2, plus ``ot``).
+
+    During the tournament, ``forced`` ({game id: winning team index}) fixes
+    games already played, and ``live`` ({game id: P(top team wins)}) settles
+    games in progress with their current in-game win probability; everything
+    else is simulated.  This is what keeps the bracket current in real time.
     """
+    forced, live = forced or {}, live or {}
     from .simulate import BOX_STATS
 
     rng = np.random.default_rng(seed)
@@ -131,6 +137,13 @@ def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: in
         k = np.repeat(draws, len(gs))
         res = simulate_games(post, k, pidx[top], pidx[bot], rng, full_box=full_box)
         win = np.where(res["a_wins"], top, bot).reshape(n_sims, len(gs))
+        for col, i in enumerate(gs):
+            gid = bracket.games[i].id
+            if gid in forced:
+                win[:, col] = forced[gid]
+            elif gid in live:
+                t0, t1 = sides[:, i, 0], sides[:, i, 1]
+                win[:, col] = np.where(rng.random(n_sims) < live[gid], t0, t1)
         winners[:, gs] = win
         scores[:, gs] = res["pts"].reshape(n_sims, len(gs), 2)
         ot[:, gs] = res["ot"].reshape(n_sims, len(gs))

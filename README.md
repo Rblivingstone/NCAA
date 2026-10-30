@@ -168,6 +168,72 @@ is its score against what actually happened, broken down by round, with the
 delta between them. "Mark picks against actual results" puts ✓/✗ on every
 pick.
 
+## During a season: data feeds, nightly updates, live games
+
+**Feeds** (`ncaa/data.py`, `ncaa/live.py`)
+
+* *Nightly:* the sportsdataverse mirror of ESPN (box scores, schedules,
+  play-by-play), updated daily. `fetch` handles a season in progress (no
+  box scores yet, no bracket yet) and saves the full schedule.
+* *Live:* ESPN's public site API: the scoreboard for a date, and the game
+  summary (status, clock, box score, play-by-play). It is unofficial, but
+  it's what public trackers use. It can't be reached from some sandboxes; the
+  app then says so.
+* *Replay:* the mirror archives each finished game's ESPN JSON, so any game
+  can be stepped through minute by minute as if live. Box scores rebuilt from
+  play-by-play match ESPN's official box exactly (tested), and possession is
+  inferred from the last plays.
+
+**Nightly update** (`python -m ncaa update --season 2027`, `ncaa/season.py`).
+Run it from cron or a scheduler each morning:
+
+1. Fetch the latest data.
+2. Score every newly finished game against the posterior from *before* it
+   (win probability, margin percentile, whole-box-score unusualness) into
+   `artifacts/<season>/ledger.csv`, so the season record is out of sample.
+3. Refit (`--refit vi` in minutes, `nuts` in about an hour).
+
+Before the first games, the model is last season's posterior carried over:
+skills are shrunk by ρ ≈ 0.65 and this season's uncertainty is added back.
+Once games are played, the fit learns ρ (prior Beta(6, 3)). Teams new to
+Division I start at average. In a backtest (fit on November 2025 games, predict the
+1,170 December games), the carry-over prior improves on November games alone
+(log-loss 0.434 → 0.421, Brier 0.145 → 0.140, margin RMSE 14.1 → 13.9). The
+learned ρ is 0.67, also the prior's mean, so a month of games barely
+identifies it.
+
+**Live in-game forecast** (`ncaa/ingame.py`). At each refresh the box score so
+far updates the model in three Bayesian steps:
+
+* the posterior draws of both teams' skills are reweighted by the
+  beta-binomial likelihood of the partial counts;
+* this game's rates get a conjugate beta update from the counts;
+* the tempo is a precision-weighted blend of the pre-game pace and the pace
+  so far.
+
+The rest of the game is then simulated from the current score, giving a
+projected final box score (mean and 80% interval) and each team's win
+probability. The last two minutes use a measured fouling regime: possession
+counts and the leader's free-throw share by margin, from 6,170 games of
+2026 play-by-play. *Unusual so far* scores the partial box score against the
+pre-game model over the same number of possessions.
+
+Calibration on 300 replayed 2026 regular-season games (Brier; ESPN's own
+win probability alongside): halftime 0.114 vs ESPN 0.130, 5:00 left 0.067 vs
+0.063, 1:00 left 0.056 vs 0.048. At halftime the model is competitive (these
+games were in its training data, which flatters it). In the last two minutes
+ESPN is better; it presumably uses shot-clock and timeout state that this
+model doesn't.
+
+**Live tournament bracket.** `simulate_tournament(forced=..., live=...)` locks
+in finished games and settles games in progress with their current in-game
+win probability. The distribution bracket's *As of* control re-simulates the
+rest of the tournament from any day.
+
+**Pages:** *Season* (status, upcoming-game forecasts, the out-of-sample
+ledger) and *Live* (ESPN live with 20-second refresh, or replay any 2026
+tournament game with a slider and play button).
+
 ## Running it
 
 ```bash
@@ -243,7 +309,8 @@ Then open http://127.0.0.1:5000:
 * **Team ratings** – offensive/defensive efficiency, net rating with 90%
   interval, tempo and component rates.
 
-Set `NCAA_SEASON` to serve a different season.
+Set `NCAA_SEASON` to serve a different season for the bracket pages and
+`NCAA_LIVE_SEASON` (default 2027) for the season and live pages.
 
 ## Tests
 

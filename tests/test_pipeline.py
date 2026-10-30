@@ -310,3 +310,69 @@ def test_unusualness_is_uniform_for_games_from_the_model(post):
     ps = np.array(ps)
     assert 0.4 < np.median(ps) < 0.6
     assert np.mean(ps < 0.1) < 0.17
+
+
+def test_live_tournament_respects_results(bracket, post):
+    picks = actual_picks(bracket)
+    first_round = {g.id: bracket.tidx[picks[g.id]] for g in bracket.games if g.round <= 1}
+    sims = simulate_tournament(bracket, post, 300, seed=5, forced=first_round, live={"R2-East-0": 1.0})
+    for gid, t in first_round.items():
+        assert (sims["winners"][:, bracket.gidx[gid]] == t).all()
+    i = bracket.gidx["R2-East-0"]
+    assert (sims["winners"][:, i] == sims["sides"][:, i, 0]).all()        # live P(top wins) = 1
+
+
+def test_replay_box_matches_official_box_and_forecast_is_sane(post):
+    import json
+    from pathlib import Path
+
+    from ncaa.ingame import forecast
+    from ncaa.live import parse_summary
+
+    d = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+    final = parse_summary(d)
+    replayed = parse_summary(d, until=999)
+    assert final.status == "post" and replayed.status == "post"
+    assert final.box == replayed.box                     # play-by-play rebuild == official box score
+    half = parse_summary(d, until=20)
+    assert half.period == 1 and half.box["Michigan"]["pts"] == 33 and half.box["UConn"]["pts"] == 29
+    # A game that is over is certain; a game in progress keeps the score so far.
+    f = forecast(post, 0, 1, 0, replayed, n=300, seed=0)
+    assert f["p_win"][0] == 1.0
+    g = forecast(post, 0, 1, 0, half, n=300, seed=0)
+    assert (g["samples"]["pts"][:, 0] >= 33).all() and (g["samples"]["pts"][:, 1] >= 29).all()
+    assert 0 < g["p_win"][0] < 1
+
+
+def test_live_parser_reads_nested_espn_plays():
+    """ESPN's live API nests play fields ({"type": {"text": ...}}); the archive flattens them."""
+    import json
+    from pathlib import Path
+
+    from ncaa.live import parse_summary
+
+    d = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+
+    def nest(p):
+        out = {}
+        for k, v in p.items():
+            node = out
+            *path, last = k.split(".")
+            for part in path:
+                node = node.setdefault(part, {})
+            node[last] = v
+        return out
+
+    nested = dict(d, plays=[nest(p) for p in d["plays"]])
+    for minute in (12.5, 33.0, 999):
+        assert parse_summary(nested, until=minute).box == parse_summary(d, until=minute).box
+
+
+def test_preseason_posterior_carries_last_season_over(post):
+    from ncaa.model import preseason_posterior
+
+    pre = preseason_posterior(post, rho=0.65)
+    zbar_prev, zbar_new = post.z.mean(0), pre.z.mean(0)
+    slope = (zbar_prev * zbar_new).sum() / (zbar_prev ** 2).sum()
+    assert 0.55 < slope < 0.75                                     # shrunk toward average by ~rho
+    assert pre.z.std(0).mean() > post.z.std(0).mean()              # and more uncertain

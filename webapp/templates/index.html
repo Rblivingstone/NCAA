@@ -6,6 +6,10 @@
 the shading is that probability. Hover a game for the full distribution of who gets there and who wins.
 Click a team to follow it through the bracket (click again to clear).</p>
 <div class="toolbar">
+  <label>As of <select id="asof"><option value="">Before the tournament</option></select></label>
+  <span class="muted" id="asof-note"></span>
+</div>
+<div class="toolbar">
   <label class="switch"><input type="checkbox" id="compare"> Compare with actual results</label>
   <label class="switch"><input type="checkbox" id="alert-on" checked> Flag potential upsets</label>
   <select id="alert-at" title="Flag when the worse seed's chance is at least"><option value="0.35">≥ 35%</option>
@@ -32,7 +36,24 @@ Click a team to follow it through the bracket (click again to clear).</p>
 (async () => {
   const s = await (await fetch("/api/summary")).json();
   document.getElementById("nsims").textContent = s.n_sims.toLocaleString();
-  const view = new BracketView(document.getElementById("bracket"), s, { mode: "dist" });
+  let view = new BracketView(document.getElementById("bracket"), s, { mode: "dist" });
+  // ----- the bracket as it stood at any point of the tournament -----
+  const days = await (await fetch("/api/tournament_days")).json();
+  const asof = document.getElementById("asof");
+  for (const d of days) asof.add(new Option(`End of ${new Date(d + "T12:00:00").toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`, d));
+  asof.onchange = async () => {
+    const note = document.getElementById("asof-note");
+    let sum = s;
+    if (asof.value) {
+      note.textContent = "Re-simulating the rest of the tournament…";
+      sum = await (await fetch(`/api/bracket_asof?asof=${asof.value}T23:59:00-04:00`)).json();
+      note.textContent = `${sum.games_final} games final and locked in; the rest simulated ${sum.n_sims.toLocaleString()} times from there.`;
+    } else note.textContent = "";
+    const keep = { compare: view.compare, h2h: view.h2h, alertAt: view.alertAt };
+    view = new BracketView(document.getElementById("bracket"), sum, { mode: "dist" });
+    Object.assign(view, keep); view.refresh();
+    sel.onchange();
+  };
 
   // ----- potential-upset flags -----
   {

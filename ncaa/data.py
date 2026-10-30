@@ -62,9 +62,31 @@ def _fetch_parquet(url: str) -> pd.DataFrame:
 
 
 def fetch_raw(season: int) -> tuple[pd.DataFrame, pd.DataFrame]:
-    box = _fetch_parquet(f"{BASE}/team_box/parquet/team_box_{season}.parquet")
+    """Box scores and schedule.  Early in a season the box-score file may not exist yet."""
+    import urllib.error
+
     sched = _fetch_parquet(f"{BASE}/schedules/parquet/mbb_schedule_{season}.parquet")
+    try:
+        box = _fetch_parquet(f"{BASE}/team_box/parquet/team_box_{season}.parquet")
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
+        box = pd.DataFrame(columns=["game_id", "game_date_time", "team_id", "team_location", "team_home_away",
+                                    "opponent_team_id"] + list(BOX_COLUMNS))
     return box, sched
+
+
+def build_schedule(sched: pd.DataFrame) -> pd.DataFrame:
+    """Every scheduled game (home first) with its status, for upcoming-game forecasts."""
+    s = sched.drop_duplicates("game_id")
+    out = pd.DataFrame({
+        "game_id": s.game_id, "date": pd.to_datetime(s.game_date_time, utc=True),
+        "home": s.home_location, "away": s.away_location, "neutral": s.neutral_site.fillna(False).astype(bool),
+        "completed": s.status_type_completed.fillna(False).astype(bool),
+        "home_score": s.home_score, "away_score": s.away_score, "season_type": s.season_type,
+        "tournament": s.tournament_id.eq(NCAA_TOURNAMENT_ID) & s.notes_headline.fillna("").str.contains("Men's Basketball Championship"),
+    })
+    return out.sort_values("date").reset_index(drop=True)
 
 
 def _tournament_games(sched: pd.DataFrame) -> pd.DataFrame:
@@ -186,7 +208,7 @@ def build_bracket(sched: pd.DataFrame, box: pd.DataFrame) -> dict:
         winner = home if g.home_score > g.away_score else away
         results.append({"round": g.round_name, "region": g.region if isinstance(g.region, str) else None,
                         "teams": [home, away], "score": [int(g.home_score), int(g.away_score)],
-                        "winner": winner})
+                        "winner": winner, "date": pd.Timestamp(g.date).isoformat()})
 
     first_game = pd.to_datetime(t.date, utc=True).min()
     return {
@@ -199,21 +221,39 @@ def build_bracket(sched: pd.DataFrame, box: pd.DataFrame) -> dict:
     }
 
 
-def fetch(season: int) -> tuple[pd.DataFrame, dict]:
+def fetch(season: int) -> tuple[pd.DataFrame, dict | None]:
+    """Download a season (complete or in progress).
+
+    Writes games.csv (every completed game before the NCAA tournament),
+    schedule.csv (all games, including upcoming ones) and, once the field is
+    set, bracket.json and tournament_games.csv.
+    """
     box, sched = fetch_raw(season)
-    bracket = build_bracket(sched, box)
-    games = build_games(box, sched, cutoff=pd.Timestamp(bracket["start"]))
     out = season_dir(season)
     out.mkdir(parents=True, exist_ok=True)
+    build_schedule(sched).to_csv(out / "schedule.csv", index=False)
+    has_bracket = len(_tournament_games(sched)[lambda t: t.round_name.isin(["1st Round", "First Four"])]) >= 32
+    bracket = build_bracket(sched, box) if has_bracket else None
+    cutoff = pd.Timestamp(bracket["start"]) if bracket else pd.Timestamp.now(tz="UTC") + pd.Timedelta(days=1)
+    games = build_games(box, sched, cutoff=cutoff) if len(box) else pd.DataFrame()
     games.to_csv(out / "games.csv", index=False)
-    build_games(box, sched, cutoff=pd.Timestamp(bracket["start"]), tournament=True).to_csv(
-        out / "tournament_games.csv", index=False)
-    (out / "bracket.json").write_text(json.dumps(bracket, indent=1))
+    if bracket:
+        build_games(box, sched, cutoff=cutoff, tournament=True).to_csv(out / "tournament_games.csv", index=False)
+        (out / "bracket.json").write_text(json.dumps(bracket, indent=1))
     return games, bracket
 
 
 def load_games(season: int) -> pd.DataFrame:
-    return pd.read_csv(season_dir(season) / "games.csv", parse_dates=["date"])
+    path = season_dir(season) / "games.csv"
+    try:
+        return pd.read_csv(path, parse_dates=["date"])
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+
+
+def load_schedule(season: int) -> pd.DataFrame:
+    path = season_dir(season) / "schedule.csv"
+    return pd.read_csv(path, parse_dates=["date"]) if path.exists() else pd.DataFrame()
 
 
 def load_tournament_games(season: int) -> pd.DataFrame:

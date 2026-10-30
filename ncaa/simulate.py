@@ -108,10 +108,14 @@ def _lead_adjusted(beta, surplus, n2, ra, rb):
     return ra2, rb2
 
 
-def simulate_games(post: Posterior, k, a, b, rng=None, home=None, full_box=True) -> dict:
+def simulate_games(post: Posterior, k, a, b, rng=None, home=None, full_box=True, n_poss=None,
+                   overtime=True) -> dict:
     """Simulate games between team indices ``a`` and ``b`` (posterior team order).
 
     ``home`` is +1 when ``a`` is at home, -1 when away, None/0 for neutral.
+    ``n_poss`` fixes the possessions each team plays (e.g. to simulate just the
+    first part of a game) instead of drawing a full game's tempo; with
+    ``overtime=False`` ties are left as they are.
     Returns arrays of shape (n, 2) for each box-score stat (column 0 = ``a``),
     plus ``ot`` (overtimes played) and ``a_wins``.
     """
@@ -122,9 +126,14 @@ def simulate_games(post: Posterior, k, a, b, rng=None, home=None, full_box=True)
     eta_a = matchup_eta(post, k, a, b, h)
     eta_b = matchup_eta(post, k, b, a, None if h is None else -h)
     ra, rb = _night_rates(post, k, eta_a, rng), _night_rates(post, k, eta_b, rng)
-    log_pace = post.mu_pace[k] + post.z[k, a, PACE] + post.z[k, b, PACE] \
-        + post.sigma_pace[k] * rng.standard_normal(n)
-    n_poss = np.maximum(np.round(np.exp(log_pace)).astype(np.int64), 30)
+    if n_poss is None:
+        log_pace = post.mu_pace[k] + post.z[k, a, PACE] + post.z[k, b, PACE] \
+            + post.sigma_pace[k] * rng.standard_normal(n)
+        n_poss = np.maximum(np.round(np.exp(log_pace)).astype(np.int64), 30)
+        segments = SEGMENTS
+    else:
+        n_poss = np.broadcast_to(np.asarray(n_poss, dtype=np.int64), (n,)).copy()
+        segments = max(1, int(round(SEGMENTS * n_poss.mean() / 68)))  # ~5-minute stretches
 
     # The game is played in SEGMENTS stretches.  Before each one, part of any
     # lead beyond what the matchup predicts erodes (benches, fouling, effort),
@@ -132,8 +141,8 @@ def simulate_games(post: Posterior, k, a, b, rng=None, home=None, full_box=True)
     exp_diff = expected_efficiency(eta_a) - expected_efficiency(eta_b)
     kappa = 1 - (1 + post.lead_beta[k]) ** (1 / (SEGMENTS // 2))
     sa = sb = None
-    for i in range(SEGMENTS):
-        lo, hi = n_poss * i // SEGMENTS, n_poss * (i + 1) // SEGMENTS
+    for i in range(segments):
+        lo, hi = n_poss * i // segments, n_poss * (i + 1) // segments
         if sa is None:
             ra_i, rb_i = ra, rb
         else:
@@ -143,7 +152,7 @@ def simulate_games(post: Posterior, k, a, b, rng=None, home=None, full_box=True)
         sa, sb = (ea, eb) if sa is None else (_merge(sa, ea), _merge(sb, eb))
     ot = np.zeros(n, dtype=np.int64)
     tied = sa["pts"] == sb["pts"]
-    while tied.any():
+    while overtime and tied.any():
         idx = np.flatnonzero(tied)
         np_ot = np.maximum(np.round(n_poss[idx] * 5 / 40).astype(np.int64), 1)
         ea, eb = _play(np_ot, ra[idx], rng), _play(np_ot, rb[idx], rng)

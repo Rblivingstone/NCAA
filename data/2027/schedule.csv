@@ -1,0 +1,1630 @@
+game_id,date,home,away,neutral,completed,home_score,away_score,season_type,tournament
+401902275,2026-11-02 05:00:00+00:00,Butler,Lafayette,False,False,0,0,2,False
+401910999,2026-11-02 05:00:00+00:00,Arkansas State,Toledo,False,False,0,0,2,False
+401911000,2026-11-02 05:00:00+00:00,Louisiana Tech,Kent State,False,False,0,0,2,False
+401911001,2026-11-02 05:00:00+00:00,Troy,Massachusetts,False,False,0,0,2,False
+401911002,2026-11-02 05:00:00+00:00,James Madison,Miami (OH),False,False,0,0,2,False
+401911003,2026-11-02 05:00:00+00:00,South Alabama,Ohio,False,False,0,0,2,False
+401911004,2026-11-02 05:00:00+00:00,Georgia Southern,Ball State,False,False,0,0,2,False
+401911185,2026-11-02 05:00:00+00:00,Dayton,NJIT,False,False,0,0,2,False
+401911208,2026-11-02 05:00:00+00:00,George Washington,Navy,False,False,0,0,2,False
+401910998,2026-11-02 05:00:00+00:00,Coastal Carolina,Eastern Michigan,False,False,0,0,2,False
+401911228,2026-11-02 05:00:00+00:00,Loyola Chicago,The Citadel,False,False,0,0,2,False
+401911248,2026-11-02 05:00:00+00:00,Saint Louis,Lehigh,False,False,0,0,2,False
+401911261,2026-11-02 05:00:00+00:00,St. Bonaventure,Youngstown State,False,False,0,0,2,False
+401911333,2026-11-02 05:00:00+00:00,Wright State,Air Force,False,False,0,0,2,False
+401911374,2026-11-02 05:00:00+00:00,South Florida,Charleston Southern,False,False,0,0,2,False
+401911390,2026-11-02 05:00:00+00:00,UConn,Gardner-Webb,False,False,0,0,2,False
+401911452,2026-11-02 05:00:00+00:00,Nevada,Robert Morris,False,False,0,0,2,False
+401911517,2026-11-02 05:00:00+00:00,UC Davis,North Alabama,False,False,0,0,2,False
+401912207,2026-11-02 05:00:00+00:00,Cincinnati,American University,False,False,0,0,2,False
+401911237,2026-11-02 05:00:00+00:00,Richmond,UNC Asheville,False,False,0,0,2,False
+401910997,2026-11-02 05:00:00+00:00,Old Dominion,Western Michigan,False,False,0,0,2,False
+401906769,2026-11-02 05:00:00+00:00,Florida,Miami,True,False,0,0,2,False
+401910995,2026-11-02 05:00:00+00:00,Marshall,Buffalo,False,False,0,0,2,False
+401906779,2026-11-02 05:00:00+00:00,Georgia,North Carolina Central,False,False,0,0,2,False
+401906791,2026-11-02 05:00:00+00:00,Mississippi State,Tennessee Tech,False,False,0,0,2,False
+401906801,2026-11-02 05:00:00+00:00,Oklahoma,East Texas A&M,False,False,0,0,2,False
+401906863,2026-11-02 05:00:00+00:00,Texas,Chicago State,False,False,0,0,2,False
+401909490,2026-11-02 05:00:00+00:00,Creighton,Kansas City,False,False,0,0,2,False
+401909500,2026-11-02 05:00:00+00:00,DePaul,West Georgia,False,False,0,0,2,False
+401909522,2026-11-02 05:00:00+00:00,Marquette,Mercyhurst,False,False,0,0,2,False
+401909531,2026-11-02 05:00:00+00:00,Providence,Maine,False,False,0,0,2,False
+401909541,2026-11-02 05:00:00+00:00,Xavier,Mount St. Mary's,False,False,0,0,2,False
+401910996,2026-11-02 05:00:00+00:00,UL Monroe,Central Michigan,False,False,0,0,2,False
+401909705,2026-11-02 05:00:00+00:00,Pittsburgh,Rider,False,False,0,0,2,False
+401910994,2026-11-02 05:00:00+00:00,Georgia State,Bowling Green,False,False,0,0,2,False
+401910993,2026-11-02 05:00:00+00:00,Louisiana,Akron,False,False,0,0,2,False
+401909784,2026-11-02 05:00:00+00:00,Kansas,Fordham,False,False,0,0,2,False
+401909562,2026-11-02 05:00:00+00:00,Duke,Army,False,False,0,0,2,False
+401909759,2026-11-02 05:00:00+00:00,Colorado,Abilene Christian,False,False,0,0,2,False
+401909725,2026-11-02 05:00:00+00:00,Wake Forest,Maryland Eastern Shore,False,False,0,0,2,False
+401909716,2026-11-02 05:00:00+00:00,Syracuse,New Haven,False,False,0,0,2,False
+401909771,2026-11-02 05:00:00+00:00,Iowa State,Memphis,True,False,0,0,2,False
+401911707,2026-11-02 16:30:00+00:00,Tennessee State,Murray State,True,False,0,0,2,False
+401911532,2026-11-02 19:00:00+00:00,UTEP,Northern Kentucky,True,False,0,0,2,False
+401911304,2026-11-03 00:00:00+00:00,Brown,New Hampshire,False,False,0,0,2,False
+401909694,2026-11-03 01:30:00+00:00,Florida State,Florida A&M,True,False,0,0,2,False
+401911389,2026-11-03 02:00:00+00:00,Grand Canyon,Texas Southern,False,False,0,0,2,False
+401909750,2026-11-03 02:30:00+00:00,Baylor,Northwestern State,False,False,0,0,2,False
+401909738,2026-11-03 03:00:00+00:00,Arizona,UCLA,True,False,0,0,2,False
+401911469,2026-11-03 03:00:00+00:00,San José State,UTSA,False,False,0,0,2,False
+401909796,2026-11-03 05:00:00+00:00,Kansas State,South Dakota State,False,False,0,0,2,False
+401906757,2026-11-03 05:00:00+00:00,Alabama,Sam Houston,False,False,0,0,2,False
+401906848,2026-11-03 05:00:00+00:00,Tennessee,Wofford,False,False,0,0,2,False
+401909551,2026-11-03 05:00:00+00:00,Boston College,Wagner,False,False,0,0,2,False
+401902276,2026-11-04 05:00:00+00:00,Butler,Fairleigh Dickinson,False,False,0,0,2,False
+401911518,2026-11-05 05:00:00+00:00,UC Davis,Menlo,False,False,0,0,2,False
+401911273,2026-11-05 05:00:00+00:00,Saint Peter's,Binghamton,False,False,0,0,2,False
+401911229,2026-11-05 05:00:00+00:00,Loyola Chicago,West Georgia,False,False,0,0,2,False
+401909739,2026-11-05 05:00:00+00:00,Arizona,Cal Poly,False,False,0,0,2,False
+401911195,2026-11-05 05:00:00+00:00,Fordham,Stonehill,False,False,0,0,2,False
+401909726,2026-11-05 05:00:00+00:00,Vanderbilt,Wake Forest,False,False,0,0,2,False
+401909491,2026-11-05 05:00:00+00:00,Creighton,Le Moyne,False,False,0,0,2,False
+401909706,2026-11-05 05:00:00+00:00,Pittsburgh,Buffalo,False,False,0,0,2,False
+401909563,2026-11-05 05:00:00+00:00,Duke,Coastal Carolina,False,False,0,0,2,False
+401909501,2026-11-05 05:00:00+00:00,DePaul,South Florida,False,False,0,0,2,False
+401906864,2026-11-05 05:00:00+00:00,Texas,Gardner-Webb,False,False,0,0,2,False
+401906792,2026-11-05 05:00:00+00:00,Mississippi State,Northwestern State,False,False,0,0,2,False
+401906770,2026-11-05 05:00:00+00:00,Florida,Jacksonville,False,False,0,0,2,False
+401909717,2026-11-05 05:00:00+00:00,Syracuse,Central Connecticut,False,False,0,0,2,False
+401912227,2026-11-05 23:00:00+00:00,Army,Mount St Mary,False,False,0,0,2,False
+401911375,2026-11-06 00:00:00+00:00,Charleston Southern,Columbia International,False,False,0,0,2,False
+401911334,2026-11-06 01:30:00+00:00,Air Force,Calumet St. Joseph,False,False,0,0,2,False
+401912208,2026-11-06 05:00:00+00:00,Clemson,American University,False,False,0,0,2,False
+401911249,2026-11-06 05:00:00+00:00,Saint Louis,Missouri,True,False,0,0,2,False
+401911006,2026-11-06 05:00:00+00:00,Central Michigan,Alma,False,False,0,0,2,False
+401911005,2026-11-06 05:00:00+00:00,Ball State,Indiana State,False,False,0,0,2,False
+401909797,2026-11-06 05:00:00+00:00,Kansas State,Cal State Northridge,False,False,0,0,2,False
+401909772,2026-11-06 05:00:00+00:00,Iowa State,Southern Miss,False,False,0,0,2,False
+401909785,2026-11-06 05:00:00+00:00,Kansas,Middle Tennessee,False,False,0,0,2,False
+401909552,2026-11-06 05:00:00+00:00,Boston College,Massachusetts,True,False,0,0,2,False
+401906758,2026-11-06 05:00:00+00:00,Alabama,Arkansas State,False,False,0,0,2,False
+401906780,2026-11-06 05:00:00+00:00,Georgia,Presbyterian,False,False,0,0,2,False
+401909695,2026-11-06 05:00:00+00:00,Florida State,Troy,False,False,0,0,2,False
+401909523,2026-11-06 05:00:00+00:00,Marquette,Detroit Mercy,False,False,0,0,2,False
+401906802,2026-11-06 05:00:00+00:00,Oklahoma,Mississippi Valley State,False,False,0,0,2,False
+401909542,2026-11-06 05:00:00+00:00,Xavier,Eastern Michigan,False,False,0,0,2,False
+401909751,2026-11-06 22:00:00+00:00,Baylor,Arkansas-Pine Bluff,False,False,0,0,2,False
+401911305,2026-11-07 00:00:00+00:00,Brown,Boston University,False,False,0,0,2,False
+401909513,2026-11-07 05:00:00+00:00,Georgetown,Maryland,False,False,0,0,2,False
+401909532,2026-11-07 05:00:00+00:00,Providence,Nebraska,True,False,0,0,2,False
+401909760,2026-11-07 05:00:00+00:00,San Diego State,Colorado,True,False,0,0,2,False
+401911007,2026-11-07 05:00:00+00:00,Miami (OH),Bellarmine,False,False,0,0,2,False
+401911262,2026-11-07 05:00:00+00:00,Canisius,St. Bonaventure,False,False,0,0,2,False
+401911470,2026-11-07 05:00:00+00:00,UC Irvine,San José State,False,False,0,0,2,False
+401911186,2026-11-07 05:00:00+00:00,Dayton,Northern Illinois,False,False,0,0,2,False
+401911345,2026-11-08 01:00:00+00:00,Grand Canyon,Bethune-Cookman,False,False,0,0,2,False
+401911453,2026-11-08 05:00:00+00:00,Nevada,Saint Mary's,True,False,0,0,2,False
+401902277,2026-11-08 05:00:00+00:00,Boise State,Butler,False,False,0,0,2,False
+401909707,2026-11-08 05:00:00+00:00,Pittsburgh,Penn State,True,False,0,0,2,False
+401911238,2026-11-08 05:00:00+00:00,Temple,Richmond,True,False,0,0,2,False
+401911306,2026-11-08 05:00:00+00:00,Lehigh,Brown,False,False,0,0,2,False
+401911335,2026-11-08 20:00:00+00:00,Air Force,Idaho State,False,False,0,0,2,False
+401911274,2026-11-08 21:00:00+00:00,Binghamton,Rider,False,False,0,0,2,False
+401911009,2026-11-09 05:00:00+00:00,Buffalo,Penn State Schuylkill,False,False,0,0,2,False
+401911010,2026-11-09 05:00:00+00:00,Bowling Green,Cleveland State,False,False,0,0,2,False
+401911008,2026-11-09 05:00:00+00:00,Ball State,Brescia,False,False,0,0,2,False
+401909718,2026-11-09 05:00:00+00:00,Indiana,Syracuse,True,False,0,0,2,False
+401909502,2026-11-09 05:00:00+00:00,DePaul,Alabama A&M,False,False,0,0,2,False
+401906759,2026-11-09 05:00:00+00:00,Alabama,Oakland,False,False,0,0,2,False
+401906849,2026-11-09 05:00:00+00:00,Tennessee,Radford,False,False,0,0,2,False
+401906803,2026-11-09 05:00:00+00:00,Oklahoma,North Alabama,False,False,0,0,2,False
+401906793,2026-11-09 05:00:00+00:00,Mississippi State,Jackson State,False,False,0,0,2,False
+401906781,2026-11-09 05:00:00+00:00,Georgia,Florida Gulf Coast,False,False,0,0,2,False
+401906865,2026-11-09 05:00:00+00:00,Texas,Grambling,False,False,0,0,2,False
+401912228,2026-11-10 05:00:00+00:00,New Haven,Army,False,False,0,0,2,False
+401911250,2026-11-10 05:00:00+00:00,Saint Louis,Northern Kentucky,False,False,0,0,2,False
+401911209,2026-11-10 05:00:00+00:00,George Washington,Elon,False,False,0,0,2,False
+401911196,2026-11-10 05:00:00+00:00,Fordham,Iona,False,False,0,0,2,False
+401911187,2026-11-10 05:00:00+00:00,Dayton,Siena,False,False,0,0,2,False
+401911011,2026-11-10 05:00:00+00:00,Central Michigan,Youngstown State,False,False,0,0,2,False
+401909786,2026-11-10 05:00:00+00:00,Kansas,Kentucky,True,False,0,0,2,False
+401909773,2026-11-10 05:00:00+00:00,Iowa State,Southern,False,False,0,0,2,False
+401909761,2026-11-10 05:00:00+00:00,Colorado,San Diego,False,False,0,0,2,False
+401909740,2026-11-10 05:00:00+00:00,Arizona,Northern Arizona,False,False,0,0,2,False
+401909752,2026-11-10 05:00:00+00:00,Baylor,Yale,False,False,0,0,2,False
+401906771,2026-11-10 05:00:00+00:00,Florida State,Florida,False,False,0,0,2,False
+401909492,2026-11-10 05:00:00+00:00,Kansas State,Creighton,False,False,0,0,2,False
+401909514,2026-11-10 05:00:00+00:00,Georgetown,Delaware State,False,False,0,0,2,False
+401909553,2026-11-10 05:00:00+00:00,Boston College,Maryland Eastern Shore,False,False,0,0,2,False
+401909543,2026-11-10 05:00:00+00:00,Xavier,Detroit Mercy,False,False,0,0,2,False
+401909533,2026-11-10 05:00:00+00:00,Providence,Bryant,False,False,0,0,2,False
+401909727,2026-11-10 05:00:00+00:00,Wake Forest,Charleston Southern,False,False,0,0,2,False
+401909564,2026-11-10 05:00:00+00:00,Duke,Michigan State,True,False,0,0,2,False
+401909524,2026-11-11 05:00:00+00:00,Michigan,Marquette,False,False,0,0,2,False
+401911012,2026-11-11 05:00:00+00:00,Massachusetts,UMass Lowell,False,False,0,0,2,False
+401911263,2026-11-11 05:00:00+00:00,St. Bonaventure,Cornell,False,False,0,0,2,False
+401911275,2026-11-11 05:00:00+00:00,Misericordia,Binghamton,False,False,0,0,2,False
+401911391,2026-11-11 05:00:00+00:00,Gardner-Webb,Erskine,False,False,0,0,2,False
+401911454,2026-11-11 05:00:00+00:00,South Carolina Beaufort,Nevada,False,False,0,0,2,False
+401911519,2026-11-11 05:00:00+00:00,UC Davis,Incarnate Word,False,False,0,0,2,False
+401912209,2026-11-11 05:00:00+00:00,Drexel,American University,False,False,0,0,2,False
+401911230,2026-11-11 20:00:00+00:00,Air Force,Loyola Chicago,False,False,0,0,2,False
+401911346,2026-11-12 02:00:00+00:00,Grand Canyon,Cal Poly,False,False,0,0,2,False
+401911533,2026-11-12 05:00:00+00:00,UTEP,New Mexico State,False,False,0,0,2,False
+401911239,2026-11-12 05:00:00+00:00,Southern Illinois,Richmond,False,False,0,0,2,False
+401911013,2026-11-12 05:00:00+00:00,Bowling Green,Niagara,False,False,0,0,2,False
+401911307,2026-11-13 00:00:00+00:00,Brown,Canisius,False,False,0,0,2,False
+401911471,2026-11-13 03:00:00+00:00,San José State,UC Riverside,False,False,0,0,2,False
+401911210,2026-11-13 05:00:00+00:00,George Washington,Harvard,False,False,0,0,2,False
+401911197,2026-11-13 05:00:00+00:00,Fordham,Long Island University,False,False,0,0,2,False
+401911014,2026-11-13 05:00:00+00:00,SMU,Ball State,False,False,0,0,2,False
+401909741,2026-11-13 05:00:00+00:00,Auburn,Arizona,False,False,0,0,2,False
+401909696,2026-11-13 05:00:00+00:00,Florida State,Texas A&M-Corpus Christi,False,False,0,0,2,False
+401909565,2026-11-13 05:00:00+00:00,Duke,SIU Edwardsville,False,False,0,0,2,False
+401909515,2026-11-13 05:00:00+00:00,Clemson,Georgetown,False,False,0,0,2,False
+401906772,2026-11-13 05:00:00+00:00,Florida,Merrimack,False,False,0,0,2,False
+401906850,2026-11-13 05:00:00+00:00,Tennessee,Tennessee State,False,False,0,0,2,False
+401906804,2026-11-13 05:00:00+00:00,Oklahoma,Fairleigh Dickinson,False,False,0,0,2,False
+401906794,2026-11-13 05:00:00+00:00,Mississippi State,Xavier,True,False,0,0,2,False
+401906782,2026-11-13 05:00:00+00:00,North Carolina,Georgia,False,False,0,0,2,False
+401906760,2026-11-13 05:00:00+00:00,Alabama,Seton Hall,False,False,0,0,2,False
+401909503,2026-11-13 05:00:00+00:00,Northwestern,DePaul,False,False,0,0,2,False
+401902278,2026-11-13 05:00:00+00:00,Butler,Pittsburgh,False,False,0,0,2,False
+401911276,2026-11-14 05:00:00+00:00,Duquesne,Binghamton,False,False,0,0,2,False
+401911455,2026-11-14 05:00:00+00:00,Nevada,Utah Valley,False,False,0,0,2,False
+401911520,2026-11-14 05:00:00+00:00,Sacramento State,UC Davis,False,False,0,0,2,False
+401911308,2026-11-14 05:00:00+00:00,Siena,Brown,False,False,0,0,2,False
+401911392,2026-11-14 05:00:00+00:00,South Carolina,Gardner-Webb,False,False,0,0,2,False
+401911188,2026-11-14 05:00:00+00:00,Dayton,Cincinnati,False,False,0,0,2,False
+401911231,2026-11-14 05:00:00+00:00,Colorado State,Loyola Chicago,False,False,0,0,2,False
+401909534,2026-11-14 05:00:00+00:00,Providence,Colorado,False,False,0,0,2,False
+401911264,2026-11-14 05:00:00+00:00,St. Bonaventure,Lafayette,False,False,0,0,2,False
+401911015,2026-11-14 05:00:00+00:00,Evansville,Miami (OH),False,False,0,0,2,False
+401909728,2026-11-14 05:00:00+00:00,Wake Forest,Southern Utah,False,False,0,0,2,False
+401911016,2026-11-14 05:00:00+00:00,Northern Kentucky,Central Michigan,False,False,0,0,2,False
+401912229,2026-11-14 18:00:00+00:00,Army,St. Thomas,False,False,0,0,2,False
+401911376,2026-11-15 00:00:00+00:00,Charleston Southern,West Georgia,False,False,0,0,2,False
+401911347,2026-11-15 01:00:00+00:00,Grand Canyon,UL Monroe,False,False,0,0,2,False
+401911336,2026-11-15 05:00:00+00:00,Pacific,Air Force,False,False,0,0,2,False
+401911251,2026-11-15 05:00:00+00:00,Saint Louis,High Point,False,False,0,0,2,False
+401911017,2026-11-15 05:00:00+00:00,Buffalo,Canisius,False,False,0,0,2,False
+401911472,2026-11-15 05:00:00+00:00,San José State,Alabama State,False,False,0,0,2,False
+401909554,2026-11-15 05:00:00+00:00,Boston College,New Hampshire,False,False,0,0,2,False
+401909525,2026-11-15 05:00:00+00:00,Marquette,Missouri,True,False,0,0,2,False
+401909493,2026-11-15 05:00:00+00:00,Creighton,Iowa,True,False,0,0,2,False
+401906866,2026-11-15 05:00:00+00:00,Texas,Baylor,True,False,0,0,2,False
+401909774,2026-11-15 05:00:00+00:00,Iowa State,Niagara,False,False,0,0,2,False
+401912210,2026-11-15 18:00:00+00:00,American University,Harvard,False,False,0,0,2,False
+401911211,2026-11-16 05:00:00+00:00,George Washington,Ferrum,False,False,0,0,2,False
+401911240,2026-11-16 05:00:00+00:00,Virginia Tech,Richmond,False,False,0,0,2,False
+401906783,2026-11-16 05:00:00+00:00,Georgia,Jacksonville,False,False,0,0,2,False
+401909798,2026-11-16 05:00:00+00:00,Kansas State,Montana,False,False,0,0,2,False
+401909787,2026-11-17 05:00:00+00:00,Kansas,UNLV,True,False,0,0,2,False
+401911198,2026-11-17 05:00:00+00:00,Manhattan,Fordham,False,False,0,0,2,False
+401911521,2026-11-17 05:00:00+00:00,UC Davis,Alabama State,False,False,0,0,2,False
+401911020,2026-11-17 05:00:00+00:00,Massachusetts,Bryant,False,False,0,0,2,False
+401911019,2026-11-17 05:00:00+00:00,Dayton,Central Michigan,False,False,0,0,2,False
+401911018,2026-11-17 05:00:00+00:00,William & Mary,Bowling Green,False,False,0,0,2,False
+401909729,2026-11-17 05:00:00+00:00,Wake Forest,Monmouth,False,False,0,0,2,False
+401906851,2026-11-17 05:00:00+00:00,Tennessee,Michigan State,False,False,0,0,2,False
+401909697,2026-11-17 05:00:00+00:00,Florida State,Ball State,False,False,0,0,2,False
+401909566,2026-11-17 05:00:00+00:00,Duke,Illinois,False,False,0,0,2,False
+401909544,2026-11-17 05:00:00+00:00,Xavier,Cleveland State,False,False,0,0,2,False
+401909535,2026-11-17 05:00:00+00:00,Providence,Sacred Heart,False,False,0,0,2,False
+401909504,2026-11-17 05:00:00+00:00,DePaul,Maryland Eastern Shore,False,False,0,0,2,False
+401906761,2026-11-17 05:00:00+00:00,Alabama,Kennesaw State,False,False,0,0,2,False
+401909708,2026-11-17 05:00:00+00:00,Pittsburgh,Villanova,False,False,0,0,2,False
+401902279,2026-11-17 05:00:00+00:00,Butler,Western Carolina,False,False,0,0,2,False
+401906773,2026-11-17 21:30:00+00:00,Florida,Notre Dame,True,False,0,0,2,False
+401912230,2026-11-17 23:00:00+00:00,Army,Marist,False,False,0,0,2,False
+401911232,2026-11-18 05:00:00+00:00,Loyola Chicago,Wichita State,False,False,0,0,2,False
+401911456,2026-11-18 05:00:00+00:00,Nevada,Idaho,False,False,0,0,2,False
+401911393,2026-11-18 05:00:00+00:00,Gardner-Webb,UNC Greensboro,False,False,0,0,2,False
+401911309,2026-11-18 05:00:00+00:00,Holy Cross,Brown,False,False,0,0,2,False
+401911277,2026-11-18 05:00:00+00:00,Lafayette,Binghamton,False,False,0,0,2,False
+401909742,2026-11-18 05:00:00+00:00,Arizona,UConn,False,False,0,0,2,False
+401909555,2026-11-18 05:00:00+00:00,Harvard,Boston College,False,False,0,0,2,False
+401906805,2026-11-18 05:00:00+00:00,Oklahoma,Campbell,False,False,0,0,2,False
+401909494,2026-11-18 05:00:00+00:00,Creighton,Bethune-Cookman,False,False,0,0,2,False
+401909762,2026-11-18 05:00:00+00:00,Colorado,Portland,False,False,0,0,2,False
+401909526,2026-11-18 05:00:00+00:00,Marquette,Northern Illinois,False,False,0,0,2,False
+401909516,2026-11-18 05:00:00+00:00,Georgetown,Navy,False,False,0,0,2,False
+401909753,2026-11-18 17:00:00+00:00,Baylor,Jackson State,False,False,0,0,2,False
+401911377,2026-11-19 00:00:00+00:00,Charleston Southern,Wofford,False,False,0,0,2,False
+401911473,2026-11-19 02:00:00+00:00,San José State,Fresno State,False,False,0,0,2,False
+401902280,2026-11-19 05:00:00+00:00,Butler,Northeastern,False,False,0,0,2,False
+401906867,2026-11-19 05:00:00+00:00,Texas,Southern Utah,False,False,0,0,2,False
+401911021,2026-11-19 05:00:00+00:00,St. Bonaventure,Buffalo,False,False,0,0,2,False
+401911534,2026-11-19 05:00:00+00:00,New Mexico State,UTEP,False,False,0,0,2,False
+401912211,2026-11-20 00:00:00+00:00,American University,Mary Baldwin,False,False,0,0,2,False
+401911252,2026-11-20 05:00:00+00:00,Saint Mary's,Saint Louis,False,False,0,0,2,False
+401909799,2026-11-20 05:00:00+00:00,Kansas State,Campbell,False,False,0,0,2,False
+401909709,2026-11-20 05:00:00+00:00,Pittsburgh,Central Michigan,False,False,0,0,2,False
+401906852,2026-11-20 05:00:00+00:00,Tennessee,Coastal Carolina,False,False,0,0,2,False
+401909545,2026-11-20 05:00:00+00:00,Xavier,Iowa,False,False,0,0,2,False
+401906784,2026-11-20 05:00:00+00:00,Georgia Tech,Georgia,False,False,0,0,2,False
+401909698,2026-11-20 05:00:00+00:00,Florida State,Green Bay,False,False,0,0,2,False
+401911310,2026-11-21 05:00:00+00:00,Vermont,Brown,False,False,0,0,2,False
+401911394,2026-11-21 05:00:00+00:00,VMI,Gardner-Webb,False,False,0,0,2,False
+401911378,2026-11-21 05:00:00+00:00,Mercer,Charleston Southern,False,False,0,0,2,False
+401911023,2026-11-21 05:00:00+00:00,Massachusetts,Maine,False,False,0,0,2,False
+401911337,2026-11-21 05:00:00+00:00,UTSA,Air Force,False,False,0,0,2,False
+401909730,2026-11-21 05:00:00+00:00,Wake Forest,Western Carolina,False,False,0,0,2,False
+401909719,2026-11-21 05:00:00+00:00,Syracuse,Lafayette,False,False,0,0,2,False
+401909567,2026-11-21 05:00:00+00:00,Duke,Washington State,True,False,0,0,2,False
+401909517,2026-11-21 05:00:00+00:00,Georgetown,Coppin State,False,False,0,0,2,False
+401911022,2026-11-21 05:00:00+00:00,Bowling Green,Northern Illinois,False,False,0,0,2,False
+401911199,2026-11-21 19:00:00+00:00,Portland,Fordham,False,False,0,0,2,False
+401911278,2026-11-21 20:30:00+00:00,Binghamton,Army,False,False,0,0,2,False
+401902281,2026-11-22 05:00:00+00:00,Nebraska,Butler,True,False,0,0,2,False
+401906868,2026-11-22 05:00:00+00:00,Texas,Southern Indiana,False,False,0,0,2,False
+401909527,2026-11-22 05:00:00+00:00,Marquette,Chicago State,False,False,0,0,2,False
+401909556,2026-11-22 05:00:00+00:00,Boston College,NJIT,False,False,0,0,2,False
+401911024,2026-11-22 05:00:00+00:00,UIC,Miami (OH),False,False,0,0,2,False
+401911200,2026-11-22 19:00:00+00:00,San Diego,Fordham,False,False,0,0,2,False
+401912212,2026-11-22 21:00:00+00:00,American University,Towson,False,False,0,0,2,False
+401911233,2026-11-23 04:59:00+00:00,Loyola Chicago,San José State,True,False,0,0,2,False
+401909788,2026-11-23 05:00:00+00:00,Kansas,Denver,False,False,0,0,2,False
+401911025,2026-11-23 05:00:00+00:00,Buffalo,RIT,False,False,0,0,2,False
+401911234,2026-11-23 05:00:00+00:00,Loyola Chicago,Seattle U,True,False,0,0,2,False
+401911457,2026-11-23 21:30:00+00:00,Nevada,San Francisco,True,False,0,0,2,False
+401909536,2026-11-24 02:00:00+00:00,Providence,VCU,True,False,0,0,2,False
+401909743,2026-11-24 04:30:00+00:00,Arizona,Colorado State,True,False,0,0,2,False
+401911379,2026-11-24 05:00:00+00:00,James Madison,Charleston Southern,False,False,0,0,2,False
+401911338,2026-11-24 05:00:00+00:00,Army,Air Force,True,False,0,0,2,False
+401911279,2026-11-24 05:00:00+00:00,Lehigh,Binghamton,False,False,0,0,2,False
+401911027,2026-11-24 05:00:00+00:00,Bowling Green,Gardner-Webb,False,False,0,0,2,False
+401909699,2026-11-24 05:00:00+00:00,Florida State,UNC Asheville,False,False,0,0,2,False
+401909505,2026-11-24 05:00:00+00:00,DePaul,Purdue,True,False,0,0,2,False
+401911026,2026-11-24 05:00:00+00:00,Notre Dame,Central Michigan,False,False,0,0,2,False
+401906806,2026-11-24 05:00:00+00:00,Oklahoma,Pittsburgh,True,False,0,0,2,False
+401906774,2026-11-24 05:00:00+00:00,Florida,Milwaukee,False,False,0,0,2,False
+401906853,2026-11-24 20:00:00+00:00,Tennessee,Maryland,True,False,0,0,2,False
+401909775,2026-11-24 22:30:00+00:00,Iowa State,San Diego State,True,False,0,0,2,False
+401909495,2026-11-24 22:30:00+00:00,Creighton,Michigan,True,False,0,0,2,False
+401911458,2026-11-25 00:00:00+00:00,Nevada,Santa Clara,True,False,0,0,2,False
+401911535,2026-11-25 01:30:00+00:00,UTEP,Charleston,True,False,0,0,2,False
+401911253,2026-11-25 02:30:00+00:00,Saint Louis,Grand Canyon,True,False,0,0,2,False
+401906762,2026-11-25 03:00:00+00:00,Alabama,Baylor,True,False,0,0,2,False
+401909763,2026-11-25 04:59:00+00:00,Colorado,Stanford,True,False,0,0,2,False
+401911522,2026-11-25 05:00:00+00:00,UC Davis,Omaha,True,False,0,0,2,False
+401911254,2026-11-25 05:00:00+00:00,Saint Louis,Colorado,True,False,0,0,2,False
+401911241,2026-11-25 05:00:00+00:00,Richmond,Bethune-Cookman,False,False,0,0,2,False
+401911028,2026-11-25 05:00:00+00:00,Northeastern,Massachusetts,False,False,0,0,2,False
+401911029,2026-11-25 05:00:00+00:00,Miami (OH),Eastern Kentucky,False,False,0,0,2,False
+401909568,2026-11-25 05:00:00+00:00,Duke,UConn,True,False,0,0,2,False
+401911201,2026-11-25 05:00:00+00:00,Fordham,Mercy,False,False,0,0,2,False
+401909720,2026-11-25 05:00:00+00:00,Syracuse,UAlbany,False,False,0,0,2,False
+401909800,2026-11-25 05:30:00+00:00,Kansas State,Gonzaga,True,False,0,0,2,False
+401911311,2026-11-25 19:00:00+00:00,Brown,Johnson & Wales,False,False,0,0,2,False
+401912231,2026-11-26 05:00:00+00:00,UTSA,Army,False,False,0,0,2,False
+401911523,2026-11-26 05:00:00+00:00,UC Davis,Jacksonville State,True,False,0,0,2,False
+401906807,2026-11-26 05:00:00+00:00,Oklahoma,Purdue,True,False,0,0,2,False
+401909506,2026-11-26 05:00:00+00:00,DePaul,Pittsburgh,True,False,0,0,2,False
+401906869,2026-11-26 19:30:00+00:00,Texas,Georgetown,True,False,0,0,2,False
+401902282,2026-11-27 05:00:00+00:00,Butler,Bellarmine,False,False,0,0,2,False
+401909789,2026-11-27 05:00:00+00:00,Kansas,Villanova,False,False,0,0,2,False
+401911030,2026-11-27 05:00:00+00:00,Indiana,Bowling Green,False,False,0,0,2,False
+401911212,2026-11-27 05:00:00+00:00,George Washington,UMBC,False,False,0,0,2,False
+401911380,2026-11-27 05:00:00+00:00,East Tennessee State,Charleston Southern,False,False,0,0,2,False
+401911524,2026-11-27 05:00:00+00:00,UC Davis,Pacific,True,False,0,0,2,False
+401912213,2026-11-27 21:00:00+00:00,American University,Radford,False,False,0,0,2,False
+401911459,2026-11-28 05:00:00+00:00,Nevada,Cal Poly Humboldt,False,False,0,0,2,False
+401911395,2026-11-28 05:00:00+00:00,Gardner-Webb,North Carolina Central,False,False,0,0,2,False
+401911381,2026-11-28 05:00:00+00:00,Charleston Southern,Morehead State,True,False,0,0,2,False
+401911031,2026-11-28 05:00:00+00:00,Southern Indiana,Ball State,False,False,0,0,2,False
+401911202,2026-11-28 05:00:00+00:00,Harvard,Fordham,False,False,0,0,2,False
+401911032,2026-11-28 05:00:00+00:00,Towson,Buffalo,False,False,0,0,2,False
+401911242,2026-11-28 05:00:00+00:00,Richmond,VMI,False,False,0,0,2,False
+401912232,2026-11-28 18:00:00+00:00,Army,Rider,False,False,0,0,2,False
+401911312,2026-11-28 20:00:00+00:00,Air Force,Brown,False,False,0,0,2,False
+401912214,2026-11-28 21:00:00+00:00,American University,UMass Lowell,False,False,0,0,2,False
+401911189,2026-11-29 05:00:00+00:00,Memphis,Dayton,True,False,0,0,2,False
+401911255,2026-11-29 05:00:00+00:00,Saint Louis,South Florida,True,False,0,0,2,False
+401912215,2026-11-29 21:00:00+00:00,American University,Hampton,False,False,0,0,2,False
+401911348,2026-11-30 01:00:00+00:00,Grand Canyon,Incarnate Word,False,False,0,0,2,False
+401911280,2026-11-30 05:00:00+00:00,Fairleigh Dickinson,Binghamton,False,False,0,0,2,False
+401906785,2026-12-01 05:00:00+00:00,Georgia,Boston College,False,False,0,0,2,False
+401911525,2026-12-01 05:00:00+00:00,UC Davis,Portland,False,False,0,0,2,False
+401911313,2026-12-01 05:00:00+00:00,Rhode Island,Brown,False,False,0,0,2,False
+401911243,2026-12-01 05:00:00+00:00,East Carolina,Richmond,False,False,0,0,2,False
+401911213,2026-12-01 05:00:00+00:00,George Washington,SE Louisiana,False,False,0,0,2,False
+401911203,2026-12-01 05:00:00+00:00,Fordham,Boston University,False,False,0,0,2,False
+401909790,2026-12-01 05:00:00+00:00,Kansas,Northern Iowa,False,False,0,0,2,False
+401909764,2026-12-01 05:00:00+00:00,Colorado,UTEP,False,False,0,0,2,False
+401909744,2026-12-01 05:00:00+00:00,Arizona,LSU New Orleans,False,False,0,0,2,False
+401909731,2026-12-01 05:00:00+00:00,LSU,Wake Forest,False,False,0,0,2,False
+401911819,2026-12-01 05:00:00+00:00,VMI,UNC Greensboro,False,False,0,0,2,False
+401909537,2026-12-01 05:00:00+00:00,Providence,Stonehill,False,False,0,0,2,False
+401909528,2026-12-01 05:00:00+00:00,Marquette,Wagner,False,False,0,0,2,False
+401909507,2026-12-01 05:00:00+00:00,DePaul,North Alabama,False,False,0,0,2,False
+401909496,2026-12-01 05:00:00+00:00,Creighton,Oral Roberts,False,False,0,0,2,False
+401906870,2026-12-01 05:00:00+00:00,Louisville,Texas,False,False,0,0,2,False
+401906854,2026-12-01 05:00:00+00:00,Tennessee,Florida State,False,False,0,0,2,False
+401906808,2026-12-01 05:00:00+00:00,Oklahoma,Syracuse,False,False,0,0,2,False
+401906775,2026-12-01 05:00:00+00:00,Florida,Duke,False,False,0,0,2,False
+401909710,2026-12-01 05:00:00+00:00,Missouri,Pittsburgh,False,False,0,0,2,False
+401911382,2026-12-02 00:00:00+00:00,Charleston Southern,The Citadel,False,False,0,0,2,False
+401911339,2026-12-02 02:00:00+00:00,Air Force,Denver,False,False,0,0,2,False
+401912216,2026-12-02 05:00:00+00:00,Maryland,American University,False,False,0,0,2,False
+401911460,2026-12-02 05:00:00+00:00,Nevada,Pacific,False,False,0,0,2,False
+401911401,2026-12-02 05:00:00+00:00,Oklahoma State,Grand Canyon,False,False,0,0,2,False
+401911396,2026-12-02 05:00:00+00:00,Gardner-Webb,Bob Jones,False,False,0,0,2,False
+401911256,2026-12-02 05:00:00+00:00,Saint Louis,Arkansas-Pine Bluff,False,False,0,0,2,False
+401911037,2026-12-02 05:00:00+00:00,Eastern Michigan,Massachusetts,False,False,0,0,2,False
+401911036,2026-12-02 05:00:00+00:00,Western Michigan,Buffalo,False,False,0,0,2,False
+401902283,2026-12-02 05:00:00+00:00,Butler,Presbyterian,False,False,0,0,2,False
+401911034,2026-12-02 05:00:00+00:00,Miami (OH),Central Michigan,False,False,0,0,2,False
+401911033,2026-12-02 05:00:00+00:00,Akron,Ball State,False,False,0,0,2,False
+401909776,2026-12-02 05:00:00+00:00,Iowa State,Alcorn State,False,False,0,0,2,False
+401909546,2026-12-02 05:00:00+00:00,Xavier,Texas Southern,False,False,0,0,2,False
+401909518,2026-12-02 05:00:00+00:00,Georgetown,UMass Lowell,False,False,0,0,2,False
+401906795,2026-12-02 05:00:00+00:00,Mississippi State,Georgia Tech,False,False,0,0,2,False
+401906763,2026-12-02 05:00:00+00:00,Miami,Alabama,False,False,0,0,2,False
+401911035,2026-12-02 05:00:00+00:00,Kent State,Bowling Green,False,False,0,0,2,False
+401911038,2026-12-02 05:00:00+00:00,Ohio,Toledo,False,False,0,0,2,False
+401912233,2026-12-02 16:00:00+00:00,Army,UMBC,False,False,0,0,2,False
+401911204,2026-12-03 05:00:00+00:00,Fordham,St. Francis (IL),False,False,0,0,2,False
+401911281,2026-12-03 05:00:00+00:00,Le Moyne,Binghamton,False,False,0,0,2,False
+401911526,2026-12-03 05:00:00+00:00,North Dakota State,UC Davis,False,False,0,0,2,False
+401911314,2026-12-04 05:00:00+00:00,Bryant,Brown,False,False,0,0,2,False
+401909801,2026-12-04 05:00:00+00:00,Seton Hall,Kansas State,False,False,0,0,2,False
+401909569,2026-12-04 05:00:00+00:00,Duke,Harvard,False,False,0,0,2,False
+401911708,2026-12-05 02:00:00+00:00,Tennessee State,Grambling,True,False,0,0,2,False
+401912234,2026-12-05 05:00:00+00:00,UAlbany,Army,False,False,0,0,2,False
+401911944,2026-12-05 05:00:00+00:00,UL Monroe,Georgia State,False,False,0,0,2,False
+401911824,2026-12-05 05:00:00+00:00,Tennessee Tech,Samford,False,False,0,0,2,False
+401911823,2026-12-05 05:00:00+00:00,Mercer,Wofford,False,False,0,0,2,False
+401911822,2026-12-05 05:00:00+00:00,UNC Greensboro,Furman,False,False,0,0,2,False
+401911821,2026-12-05 05:00:00+00:00,VMI,East Tennessee State,False,False,0,0,2,False
+401911820,2026-12-05 05:00:00+00:00,Western Carolina,The Citadel,False,False,0,0,2,False
+401911536,2026-12-05 05:00:00+00:00,UTEP,North Dakota,False,False,0,0,2,False
+401911397,2026-12-05 05:00:00+00:00,Gardner-Webb,Queens University,False,False,0,0,2,False
+401911383,2026-12-05 05:00:00+00:00,South Carolina State,Charleston Southern,False,False,0,0,2,False
+401911265,2026-12-05 05:00:00+00:00,St. Bonaventure,Florida Atlantic,False,False,0,0,2,False
+401911244,2026-12-05 05:00:00+00:00,Old Dominion,Richmond,False,False,0,0,2,False
+401911043,2026-12-05 05:00:00+00:00,Central Michigan,Ohio,False,False,0,0,2,False
+401911042,2026-12-05 05:00:00+00:00,Buffalo,Miami (OH),False,False,0,0,2,False
+401911474,2026-12-05 05:00:00+00:00,San José State,Seattle U,False,False,0,0,2,False
+401911040,2026-12-05 05:00:00+00:00,Bowling Green,Western Michigan,False,False,0,0,2,False
+401911039,2026-12-05 05:00:00+00:00,Toledo,Kent State,False,False,0,0,2,False
+401909765,2026-12-05 05:00:00+00:00,Colorado,Colorado State,False,False,0,0,2,False
+401909754,2026-12-05 05:00:00+00:00,Baylor,Memphis,False,False,0,0,2,False
+401909745,2026-12-05 05:00:00+00:00,St. John's,Arizona,False,False,0,0,2,False
+401909711,2026-12-05 05:00:00+00:00,Pittsburgh,Tarleton State,False,False,0,0,2,False
+401909700,2026-12-05 05:00:00+00:00,Florida State,Dayton,False,False,0,0,2,False
+401909557,2026-12-05 05:00:00+00:00,Boston College,UMass Lowell,False,False,0,0,2,False
+401909547,2026-12-05 05:00:00+00:00,Cincinnati,Xavier,False,False,0,0,2,False
+401909538,2026-12-05 05:00:00+00:00,Rhode Island,Providence,False,False,0,0,2,False
+401909529,2026-12-05 05:00:00+00:00,Marquette,Wisconsin,False,False,0,0,2,False
+401909508,2026-12-05 05:00:00+00:00,DePaul,SMU,False,False,0,0,2,False
+401909497,2026-12-05 05:00:00+00:00,Creighton,Nebraska,False,False,0,0,2,False
+401906809,2026-12-05 05:00:00+00:00,Oklahoma,Arizona State,True,False,0,0,2,False
+401911041,2026-12-05 05:00:00+00:00,Ball State,Eastern Michigan,False,False,0,0,2,False
+401911282,2026-12-05 20:30:00+00:00,Binghamton,Alfred State,False,False,0,0,2,False
+401911709,2026-12-06 00:00:00+00:00,Tennessee State,Florida A&M,True,False,0,0,2,False
+401911350,2026-12-06 01:00:00+00:00,Grand Canyon,Santa Clara,False,False,0,0,2,False
+401902284,2026-12-06 05:00:00+00:00,North Carolina,Butler,False,False,0,0,2,False
+401906776,2026-12-06 05:00:00+00:00,Florida,Vermont,False,False,0,0,2,False
+401906855,2026-12-06 05:00:00+00:00,Tennessee,NC State,True,False,0,0,2,False
+401909732,2026-12-06 05:00:00+00:00,Wake Forest,Massachusetts,True,False,0,0,2,False
+401909777,2026-12-06 05:00:00+00:00,Iowa State,Purdue,False,False,0,0,2,False
+401909791,2026-12-06 05:00:00+00:00,Kansas,Missouri,True,False,0,0,2,False
+401911257,2026-12-06 05:00:00+00:00,Saint Louis,SE Louisiana,False,False,0,0,2,False
+401911315,2026-12-06 05:00:00+00:00,Brown,Central Connecticut,True,False,0,0,2,False
+401912217,2026-12-06 05:00:00+00:00,UCF,American University,False,False,0,0,2,False
+401911340,2026-12-06 19:00:00+00:00,Air Force,Navy,False,False,0,0,2,False
+401911384,2026-12-07 05:00:00+00:00,Charleston Southern,Warren Wilson,False,False,0,0,2,False
+401906796,2026-12-07 05:00:00+00:00,Mississippi State,Alabama A&M,False,False,0,0,2,False
+401906810,2026-12-07 05:00:00+00:00,Oklahoma,Alabama State,False,False,0,0,2,False
+401911205,2026-12-07 05:00:00+00:00,Fordham,Fairleigh Dickinson,False,False,0,0,2,False
+401912235,2026-12-07 23:00:00+00:00,Army,York (NY),False,False,0,0,2,False
+401911283,2026-12-08 05:00:00+00:00,Delaware State,Binghamton,False,False,0,0,2,False
+401909802,2026-12-08 05:00:00+00:00,Kansas State,IU Indianapolis,False,False,0,0,2,False
+401909721,2026-12-08 05:00:00+00:00,Syracuse,Colgate,False,False,0,0,2,False
+401909733,2026-12-08 05:00:00+00:00,Wake Forest,Hampton,False,False,0,0,2,False
+401909509,2026-12-08 05:00:00+00:00,DePaul,Maine,False,False,0,0,2,False
+401906764,2026-12-08 05:00:00+00:00,Alabama,Houston,True,False,0,0,2,False
+401906786,2026-12-08 05:00:00+00:00,Georgia,Duke,True,False,0,0,2,False
+401909539,2026-12-08 05:00:00+00:00,Providence,Fairfield,False,False,0,0,2,False
+401906871,2026-12-08 05:00:00+00:00,Texas,Jackson State,False,False,0,0,2,False
+401911351,2026-12-09 02:00:00+00:00,Grand Canyon,Northwestern State,False,False,0,0,2,False
+401911475,2026-12-09 03:00:00+00:00,San José State,Long Beach State,False,False,0,0,2,False
+401911461,2026-12-09 05:00:00+00:00,Nevada,Loyola Marymount,False,False,0,0,2,False
+401911266,2026-12-09 05:00:00+00:00,Siena,St. Bonaventure,False,False,0,0,2,False
+401911214,2026-12-09 05:00:00+00:00,George Washington,American University,False,False,0,0,2,False
+401911047,2026-12-09 05:00:00+00:00,Central Michigan,Kent State,False,False,0,0,2,False
+401911046,2026-12-09 05:00:00+00:00,Ball State,Evansville,False,False,0,0,2,False
+401911045,2026-12-09 05:00:00+00:00,Toledo,Eastern Michigan,False,False,0,0,2,False
+401911044,2026-12-09 05:00:00+00:00,Massachusetts,Western Michigan,False,False,0,0,2,False
+401909712,2026-12-09 05:00:00+00:00,Pittsburgh,West Virginia,True,False,0,0,2,False
+401909558,2026-12-09 05:00:00+00:00,Boston College,Northeastern,False,False,0,0,2,False
+401909548,2026-12-09 05:00:00+00:00,Xavier,Purdue Fort Wayne,False,False,0,0,2,False
+401909530,2026-12-09 05:00:00+00:00,Marquette,New Hampshire,False,False,0,0,2,False
+401909519,2026-12-09 05:00:00+00:00,Georgetown,Rider,False,False,0,0,2,False
+401909755,2026-12-09 05:00:00+00:00,Baylor,Queens University,False,False,0,0,2,False
+401911316,2026-12-09 23:00:00+00:00,Brown,Wheaton (MA),False,False,0,0,2,False
+401911341,2026-12-10 05:00:00+00:00,Austin Peay,Air Force,False,False,0,0,2,False
+401911206,2026-12-10 05:00:00+00:00,Fordham,Bryant,False,False,0,0,2,False
+401909778,2026-12-10 05:00:00+00:00,Iowa,Iowa State,False,False,0,0,2,False
+401906856,2026-12-11 05:00:00+00:00,Purdue,Tennessee,False,False,0,0,2,False
+401909803,2026-12-11 05:00:00+00:00,Kansas State,Wichita State,True,False,0,0,2,False
+401911402,2026-12-11 05:00:00+00:00,Memphis,Grand Canyon,False,False,0,0,2,False
+401912236,2026-12-11 05:00:00+00:00,Columbia,Army,False,False,0,0,2,False
+401911710,2026-12-12 00:30:00+00:00,Western Illinois,Tennessee State,False,False,0,0,2,False
+401911048,2026-12-12 05:00:00+00:00,Buffalo,Youngstown State,False,False,0,0,2,False
+401911049,2026-12-12 05:00:00+00:00,Eastern Michigan,Central Michigan,False,False,0,0,2,False
+401911050,2026-12-12 05:00:00+00:00,Western Michigan,Toledo,False,False,0,0,2,False
+401911051,2026-12-12 05:00:00+00:00,Kent State,Massachusetts,False,False,0,0,2,False
+401911245,2026-12-12 05:00:00+00:00,Richmond,Elon,False,False,0,0,2,False
+401911191,2026-12-12 05:00:00+00:00,Dayton,South Florida,False,False,0,0,2,False
+401909792,2026-12-12 05:00:00+00:00,UConn,Kansas,False,False,0,0,2,False
+401911398,2026-12-12 05:00:00+00:00,Gardner-Webb,Campbell,False,False,0,0,2,False
+401911462,2026-12-12 05:00:00+00:00,Nevada,Sam Houston,False,False,0,0,2,False
+401911052,2026-12-12 05:00:00+00:00,High Point,Miami (OH),False,False,0,0,2,False
+401909766,2026-12-12 05:00:00+00:00,Colorado,Central Arkansas,False,False,0,0,2,False
+401906872,2026-12-12 05:00:00+00:00,Texas,Miami,True,False,0,0,2,False
+401909722,2026-12-12 05:00:00+00:00,Syracuse,Mercyhurst,False,False,0,0,2,False
+401906765,2026-12-12 05:00:00+00:00,Alabama,St. John's,True,False,0,0,2,False
+401909746,2026-12-12 05:00:00+00:00,Arizona,Tennessee Tech,False,False,0,0,2,False
+401906811,2026-12-12 05:00:00+00:00,Oklahoma,Oklahoma State,True,False,0,0,2,False
+401909498,2026-12-12 05:00:00+00:00,Creighton,Gonzaga,False,False,0,0,2,False
+401906797,2026-12-12 05:00:00+00:00,Marquette,Mississippi State,False,False,0,0,2,False
+401909520,2026-12-12 05:00:00+00:00,Georgetown,North Carolina,False,False,0,0,2,False
+401909549,2026-12-12 05:00:00+00:00,Xavier,Florida International,False,False,0,0,2,False
+401909559,2026-12-12 05:00:00+00:00,Boston College,George Washington,False,False,0,0,2,False
+401909701,2026-12-12 05:00:00+00:00,Florida State,Texas A&M,True,False,0,0,2,False
+401909510,2026-12-12 05:00:00+00:00,Saint Louis,DePaul,False,False,0,0,2,False
+401911476,2026-12-12 22:00:00+00:00,San José State,Southern Utah,False,False,0,0,2,False
+401906787,2026-12-13 05:00:00+00:00,Georgia,Alabama A&M,False,False,0,0,2,False
+401909779,2026-12-13 05:00:00+00:00,Iowa State,North Carolina Central,False,False,0,0,2,False
+401912218,2026-12-13 05:00:00+00:00,Maryland Eastern Shore,American University,False,False,0,0,2,False
+401911527,2026-12-14 05:00:00+00:00,UC Davis,California Baptist,False,False,0,0,2,False
+401911192,2026-12-15 05:00:00+00:00,Dayton,UT Rio Grande Valley,False,False,0,0,2,False
+401911258,2026-12-15 05:00:00+00:00,Saint Louis,Florida A&M,False,False,0,0,2,False
+401909767,2026-12-15 05:00:00+00:00,Colorado,Cal Poly,False,False,0,0,2,False
+401906798,2026-12-15 05:00:00+00:00,Mississippi State,Mississippi Valley State,False,False,0,0,2,False
+401909713,2026-12-15 05:00:00+00:00,Pittsburgh,Drexel,False,False,0,0,2,False
+401909499,2026-12-15 05:00:00+00:00,Creighton,Mount St. Mary's,False,False,0,0,2,False
+401909734,2026-12-15 05:00:00+00:00,Wake Forest,Gardner-Webb,False,False,0,0,2,False
+401909570,2026-12-15 05:00:00+00:00,Duke,Campbell,False,False,0,0,2,False
+401902285,2026-12-16 05:00:00+00:00,Butler,South Carolina Upstate,False,False,0,0,2,False
+401911949,2026-12-16 05:00:00+00:00,UL Monroe,Louisiana,False,False,0,0,2,False
+401911948,2026-12-16 05:00:00+00:00,Arkansas State,South Alabama,False,False,0,0,2,False
+401911947,2026-12-16 05:00:00+00:00,Marshall,Old Dominion,False,False,0,0,2,False
+401911946,2026-12-16 05:00:00+00:00,James Madison,Georgia State,False,False,0,0,2,False
+401911945,2026-12-16 05:00:00+00:00,Georgia Southern,Coastal Carolina,False,False,0,0,2,False
+401911385,2026-12-16 05:00:00+00:00,North Florida,Charleston Southern,False,False,0,0,2,False
+401911267,2026-12-16 05:00:00+00:00,St. Bonaventure,UAlbany,False,False,0,0,2,False
+401911055,2026-12-16 05:00:00+00:00,Bowling Green,Miami (OH),False,False,0,0,2,False
+401911054,2026-12-16 05:00:00+00:00,Ball State,Ohio,False,False,0,0,2,False
+401909723,2026-12-16 05:00:00+00:00,Syracuse,Canisius,False,False,0,0,2,False
+401909702,2026-12-16 05:00:00+00:00,Florida State,Jacksonville,False,False,0,0,2,False
+401909521,2026-12-16 05:00:00+00:00,Georgetown,Sacred Heart,False,False,0,0,2,False
+401906873,2026-12-16 05:00:00+00:00,Texas,Memphis,False,False,0,0,2,False
+401906857,2026-12-16 05:00:00+00:00,Tennessee,Morehead State,False,False,0,0,2,False
+401906788,2026-12-16 05:00:00+00:00,Georgia,West Georgia,False,False,0,0,2,False
+401906766,2026-12-16 05:00:00+00:00,South Florida,Alabama,False,False,0,0,2,False
+401911950,2026-12-16 05:00:00+00:00,Troy,Louisiana Tech,False,False,0,0,2,False
+401911053,2026-12-16 05:00:00+00:00,Buffalo,Akron,False,False,0,0,2,False
+401911528,2026-12-17 05:00:00+00:00,UC Davis,Idaho State,False,False,0,0,2,False
+401906812,2026-12-17 05:00:00+00:00,Oklahoma,Jackson State,False,False,0,0,2,False
+401909691,2026-12-17 05:00:00+00:00,Duke,Grambling,False,False,0,0,2,False
+401909714,2026-12-18 05:00:00+00:00,Pittsburgh,Georgia State,False,False,0,0,2,False
+401909780,2026-12-18 05:00:00+00:00,Missouri State,Iowa State,True,False,0,0,2,False
+401909804,2026-12-18 05:00:00+00:00,Kansas State,Little Rock,False,False,0,0,2,False
+401911246,2026-12-18 05:00:00+00:00,Richmond,William & Mary,False,False,0,0,2,False
+401911284,2026-12-18 05:00:00+00:00,Niagara,Binghamton,False,False,0,0,2,False
+401911353,2026-12-18 05:00:00+00:00,Grand Canyon,Florida,True,False,0,0,2,False
+401911386,2026-12-18 05:00:00+00:00,Charleston Southern,Piedmont,False,False,0,0,2,False
+401911399,2026-12-18 05:00:00+00:00,Gardner-Webb,Toccoa Falls,False,False,0,0,2,False
+401911463,2026-12-18 05:00:00+00:00,Nevada,Colorado State,True,False,0,0,2,False
+401911477,2026-12-18 05:00:00+00:00,Stanford,San José State,False,False,0,0,2,False
+401911235,2026-12-18 22:00:00+00:00,Loyola Chicago,Florida Atlantic,True,False,0,0,2,False
+401911342,2026-12-19 01:30:00+00:00,Air Force,Alabama State,False,False,0,0,2,False
+401911955,2026-12-19 05:00:00+00:00,Louisiana,Marshall,False,False,0,0,2,False
+401911954,2026-12-19 05:00:00+00:00,Southern Miss,James Madison,False,False,0,0,2,False
+401911826,2026-12-19 05:00:00+00:00,East Tennessee State,UNC Greensboro,False,False,0,0,2,False
+401911953,2026-12-19 05:00:00+00:00,Arkansas State,Georgia Southern,False,False,0,0,2,False
+401911952,2026-12-19 05:00:00+00:00,Troy,Coastal Carolina,False,False,0,0,2,False
+401911951,2026-12-19 05:00:00+00:00,Louisiana Tech,App State,False,False,0,0,2,False
+401911829,2026-12-19 05:00:00+00:00,Samford,Wofford,False,False,0,0,2,False
+401911828,2026-12-19 05:00:00+00:00,Chattanooga,Mercer,False,False,0,0,2,False
+401911827,2026-12-19 05:00:00+00:00,Furman,Western Carolina,False,False,0,0,2,False
+401911956,2026-12-19 05:00:00+00:00,South Alabama,Old Dominion,False,False,0,0,2,False
+401911825,2026-12-19 05:00:00+00:00,The Citadel,Tennessee Tech,False,False,0,0,2,False
+401909747,2026-12-19 05:00:00+00:00,Arizona,Arkansas,True,False,0,0,2,False
+401911193,2026-12-19 05:00:00+00:00,Liberty,Dayton,False,False,0,0,2,False
+401911268,2026-12-19 05:00:00+00:00,St. Bonaventure,Mercyhurst,False,False,0,0,2,False
+401902286,2026-12-19 05:00:00+00:00,Georgia Tech,Butler,True,False,0,0,2,False
+401909735,2026-12-19 05:00:00+00:00,Wake Forest,West Virginia,True,False,0,0,2,False
+401909756,2026-12-19 05:00:00+00:00,Washington,Baylor,False,False,0,0,2,False
+401909540,2026-12-19 05:00:00+00:00,Providence,Syracuse,True,False,0,0,2,False
+401911056,2026-12-19 05:00:00+00:00,Akron,Bowling Green,False,False,0,0,2,False
+401909768,2026-12-19 05:00:00+00:00,Purdue,Colorado,True,False,0,0,2,False
+401911058,2026-12-19 05:00:00+00:00,Miami (OH),Ball State,False,False,0,0,2,False
+401911059,2026-12-19 05:00:00+00:00,Massachusetts,Stonehill,False,False,0,0,2,False
+401911057,2026-12-19 05:00:00+00:00,Ohio,Buffalo,False,False,0,0,2,False
+401909793,2026-12-19 17:00:00+00:00,Kansas,Ohio State,True,False,0,0,2,False
+401911215,2026-12-19 23:00:00+00:00,George Washington,San Francisco,True,False,0,0,2,False
+401906789,2026-12-20 05:00:00+00:00,Georgia,Gardner-Webb,False,False,0,0,2,False
+401906858,2026-12-20 05:00:00+00:00,Tennessee,Marist,False,False,0,0,2,False
+401909560,2026-12-20 05:00:00+00:00,Boston College,New Haven,False,False,0,0,2,False
+401909703,2026-12-20 05:00:00+00:00,Florida State,Houston,True,False,0,0,2,False
+401911207,2026-12-20 05:00:00+00:00,Fordham,Central Connecticut,False,False,0,0,2,False
+401911236,2026-12-20 05:00:00+00:00,Loyola Chicago,Nevada,True,False,0,0,2,False
+401911259,2026-12-20 05:00:00+00:00,Saint Louis,Jackson State,False,False,0,0,2,False
+401912237,2026-12-20 05:00:00+00:00,Rutgers,Army,False,False,0,0,2,False
+401911247,2026-12-21 05:00:00+00:00,Richmond,Lafayette,False,False,0,0,2,False
+401911060,2026-12-21 05:00:00+00:00,Massachusetts,UMass Boston,False,False,0,0,2,False
+401909805,2026-12-21 05:00:00+00:00,Kansas State,Lindenwood,False,False,0,0,2,False
+401909781,2026-12-21 05:00:00+00:00,Iowa State,Northern Arizona,False,False,0,0,2,False
+401909757,2026-12-21 05:00:00+00:00,Baylor,Ozarks,False,False,0,0,2,False
+401909748,2026-12-21 05:00:00+00:00,Arizona,Northern Illinois,False,False,0,0,2,False
+401909715,2026-12-21 05:00:00+00:00,Pittsburgh,Cleveland State,False,False,0,0,2,False
+401906874,2026-12-21 05:00:00+00:00,Texas,Prairie View A&M,False,False,0,0,2,False
+401906777,2026-12-21 05:00:00+00:00,Florida,Florida A&M,False,False,0,0,2,False
+401906767,2026-12-21 05:00:00+00:00,Alabama,Iowa,True,False,0,0,2,False
+401909692,2026-12-21 05:00:00+00:00,Duke,Texas Tech,True,False,0,0,2,False
+401911343,2026-12-21 20:00:00+00:00,Air Force,Eastern Kentucky,False,False,0,0,2,False
+401911216,2026-12-22 01:30:00+00:00,George Washington,Utah State,True,False,0,0,2,False
+401911064,2026-12-22 05:00:00+00:00,Miami (OH),Wright State,False,False,0,0,2,False
+401911833,2026-12-22 05:00:00+00:00,Wofford,Western Carolina,False,False,0,0,2,False
+401911832,2026-12-22 05:00:00+00:00,Chattanooga,Samford,False,False,0,0,2,False
+401911831,2026-12-22 05:00:00+00:00,Tennessee Tech,Mercer,False,False,0,0,2,False
+401911830,2026-12-22 05:00:00+00:00,East Tennessee State,Furman,False,False,0,0,2,False
+401911529,2026-12-22 05:00:00+00:00,Seattle U,UC Davis,False,False,0,0,2,False
+401911387,2026-12-22 05:00:00+00:00,IU Indianapolis,Charleston Southern,False,False,0,0,2,False
+401912219,2026-12-22 05:00:00+00:00,Pennsylvania,American University,False,False,0,0,2,False
+401911478,2026-12-22 05:00:00+00:00,San José State,UC San Diego,False,False,0,0,2,False
+401911061,2026-12-22 05:00:00+00:00,Bowling Green,Cornerstone,False,False,0,0,2,False
+401911062,2026-12-22 05:00:00+00:00,Rhode Island,Buffalo,False,False,0,0,2,False
+401906813,2026-12-22 05:00:00+00:00,SMU,Oklahoma,False,False,0,0,2,False
+401909511,2026-12-22 05:00:00+00:00,DePaul,Canisius,False,False,0,0,2,False
+401909561,2026-12-22 05:00:00+00:00,Boston College,Stonehill,False,False,0,0,2,False
+401911063,2026-12-22 05:00:00+00:00,Arkansas,Central Michigan,False,False,0,0,2,False
+401909724,2026-12-22 05:00:00+00:00,Syracuse,Binghamton,False,False,0,0,2,False
+401909736,2026-12-22 05:00:00+00:00,Wake Forest,Presbyterian,False,False,0,0,2,False
+401909769,2026-12-22 05:00:00+00:00,Colorado,North Dakota,False,False,0,0,2,False
+401909704,2026-12-22 05:00:00+00:00,Florida State,Bethune-Cookman,False,False,0,0,2,False
+401909794,2026-12-22 05:00:00+00:00,Kansas,Indiana State,False,False,0,0,2,False
+401911317,2026-12-22 21:00:00+00:00,Brown,Stony Brook,False,False,0,0,2,False
+401911354,2026-12-23 01:00:00+00:00,Grand Canyon,UMBC,False,False,0,0,2,False
+401911194,2026-12-23 05:00:00+00:00,Dayton,SE Louisiana,False,False,0,0,2,False
+401911260,2026-12-27 05:00:00+00:00,Saint Louis,Missouri Baptist,False,False,0,0,2,False
+401911530,2026-12-28 05:00:00+00:00,UC Davis,Pacific Union,False,False,0,0,2,False
+401911400,2026-12-28 05:00:00+00:00,Kentucky,Gardner-Webb,False,False,0,0,2,False
+401911388,2026-12-28 05:00:00+00:00,Old Dominion,Charleston Southern,False,False,0,0,2,False
+401909806,2026-12-28 05:00:00+00:00,Kansas State,Omaha,False,False,0,0,2,False
+401909749,2026-12-28 05:00:00+00:00,Arizona,Incarnate Word,False,False,0,0,2,False
+401906814,2026-12-28 05:00:00+00:00,Oklahoma,UL Monroe,False,False,0,0,2,False
+401906799,2026-12-28 05:00:00+00:00,Mississippi State,Campbell,False,False,0,0,2,False
+401911269,2026-12-28 05:00:00+00:00,St. Bonaventure,Roberts Wesleyan,False,False,0,0,2,False
+401911066,2026-12-29 05:00:00+00:00,Ball State,East West,False,False,0,0,2,False
+401911464,2026-12-29 05:00:00+00:00,Nevada,South Dakota State,False,False,0,0,2,False
+401911344,2026-12-29 05:00:00+00:00,Utah,Air Force,False,False,0,0,2,False
+401911479,2026-12-29 05:00:00+00:00,San José State,Lincoln (CA),False,False,0,0,2,False
+401911068,2026-12-29 05:00:00+00:00,Central Michigan,Michigan Dearborn,False,False,0,0,2,False
+401911067,2026-12-29 05:00:00+00:00,Massachusetts,Akron,False,False,0,0,2,False
+401911065,2026-12-29 05:00:00+00:00,Bowling Green,Aquinas,False,False,0,0,2,False
+401906859,2026-12-29 05:00:00+00:00,Tennessee,Norfolk State,False,False,0,0,2,False
+401909782,2026-12-29 05:00:00+00:00,Iowa State,New Hampshire,False,False,0,0,2,False
+401909770,2026-12-29 05:00:00+00:00,Colorado,Denver,False,False,0,0,2,False
+401909758,2026-12-29 05:00:00+00:00,Baylor,Mississippi Valley State,False,False,0,0,2,False
+401906875,2026-12-29 05:00:00+00:00,Texas,East Texas A&M,False,False,0,0,2,False
+401906790,2026-12-29 05:00:00+00:00,Georgia,North Florida,False,False,0,0,2,False
+401906778,2026-12-29 05:00:00+00:00,Florida,Long Island University,False,False,0,0,2,False
+401909795,2026-12-29 05:00:00+00:00,Kansas,LSU New Orleans,False,False,0,0,2,False
+401906768,2026-12-29 05:00:00+00:00,Alabama,Samford,False,False,0,0,2,False
+401911318,2026-12-29 23:00:00+00:00,Brown,Maine,False,False,0,0,2,False
+401911285,2026-12-29 23:07:00+00:00,Binghamton,Marywood,False,False,0,0,2,False
+401911355,2026-12-30 01:00:00+00:00,Grand Canyon,Justice,False,False,0,0,2,False
+401911836,2026-12-30 05:00:00+00:00,VMI,Furman,False,False,0,0,2,False
+401911838,2026-12-30 05:00:00+00:00,Wofford,Tennessee Tech,False,False,0,0,2,False
+401911837,2026-12-30 05:00:00+00:00,Western Carolina,Chattanooga,False,False,0,0,2,False
+401911835,2026-12-30 05:00:00+00:00,Mercer,East Tennessee State,False,False,0,0,2,False
+401911577,2026-12-30 05:00:00+00:00,UT Martin,Morehead State,False,False,0,0,2,False
+401911834,2026-12-30 05:00:00+00:00,UNC Greensboro,The Citadel,False,False,0,0,2,False
+401911563,2026-12-30 05:00:00+00:00,SIU Edwardsville,Lindenwood,False,False,0,0,2,False
+401905212,2026-12-31 05:00:00+00:00,Stony Brook,Monmouth,False,False,0,0,2,False
+401905211,2026-12-31 05:00:00+00:00,Charleston,Northeastern,False,False,0,0,2,False
+401911963,2026-12-31 05:00:00+00:00,Old Dominion,UL Monroe,False,False,0,0,2,False
+401911962,2026-12-31 05:00:00+00:00,Marshall,South Alabama,False,False,0,0,2,False
+401911960,2026-12-31 05:00:00+00:00,Georgia State,Southern Miss,False,False,0,0,2,False
+401911959,2026-12-31 05:00:00+00:00,Georgia Southern,Louisiana,False,False,0,0,2,False
+401911958,2026-12-31 05:00:00+00:00,Coastal Carolina,Louisiana Tech,False,False,0,0,2,False
+401911957,2026-12-31 05:00:00+00:00,App State,Troy,False,False,0,0,2,False
+401911961,2026-12-31 05:00:00+00:00,James Madison,Arkansas State,False,False,0,0,2,False
+401905606,2026-12-31 05:00:00+00:00,Sam Houston,Missouri State,False,False,0,0,2,False
+401911547,2026-12-31 05:00:00+00:00,Eastern Illinois,Southeast Missouri State,False,False,0,0,2,False
+401905214,2026-12-31 05:00:00+00:00,Elon,North Carolina A&T,False,False,0,0,2,False
+401905215,2026-12-31 05:00:00+00:00,UNC Wilmington,Campbell,False,False,0,0,2,False
+401905213,2026-12-31 05:00:00+00:00,William & Mary,Drexel,False,False,0,0,2,False
+401905603,2026-12-31 05:00:00+00:00,New Mexico State,Florida International,False,False,0,0,2,False
+401905604,2026-12-31 05:00:00+00:00,Jacksonville State,Middle Tennessee,False,False,0,0,2,False
+401905605,2026-12-31 05:00:00+00:00,Kennesaw State,Western Kentucky,False,False,0,0,2,False
+401911711,2027-01-01 01:30:00+00:00,Southern Indiana,Tennessee State,False,False,0,0,2,False
+401911074,2027-01-02 05:00:00+00:00,Central Michigan,Toledo,False,False,0,0,2,False
+401911403,2027-01-02 05:00:00+00:00,UC Davis,Grand Canyon,False,False,0,0,2,False
+401911422,2027-01-02 05:00:00+00:00,San José State,Hawai'i,False,False,0,0,2,False
+401911438,2027-01-02 05:00:00+00:00,Wyoming,Nevada,False,False,0,0,2,False
+401911537,2027-01-02 05:00:00+00:00,UTEP,New Mexico,False,False,0,0,2,False
+401911689,2027-01-02 05:00:00+00:00,Western Illinois,SIU Edwardsville,False,False,0,0,2,False
+401911699,2027-01-02 05:00:00+00:00,Southeast Missouri State,Southern Indiana,False,False,0,0,2,False
+401911839,2027-01-02 05:00:00+00:00,The Citadel,Chattanooga,False,False,0,0,2,False
+401911840,2027-01-02 05:00:00+00:00,Samford,East Tennessee State,False,False,0,0,2,False
+401911970,2027-01-02 05:00:00+00:00,Old Dominion,Louisiana Tech,False,False,0,0,2,False
+401911842,2027-01-02 05:00:00+00:00,UNC Greensboro,Wofford,False,False,0,0,2,False
+401911964,2027-01-02 05:00:00+00:00,App State,South Alabama,False,False,0,0,2,False
+401911965,2027-01-02 05:00:00+00:00,Coastal Carolina,UL Monroe,False,False,0,0,2,False
+401911966,2027-01-02 05:00:00+00:00,Georgia Southern,Southern Miss,False,False,0,0,2,False
+401911967,2027-01-02 05:00:00+00:00,Georgia State,Louisiana,False,False,0,0,2,False
+401911968,2027-01-02 05:00:00+00:00,James Madison,Troy,False,False,0,0,2,False
+401911969,2027-01-02 05:00:00+00:00,Marshall,Arkansas State,False,False,0,0,2,False
+401911073,2027-01-02 05:00:00+00:00,Bowling Green,Ohio,False,False,0,0,2,False
+401911841,2027-01-02 05:00:00+00:00,Furman,Tennessee Tech,False,False,0,0,2,False
+401911072,2027-01-02 05:00:00+00:00,Akron,Western Michigan,False,False,0,0,2,False
+401911843,2027-01-02 05:00:00+00:00,Western Carolina,VMI,False,False,0,0,2,False
+401911070,2027-01-02 05:00:00+00:00,Kent State,Buffalo,False,False,0,0,2,False
+401911071,2027-01-02 05:00:00+00:00,Miami (OH),Eastern Michigan,False,False,0,0,2,False
+401902304,2027-01-02 05:00:00+00:00,LSU,South Carolina,False,False,0,0,2,False
+401902305,2027-01-02 05:00:00+00:00,Mississippi State,Alabama,False,False,0,0,2,False
+401902306,2027-01-02 05:00:00+00:00,Oklahoma,Kentucky,False,False,0,0,2,False
+401902308,2027-01-02 05:00:00+00:00,Ole Miss,Georgia,False,False,0,0,2,False
+401902309,2027-01-02 05:00:00+00:00,Tennessee,Vanderbilt,False,False,0,0,2,False
+401902310,2027-01-02 05:00:00+00:00,Texas,Florida,False,False,0,0,2,False
+401902303,2027-01-02 05:00:00+00:00,Arkansas,Missouri,False,False,0,0,2,False
+401905216,2027-01-02 05:00:00+00:00,UNC Wilmington,Northeastern,False,False,0,0,2,False
+401905217,2027-01-02 05:00:00+00:00,Hofstra,Stony Brook,False,False,0,0,2,False
+401902307,2027-01-02 05:00:00+00:00,Texas A&M,Auburn,False,False,0,0,2,False
+401905219,2027-01-02 05:00:00+00:00,Campbell,Towson,False,False,0,0,2,False
+401905220,2027-01-02 05:00:00+00:00,Charleston,North Carolina A&T,False,False,0,0,2,False
+401905221,2027-01-02 05:00:00+00:00,William & Mary,Elon,False,False,0,0,2,False
+401905607,2027-01-02 05:00:00+00:00,Liberty,Delaware,False,False,0,0,2,False
+401905608,2027-01-02 05:00:00+00:00,Sam Houston,Florida International,False,False,0,0,2,False
+401911069,2027-01-02 05:00:00+00:00,Massachusetts,Ball State,False,False,0,0,2,False
+401905609,2027-01-02 05:00:00+00:00,Jacksonville State,Western Kentucky,False,False,0,0,2,False
+401905610,2027-01-02 05:00:00+00:00,Kennesaw State,Middle Tennessee,False,False,0,0,2,False
+401905611,2027-01-02 05:00:00+00:00,New Mexico State,Missouri State,False,False,0,0,2,False
+401905218,2027-01-02 05:00:00+00:00,Hampton,Drexel,False,False,0,0,2,False
+401911548,2027-01-02 21:30:00+00:00,Eastern Illinois,Tennessee State,False,False,0,0,2,False
+401911564,2027-01-02 21:30:00+00:00,Lindenwood,UT Martin,False,False,0,0,2,False
+401911319,2027-01-04 05:00:00+00:00,Yale,Brown,False,False,0,0,2,False
+401911410,2027-01-04 05:00:00+00:00,Princeton,Pennsylvania,False,False,0,0,2,False
+401911538,2027-01-05 05:00:00+00:00,UTEP,Wyoming,False,False,0,0,2,False
+401911480,2027-01-05 05:00:00+00:00,Air Force,San José State,False,False,0,0,2,False
+401911439,2027-01-05 05:00:00+00:00,New Mexico,Nevada,False,False,0,0,2,False
+401911423,2027-01-05 05:00:00+00:00,UC Davis,Hawai'i,False,False,0,0,2,False
+401911357,2027-01-05 05:00:00+00:00,Grand Canyon,UNLV,False,False,0,0,2,False
+401911080,2027-01-05 05:00:00+00:00,Central Michigan,Bowling Green,False,False,0,0,2,False
+401911079,2027-01-05 05:00:00+00:00,Western Michigan,Eastern Michigan,False,False,0,0,2,False
+401911078,2027-01-05 05:00:00+00:00,Toledo,Miami (OH),False,False,0,0,2,False
+401911077,2027-01-05 05:00:00+00:00,Ball State,Kent State,False,False,0,0,2,False
+401902318,2027-01-05 05:00:00+00:00,South Carolina,Arkansas,False,False,0,0,2,False
+401911075,2027-01-05 05:00:00+00:00,Ohio,Akron,False,False,0,0,2,False
+401902317,2027-01-05 05:00:00+00:00,Georgia,Texas,False,False,0,0,2,False
+401902316,2027-01-05 05:00:00+00:00,Missouri,Texas A&M,False,False,0,0,2,False
+401902315,2027-01-05 05:00:00+00:00,Vanderbilt,Mississippi State,False,False,0,0,2,False
+401902314,2027-01-05 05:00:00+00:00,Kentucky,Ole Miss,False,False,0,0,2,False
+401902313,2027-01-05 05:00:00+00:00,Florida,Oklahoma,False,False,0,0,2,False
+401902312,2027-01-05 05:00:00+00:00,Auburn,Tennessee,False,False,0,0,2,False
+401902311,2027-01-05 05:00:00+00:00,Alabama,LSU,False,False,0,0,2,False
+401911076,2027-01-05 05:00:00+00:00,Buffalo,Massachusetts,False,False,0,0,2,False
+401911971,2027-01-06 05:00:00+00:00,Troy,Georgia State,False,False,0,0,2,False
+401911845,2027-01-06 05:00:00+00:00,Furman,Samford,False,False,0,0,2,False
+401911844,2027-01-06 05:00:00+00:00,The Citadel,Wofford,False,False,0,0,2,False
+401911846,2027-01-06 05:00:00+00:00,Mercer,Western Carolina,False,False,0,0,2,False
+401905812,2027-01-06 05:00:00+00:00,Austin Peay,Eastern Kentucky,False,False,0,0,2,False
+401905811,2027-01-06 05:00:00+00:00,Tarleton State,Central Arkansas,False,False,0,0,2,False
+401905810,2027-01-06 05:00:00+00:00,Abilene Christian,Little Rock,False,False,0,0,2,False
+401905813,2027-01-06 05:00:00+00:00,West Georgia,North Alabama,False,False,0,0,2,False
+401911549,2027-01-07 05:00:00+00:00,Morehead State,Eastern Illinois,False,False,0,0,2,False
+401911565,2027-01-07 05:00:00+00:00,Southern Indiana,Lindenwood,False,False,0,0,2,False
+401911700,2027-01-07 05:00:00+00:00,UT Martin,Southeast Missouri State,False,False,0,0,2,False
+401911847,2027-01-07 05:00:00+00:00,Chattanooga,UNC Greensboro,False,False,0,0,2,False
+401911848,2027-01-07 05:00:00+00:00,Tennessee Tech,VMI,False,False,0,0,2,False
+401911972,2027-01-07 05:00:00+00:00,Arkansas State,App State,False,False,0,0,2,False
+401911973,2027-01-07 05:00:00+00:00,Southern Miss,Coastal Carolina,False,False,0,0,2,False
+401911974,2027-01-07 05:00:00+00:00,South Alabama,Georgia Southern,False,False,0,0,2,False
+401911975,2027-01-07 05:00:00+00:00,Louisiana Tech,James Madison,False,False,0,0,2,False
+401911976,2027-01-07 05:00:00+00:00,UL Monroe,Marshall,False,False,0,0,2,False
+401911977,2027-01-07 05:00:00+00:00,Louisiana,Old Dominion,False,False,0,0,2,False
+401905700,2027-01-07 05:00:00+00:00,Kansas City,South Dakota State,False,False,0,0,2,False
+401905699,2027-01-07 05:00:00+00:00,Oral Roberts,South Dakota,False,False,0,0,2,False
+401905401,2027-01-07 05:00:00+00:00,North Florida,Bellarmine,False,False,0,0,2,False
+401905697,2027-01-07 05:00:00+00:00,Omaha,North Dakota,False,False,0,0,2,False
+401905698,2027-01-07 05:00:00+00:00,St. Thomas,North Dakota State,False,False,0,0,2,False
+401905222,2027-01-07 05:00:00+00:00,Towson,Hofstra,False,False,0,0,2,False
+401905223,2027-01-07 05:00:00+00:00,Northeastern,William & Mary,False,False,0,0,2,False
+401905224,2027-01-07 05:00:00+00:00,Monmouth,Hampton,False,False,0,0,2,False
+401905225,2027-01-07 05:00:00+00:00,Campbell,Elon,False,False,0,0,2,False
+401905226,2027-01-07 05:00:00+00:00,North Carolina A&T,UNC Wilmington,False,False,0,0,2,False
+401905402,2027-01-07 05:00:00+00:00,Jacksonville,Lipscomb,False,False,0,0,2,False
+401905612,2027-01-07 05:00:00+00:00,Missouri State,Delaware,False,False,0,0,2,False
+401905613,2027-01-07 05:00:00+00:00,Florida International,Liberty,False,False,0,0,2,False
+401905614,2027-01-07 05:00:00+00:00,Middle Tennessee,Sam Houston,False,False,0,0,2,False
+401905615,2027-01-07 05:00:00+00:00,Western Kentucky,New Mexico State,False,False,0,0,2,False
+401905227,2027-01-07 05:00:00+00:00,Drexel,Charleston,False,False,0,0,2,False
+401911712,2027-01-08 01:30:00+00:00,Tennessee State,Western Illinois,False,False,0,0,2,False
+401911320,2027-01-09 00:00:00+00:00,Brown,Pennsylvania,False,False,0,0,2,False
+401911084,2027-01-09 05:00:00+00:00,Eastern Michigan,Bowling Green,False,False,0,0,2,False
+401911539,2027-01-09 05:00:00+00:00,Air Force,UTEP,False,False,0,0,2,False
+401911481,2027-01-09 05:00:00+00:00,San José State,UNLV,False,False,0,0,2,False
+401911424,2027-01-09 05:00:00+00:00,Nevada,Hawai'i,False,False,0,0,2,False
+401911358,2027-01-09 05:00:00+00:00,Grand Canyon,Wyoming,False,False,0,0,2,False
+401911083,2027-01-09 05:00:00+00:00,Western Michigan,Kent State,False,False,0,0,2,False
+401911085,2027-01-09 05:00:00+00:00,Toledo,Buffalo,False,False,0,0,2,False
+401911566,2027-01-09 05:00:00+00:00,Morehead State,Lindenwood,False,False,0,0,2,False
+401911082,2027-01-09 05:00:00+00:00,Ball State,Central Michigan,False,False,0,0,2,False
+401911086,2027-01-09 05:00:00+00:00,Ohio,Massachusetts,False,False,0,0,2,False
+401911701,2027-01-09 05:00:00+00:00,Southeast Missouri State,Western Illinois,False,False,0,0,2,False
+401911851,2027-01-09 05:00:00+00:00,Wofford,Mercer,False,False,0,0,2,False
+401911849,2027-01-09 05:00:00+00:00,Samford,The Citadel,False,False,0,0,2,False
+401911850,2027-01-09 05:00:00+00:00,East Tennessee State,Western Carolina,False,False,0,0,2,False
+401905817,2027-01-09 05:00:00+00:00,Eastern Kentucky,West Georgia,False,False,0,0,2,False
+401911852,2027-01-09 05:00:00+00:00,Tennessee Tech,UNC Greensboro,False,False,0,0,2,False
+401911853,2027-01-09 05:00:00+00:00,Chattanooga,VMI,False,False,0,0,2,False
+401911978,2027-01-09 05:00:00+00:00,UL Monroe,App State,False,False,0,0,2,False
+401911979,2027-01-09 05:00:00+00:00,South Alabama,Coastal Carolina,False,False,0,0,2,False
+401911980,2027-01-09 05:00:00+00:00,Troy,Georgia Southern,False,False,0,0,2,False
+401911981,2027-01-09 05:00:00+00:00,Arkansas State,Georgia State,False,False,0,0,2,False
+401911982,2027-01-09 05:00:00+00:00,Louisiana,James Madison,False,False,0,0,2,False
+401911983,2027-01-09 05:00:00+00:00,Louisiana Tech,Marshall,False,False,0,0,2,False
+401911984,2027-01-09 05:00:00+00:00,Southern Miss,Old Dominion,False,False,0,0,2,False
+401911716,2027-01-09 05:00:00+00:00,UT Martin,Southern Indiana,False,False,0,0,2,False
+401905816,2027-01-09 05:00:00+00:00,North Alabama,Austin Peay,False,False,0,0,2,False
+401911081,2027-01-09 05:00:00+00:00,Akron,Miami (OH),False,False,0,0,2,False
+401905814,2027-01-09 05:00:00+00:00,Tarleton State,Little Rock,False,False,0,0,2,False
+401902319,2027-01-09 05:00:00+00:00,Arkansas,Alabama,False,False,0,0,2,False
+401902320,2027-01-09 05:00:00+00:00,Auburn,Georgia,False,False,0,0,2,False
+401902321,2027-01-09 05:00:00+00:00,LSU,Tennessee,False,False,0,0,2,False
+401905815,2027-01-09 05:00:00+00:00,UT Arlington,Central Arkansas,False,False,0,0,2,False
+401902323,2027-01-09 05:00:00+00:00,Oklahoma,Mississippi State,False,False,0,0,2,False
+401902324,2027-01-09 05:00:00+00:00,Florida,Vanderbilt,False,False,0,0,2,False
+401902325,2027-01-09 05:00:00+00:00,Ole Miss,Texas,False,False,0,0,2,False
+401902326,2027-01-09 05:00:00+00:00,South Carolina,Texas A&M,False,False,0,0,2,False
+401905228,2027-01-09 05:00:00+00:00,Stony Brook,Towson,False,False,0,0,2,False
+401905229,2027-01-09 05:00:00+00:00,Hofstra,William & Mary,False,False,0,0,2,False
+401905230,2027-01-09 05:00:00+00:00,Northeastern,Hampton,False,False,0,0,2,False
+401905231,2027-01-09 05:00:00+00:00,Campbell,North Carolina A&T,False,False,0,0,2,False
+401905232,2027-01-09 05:00:00+00:00,Elon,UNC Wilmington,False,False,0,0,2,False
+401902322,2027-01-09 05:00:00+00:00,Missouri,Kentucky,False,False,0,0,2,False
+401905403,2027-01-09 05:00:00+00:00,Jacksonville,Bellarmine,False,False,0,0,2,False
+401905233,2027-01-09 05:00:00+00:00,Monmouth,Charleston,False,False,0,0,2,False
+401905703,2027-01-09 05:00:00+00:00,Oral Roberts,South Dakota State,False,False,0,0,2,False
+401905701,2027-01-09 05:00:00+00:00,Omaha,North Dakota State,False,False,0,0,2,False
+401905620,2027-01-09 05:00:00+00:00,Western Kentucky,Sam Houston,False,False,0,0,2,False
+401905619,2027-01-09 05:00:00+00:00,Middle Tennessee,New Mexico State,False,False,0,0,2,False
+401905702,2027-01-09 05:00:00+00:00,Kansas City,South Dakota,False,False,0,0,2,False
+401905617,2027-01-09 05:00:00+00:00,Kennesaw State,Jacksonville State,False,False,0,0,2,False
+401905616,2027-01-09 05:00:00+00:00,Florida International,Delaware,False,False,0,0,2,False
+401905406,2027-01-09 05:00:00+00:00,Stetson,Florida Gulf Coast,False,False,0,0,2,False
+401905405,2027-01-09 05:00:00+00:00,West Florida,Queens University,False,False,0,0,2,False
+401905404,2027-01-09 05:00:00+00:00,North Florida,Lipscomb,False,False,0,0,2,False
+401905618,2027-01-09 05:00:00+00:00,Missouri State,Liberty,False,False,0,0,2,False
+401911690,2027-01-09 21:30:00+00:00,Tennessee State,SIU Edwardsville,False,False,0,0,2,False
+401905704,2027-01-10 05:00:00+00:00,St. Thomas,North Dakota,False,False,0,0,2,False
+401911089,2027-01-12 05:00:00+00:00,Kent State,Ohio,False,False,0,0,2,False
+401911425,2027-01-12 05:00:00+00:00,Hawai'i,Air Force,False,False,0,0,2,False
+401911404,2027-01-12 05:00:00+00:00,San José State,Grand Canyon,False,False,0,0,2,False
+401911092,2027-01-12 05:00:00+00:00,Central Michigan,Buffalo,False,False,0,0,2,False
+401911091,2027-01-12 05:00:00+00:00,Bowling Green,Ball State,False,False,0,0,2,False
+401911090,2027-01-12 05:00:00+00:00,Eastern Michigan,Akron,False,False,0,0,2,False
+401911088,2027-01-12 05:00:00+00:00,Miami (OH),Western Michigan,False,False,0,0,2,False
+401902328,2027-01-12 05:00:00+00:00,Georgia,Oklahoma,False,False,0,0,2,False
+401902334,2027-01-12 05:00:00+00:00,Texas,Auburn,False,False,0,0,2,False
+401902333,2027-01-12 05:00:00+00:00,Kentucky,LSU,False,False,0,0,2,False
+401902332,2027-01-12 05:00:00+00:00,Texas A&M,Arkansas,False,False,0,0,2,False
+401902331,2027-01-12 05:00:00+00:00,Alabama,Ole Miss,False,False,0,0,2,False
+401902330,2027-01-12 05:00:00+00:00,Vanderbilt,South Carolina,False,False,0,0,2,False
+401902329,2027-01-12 05:00:00+00:00,Tennessee,Missouri,False,False,0,0,2,False
+401902327,2027-01-12 05:00:00+00:00,Mississippi State,Florida,False,False,0,0,2,False
+401911087,2027-01-12 05:00:00+00:00,Massachusetts,Toledo,False,False,0,0,2,False
+401911440,2027-01-12 05:00:00+00:00,UTEP,Nevada,False,False,0,0,2,False
+401905818,2027-01-13 05:00:00+00:00,Central Arkansas,Abilene Christian,False,False,0,0,2,False
+401905820,2027-01-13 05:00:00+00:00,UT Arlington,Austin Peay,False,False,0,0,2,False
+401911987,2027-01-13 05:00:00+00:00,Southern Miss,Troy,False,False,0,0,2,False
+401911986,2027-01-13 05:00:00+00:00,Georgia Southern,James Madison,False,False,0,0,2,False
+401911985,2027-01-13 05:00:00+00:00,Old Dominion,App State,False,False,0,0,2,False
+401911858,2027-01-13 05:00:00+00:00,VMI,Wofford,False,False,0,0,2,False
+401911857,2027-01-13 05:00:00+00:00,UNC Greensboro,Western Carolina,False,False,0,0,2,False
+401905819,2027-01-13 05:00:00+00:00,Eastern Kentucky,Tarleton State,False,False,0,0,2,False
+401911855,2027-01-13 05:00:00+00:00,East Tennessee State,Tennessee Tech,False,False,0,0,2,False
+401911854,2027-01-13 05:00:00+00:00,The Citadel,Furman,False,False,0,0,2,False
+401911578,2027-01-13 05:00:00+00:00,Morehead State,Southern Indiana,False,False,0,0,2,False
+401905821,2027-01-13 05:00:00+00:00,Little Rock,West Georgia,False,False,0,0,2,False
+401911856,2027-01-13 05:00:00+00:00,Mercer,Samford,False,False,0,0,2,False
+401911990,2027-01-14 05:00:00+00:00,UL Monroe,South Alabama,False,False,0,0,2,False
+401911989,2027-01-14 05:00:00+00:00,Louisiana Tech,Arkansas State,False,False,0,0,2,False
+401911988,2027-01-14 05:00:00+00:00,Georgia State,Marshall,False,False,0,0,2,False
+401911691,2027-01-14 05:00:00+00:00,SIU Edwardsville,UT Martin,False,False,0,0,2,False
+401911550,2027-01-14 05:00:00+00:00,Western Illinois,Eastern Illinois,False,False,0,0,2,False
+401905705,2027-01-14 05:00:00+00:00,North Dakota,Oral Roberts,False,False,0,0,2,False
+401905624,2027-01-14 05:00:00+00:00,Liberty,Middle Tennessee,False,False,0,0,2,False
+401905623,2027-01-14 05:00:00+00:00,Sam Houston,Kennesaw State,False,False,0,0,2,False
+401905622,2027-01-14 05:00:00+00:00,New Mexico State,Jacksonville State,False,False,0,0,2,False
+401905706,2027-01-14 05:00:00+00:00,North Dakota State,Kansas City,False,False,0,0,2,False
+401905410,2027-01-14 05:00:00+00:00,West Florida,North Florida,False,False,0,0,2,False
+401905621,2027-01-14 05:00:00+00:00,Delaware,Western Kentucky,False,False,0,0,2,False
+401905235,2027-01-14 05:00:00+00:00,North Carolina A&T,Stony Brook,False,False,0,0,2,False
+401905237,2027-01-14 05:00:00+00:00,Towson,Monmouth,False,False,0,0,2,False
+401905238,2027-01-14 05:00:00+00:00,William & Mary,Hampton,False,False,0,0,2,False
+401905236,2027-01-14 05:00:00+00:00,Elon,Hofstra,False,False,0,0,2,False
+401905234,2027-01-14 05:00:00+00:00,Drexel,Northeastern,False,False,0,0,2,False
+401905407,2027-01-14 05:00:00+00:00,Bellarmine,Florida Gulf Coast,False,False,0,0,2,False
+401905408,2027-01-14 05:00:00+00:00,Lipscomb,Stetson,False,False,0,0,2,False
+401905409,2027-01-14 05:00:00+00:00,Queens University,Jacksonville,False,False,0,0,2,False
+401905239,2027-01-14 05:00:00+00:00,Charleston,Campbell,False,False,0,0,2,False
+401911567,2027-01-15 01:30:00+00:00,Lindenwood,Southeast Missouri State,False,False,0,0,2,False
+401911321,2027-01-15 05:00:00+00:00,Cornell,Brown,False,False,0,0,2,False
+401911411,2027-01-16 05:00:00+00:00,Pennsylvania,Harvard,False,False,0,0,2,False
+401911482,2027-01-16 05:00:00+00:00,UC Davis,San José State,False,False,0,0,2,False
+401911426,2027-01-16 05:00:00+00:00,Hawai'i,Wyoming,False,False,0,0,2,False
+401911360,2027-01-16 05:00:00+00:00,Nevada,Grand Canyon,False,False,0,0,2,False
+401911093,2027-01-16 05:00:00+00:00,Buffalo,Bowling Green,False,False,0,0,2,False
+401911097,2027-01-16 05:00:00+00:00,Massachusetts,Central Michigan,False,False,0,0,2,False
+401911096,2027-01-16 05:00:00+00:00,Kent State,Miami (OH),False,False,0,0,2,False
+401911095,2027-01-16 05:00:00+00:00,Toledo,Akron,False,False,0,0,2,False
+401911094,2027-01-16 05:00:00+00:00,Western Michigan,Ball State,False,False,0,0,2,False
+401911540,2027-01-16 05:00:00+00:00,UNLV,UTEP,False,False,0,0,2,False
+401911098,2027-01-16 05:00:00+00:00,Ohio,Eastern Michigan,False,False,0,0,2,False
+401911551,2027-01-16 05:00:00+00:00,Eastern Illinois,Lindenwood,False,False,0,0,2,False
+401911996,2027-01-16 05:00:00+00:00,South Alabama,Louisiana Tech,False,False,0,0,2,False
+401911717,2027-01-16 05:00:00+00:00,Western Illinois,UT Martin,False,False,0,0,2,False
+401911859,2027-01-16 05:00:00+00:00,VMI,The Citadel,False,False,0,0,2,False
+401911860,2027-01-16 05:00:00+00:00,UNC Greensboro,East Tennessee State,False,False,0,0,2,False
+401911861,2027-01-16 05:00:00+00:00,Furman,Mercer,False,False,0,0,2,False
+401911862,2027-01-16 05:00:00+00:00,Western Carolina,Samford,False,False,0,0,2,False
+401911863,2027-01-16 05:00:00+00:00,Wofford,Chattanooga,False,False,0,0,2,False
+401911991,2027-01-16 05:00:00+00:00,App State,Georgia State,False,False,0,0,2,False
+401911992,2027-01-16 05:00:00+00:00,Coastal Carolina,Louisiana,False,False,0,0,2,False
+401911993,2027-01-16 05:00:00+00:00,Marshall,Georgia Southern,False,False,0,0,2,False
+401911994,2027-01-16 05:00:00+00:00,James Madison,Old Dominion,False,False,0,0,2,False
+401911995,2027-01-16 05:00:00+00:00,Arkansas State,Southern Miss,False,False,0,0,2,False
+401905825,2027-01-16 05:00:00+00:00,Eastern Kentucky,North Alabama,False,False,0,0,2,False
+401911692,2027-01-16 05:00:00+00:00,SIU Edwardsville,Southeast Missouri State,False,False,0,0,2,False
+401905824,2027-01-16 05:00:00+00:00,Central Arkansas,West Georgia,False,False,0,0,2,False
+401905412,2027-01-16 05:00:00+00:00,Lipscomb,Florida Gulf Coast,False,False,0,0,2,False
+401905822,2027-01-16 05:00:00+00:00,Abilene Christian,UT Arlington,False,False,0,0,2,False
+401902335,2027-01-16 05:00:00+00:00,Alabama,Florida,False,False,0,0,2,False
+401902336,2027-01-16 05:00:00+00:00,Auburn,Ole Miss,False,False,0,0,2,False
+401902337,2027-01-16 05:00:00+00:00,Missouri,South Carolina,False,False,0,0,2,False
+401902338,2027-01-16 05:00:00+00:00,Texas A&M,LSU,False,False,0,0,2,False
+401902339,2027-01-16 05:00:00+00:00,Georgia,Mississippi State,False,False,0,0,2,False
+401902340,2027-01-16 05:00:00+00:00,Kentucky,Vanderbilt,False,False,0,0,2,False
+401902341,2027-01-16 05:00:00+00:00,Tennessee,Arkansas,False,False,0,0,2,False
+401902342,2027-01-16 05:00:00+00:00,Texas,Oklahoma,False,False,0,0,2,False
+401905240,2027-01-16 05:00:00+00:00,Elon,Stony Brook,False,False,0,0,2,False
+401905241,2027-01-16 05:00:00+00:00,Hampton,Hofstra,False,False,0,0,2,False
+401905242,2027-01-16 05:00:00+00:00,Monmouth,Drexel,False,False,0,0,2,False
+401911997,2027-01-16 05:00:00+00:00,Troy,UL Monroe,False,False,0,0,2,False
+401905823,2027-01-16 05:00:00+00:00,Austin Peay,Tarleton State,False,False,0,0,2,False
+401905244,2027-01-16 05:00:00+00:00,William & Mary,Campbell,False,False,0,0,2,False
+401905411,2027-01-16 05:00:00+00:00,Bellarmine,Stetson,False,False,0,0,2,False
+401905413,2027-01-16 05:00:00+00:00,Queens University,North Florida,False,False,0,0,2,False
+401905414,2027-01-16 05:00:00+00:00,West Florida,Jacksonville,False,False,0,0,2,False
+401905625,2027-01-16 05:00:00+00:00,Delaware,Middle Tennessee,False,False,0,0,2,False
+401905626,2027-01-16 05:00:00+00:00,Florida International,Missouri State,False,False,0,0,2,False
+401905627,2027-01-16 05:00:00+00:00,Sam Houston,Jacksonville State,False,False,0,0,2,False
+401905628,2027-01-16 05:00:00+00:00,New Mexico State,Kennesaw State,False,False,0,0,2,False
+401905629,2027-01-16 05:00:00+00:00,Liberty,Western Kentucky,False,False,0,0,2,False
+401905707,2027-01-16 05:00:00+00:00,North Dakota,Kansas City,False,False,0,0,2,False
+401905708,2027-01-16 05:00:00+00:00,North Dakota State,Oral Roberts,False,False,0,0,2,False
+401905709,2027-01-16 05:00:00+00:00,South Dakota,South Dakota State,False,False,0,0,2,False
+401905710,2027-01-16 05:00:00+00:00,St. Thomas,Omaha,False,False,0,0,2,False
+401905245,2027-01-16 05:00:00+00:00,North Carolina A&T,Charleston,False,False,0,0,2,False
+401905243,2027-01-16 05:00:00+00:00,UNC Wilmington,Towson,False,False,0,0,2,False
+401911579,2027-01-17 01:30:00+00:00,Tennessee State,Morehead State,False,False,0,0,2,False
+401911412,2027-01-17 05:00:00+00:00,Pennsylvania,Dartmouth,False,False,0,0,2,False
+401905246,2027-01-18 05:00:00+00:00,Campbell,Stony Brook,False,False,0,0,2,False
+401911868,2027-01-18 05:00:00+00:00,Chattanooga,Tennessee Tech,False,False,0,0,2,False
+401911867,2027-01-18 05:00:00+00:00,Samford,VMI,False,False,0,0,2,False
+401911865,2027-01-18 05:00:00+00:00,Furman,Wofford,False,False,0,0,2,False
+401911864,2027-01-18 05:00:00+00:00,The Citadel,East Tennessee State,False,False,0,0,2,False
+401911866,2027-01-18 05:00:00+00:00,Western Carolina,Mercer,False,False,0,0,2,False
+401905251,2027-01-18 05:00:00+00:00,North Carolina A&T,Hampton,False,False,0,0,2,False
+401905250,2027-01-18 05:00:00+00:00,UNC Wilmington,William & Mary,False,False,0,0,2,False
+401905249,2027-01-18 05:00:00+00:00,Charleston,Towson,False,False,0,0,2,False
+401905248,2027-01-18 05:00:00+00:00,Hofstra,Drexel,False,False,0,0,2,False
+401905247,2027-01-18 05:00:00+00:00,Northeastern,Monmouth,False,False,0,0,2,False
+401911322,2027-01-18 05:00:00+00:00,Columbia,Brown,False,False,0,0,2,False
+401911101,2027-01-19 05:00:00+00:00,Eastern Michigan,Kent State,False,False,0,0,2,False
+401911541,2027-01-19 05:00:00+00:00,Wyoming,UTEP,False,False,0,0,2,False
+401911483,2027-01-19 05:00:00+00:00,New Mexico,San José State,False,False,0,0,2,False
+401911441,2027-01-19 05:00:00+00:00,Nevada,Air Force,False,False,0,0,2,False
+401911103,2027-01-19 05:00:00+00:00,Akron,Central Michigan,False,False,0,0,2,False
+401911102,2027-01-19 05:00:00+00:00,Ball State,Toledo,False,False,0,0,2,False
+401911100,2027-01-19 05:00:00+00:00,Miami (OH),Buffalo,False,False,0,0,2,False
+401911104,2027-01-19 05:00:00+00:00,Bowling Green,Massachusetts,False,False,0,0,2,False
+401902349,2027-01-19 05:00:00+00:00,South Carolina,Alabama,False,False,0,0,2,False
+401902348,2027-01-19 05:00:00+00:00,Florida,Texas A&M,False,False,0,0,2,False
+401902347,2027-01-19 05:00:00+00:00,Oklahoma,Missouri,False,False,0,0,2,False
+401902343,2027-01-19 05:00:00+00:00,LSU,Texas,False,False,0,0,2,False
+401902346,2027-01-19 05:00:00+00:00,Mississippi State,Kentucky,False,False,0,0,2,False
+401902345,2027-01-19 05:00:00+00:00,Arkansas,Georgia,False,False,0,0,2,False
+401902344,2027-01-19 05:00:00+00:00,Vanderbilt,Auburn,False,False,0,0,2,False
+401911099,2027-01-19 05:00:00+00:00,Ohio,Western Michigan,False,False,0,0,2,False
+401912000,2027-01-20 05:00:00+00:00,Southern Miss,UL Monroe,False,False,0,0,2,False
+401911998,2027-01-20 05:00:00+00:00,App State,Coastal Carolina,False,False,0,0,2,False
+401911869,2027-01-20 05:00:00+00:00,Mercer,VMI,False,False,0,0,2,False
+401911999,2027-01-20 05:00:00+00:00,Georgia State,Georgia Southern,False,False,0,0,2,False
+401905829,2027-01-20 05:00:00+00:00,Little Rock,Eastern Kentucky,False,False,0,0,2,False
+401905828,2027-01-20 05:00:00+00:00,Austin Peay,Central Arkansas,False,False,0,0,2,False
+401905827,2027-01-20 05:00:00+00:00,West Georgia,UT Arlington,False,False,0,0,2,False
+401905826,2027-01-20 05:00:00+00:00,North Alabama,Abilene Christian,False,False,0,0,2,False
+401911361,2027-01-20 05:00:00+00:00,Grand Canyon,Hawai'i,False,False,0,0,2,False
+401911552,2027-01-21 05:00:00+00:00,Southeast Missouri State,Eastern Illinois,False,False,0,0,2,False
+401911580,2027-01-21 05:00:00+00:00,Morehead State,Western Illinois,False,False,0,0,2,False
+401905714,2027-01-21 05:00:00+00:00,Kansas City,Omaha,False,False,0,0,2,False
+401911693,2027-01-21 05:00:00+00:00,Southern Indiana,SIU Edwardsville,False,False,0,0,2,False
+401911870,2027-01-21 05:00:00+00:00,Wofford,The Citadel,False,False,0,0,2,False
+401911872,2027-01-21 05:00:00+00:00,Samford,UNC Greensboro,False,False,0,0,2,False
+401911873,2027-01-21 05:00:00+00:00,Tennessee Tech,Western Carolina,False,False,0,0,2,False
+401912001,2027-01-21 05:00:00+00:00,James Madison,Marshall,False,False,0,0,2,False
+401912002,2027-01-21 05:00:00+00:00,Louisiana,South Alabama,False,False,0,0,2,False
+401912003,2027-01-21 05:00:00+00:00,Louisiana Tech,Troy,False,False,0,0,2,False
+401911871,2027-01-21 05:00:00+00:00,East Tennessee State,Chattanooga,False,False,0,0,2,False
+401905713,2027-01-21 05:00:00+00:00,Oral Roberts,St. Thomas,False,False,0,0,2,False
+401905631,2027-01-21 05:00:00+00:00,Middle Tennessee,Florida International,False,False,0,0,2,False
+401905711,2027-01-21 05:00:00+00:00,South Dakota,North Dakota,False,False,0,0,2,False
+401905252,2027-01-21 05:00:00+00:00,Hofstra,Northeastern,False,False,0,0,2,False
+401905253,2027-01-21 05:00:00+00:00,Stony Brook,William & Mary,False,False,0,0,2,False
+401905712,2027-01-21 05:00:00+00:00,South Dakota State,North Dakota State,False,False,0,0,2,False
+401905255,2027-01-21 05:00:00+00:00,Hampton,Elon,False,False,0,0,2,False
+401905256,2027-01-21 05:00:00+00:00,Monmouth,UNC Wilmington,False,False,0,0,2,False
+401905254,2027-01-21 05:00:00+00:00,Towson,North Carolina A&T,False,False,0,0,2,False
+401905416,2027-01-21 05:00:00+00:00,Florida Gulf Coast,West Florida,False,False,0,0,2,False
+401905630,2027-01-21 05:00:00+00:00,Kennesaw State,Delaware,False,False,0,0,2,False
+401905632,2027-01-21 05:00:00+00:00,Jacksonville State,Liberty,False,False,0,0,2,False
+401905633,2027-01-21 05:00:00+00:00,Western Kentucky,Missouri State,False,False,0,0,2,False
+401905415,2027-01-21 05:00:00+00:00,Stetson,Queens University,False,False,0,0,2,False
+401911568,2027-01-22 01:30:00+00:00,Lindenwood,Tennessee State,False,False,0,0,2,False
+401911427,2027-01-23 05:00:00+00:00,UNLV,Hawai'i,False,False,0,0,2,False
+401911413,2027-01-23 05:00:00+00:00,Yale,Pennsylvania,False,False,0,0,2,False
+401911405,2027-01-23 05:00:00+00:00,New Mexico,Grand Canyon,False,False,0,0,2,False
+401911110,2027-01-23 05:00:00+00:00,Miami (OH),Akron,False,False,0,0,2,False
+401905833,2027-01-23 05:00:00+00:00,Central Arkansas,Eastern Kentucky,False,False,0,0,2,False
+401911108,2027-01-23 05:00:00+00:00,Eastern Michigan,Ball State,False,False,0,0,2,False
+401911107,2027-01-23 05:00:00+00:00,Central Michigan,Western Michigan,False,False,0,0,2,False
+401911106,2027-01-23 05:00:00+00:00,Bowling Green,Kent State,False,False,0,0,2,False
+401911105,2027-01-23 05:00:00+00:00,Buffalo,Toledo,False,False,0,0,2,False
+401911442,2027-01-23 05:00:00+00:00,San José State,Nevada,False,False,0,0,2,False
+401911109,2027-01-23 05:00:00+00:00,Massachusetts,Ohio,False,False,0,0,2,False
+401911542,2027-01-23 05:00:00+00:00,UTEP,UC Davis,False,False,0,0,2,False
+401912004,2027-01-23 05:00:00+00:00,Georgia Southern,App State,False,False,0,0,2,False
+401911874,2027-01-23 05:00:00+00:00,The Citadel,Samford,False,False,0,0,2,False
+401911875,2027-01-23 05:00:00+00:00,Wofford,East Tennessee State,False,False,0,0,2,False
+401911876,2027-01-23 05:00:00+00:00,Tennessee Tech,Furman,False,False,0,0,2,False
+401911877,2027-01-23 05:00:00+00:00,Mercer,UNC Greensboro,False,False,0,0,2,False
+401911878,2027-01-23 05:00:00+00:00,Chattanooga,Western Carolina,False,False,0,0,2,False
+401912005,2027-01-23 05:00:00+00:00,Coastal Carolina,Marshall,False,False,0,0,2,False
+401912006,2027-01-23 05:00:00+00:00,Georgia State,James Madison,False,False,0,0,2,False
+401912007,2027-01-23 05:00:00+00:00,Old Dominion,Arkansas State,False,False,0,0,2,False
+401912008,2027-01-23 05:00:00+00:00,UL Monroe,Louisiana Tech,False,False,0,0,2,False
+401912009,2027-01-23 05:00:00+00:00,Louisiana,Troy,False,False,0,0,2,False
+401912010,2027-01-23 05:00:00+00:00,South Alabama,Southern Miss,False,False,0,0,2,False
+401905832,2027-01-23 05:00:00+00:00,North Alabama,UT Arlington,False,False,0,0,2,False
+401911581,2027-01-23 05:00:00+00:00,Morehead State,SIU Edwardsville,False,False,0,0,2,False
+401905831,2027-01-23 05:00:00+00:00,Little Rock,Tarleton State,False,False,0,0,2,False
+401911553,2027-01-23 05:00:00+00:00,Eastern Illinois,UT Martin,False,False,0,0,2,False
+401905718,2027-01-23 05:00:00+00:00,Oral Roberts,Omaha,False,False,0,0,2,False
+401905830,2027-01-23 05:00:00+00:00,West Georgia,Abilene Christian,False,False,0,0,2,False
+401902351,2027-01-23 05:00:00+00:00,LSU,Auburn,False,False,0,0,2,False
+401902352,2027-01-23 05:00:00+00:00,Mississippi State,South Carolina,False,False,0,0,2,False
+401902354,2027-01-23 05:00:00+00:00,Kentucky,Tennessee,False,False,0,0,2,False
+401902355,2027-01-23 05:00:00+00:00,Ole Miss,Texas A&M,False,False,0,0,2,False
+401902356,2027-01-23 05:00:00+00:00,Texas,Arkansas,False,False,0,0,2,False
+401902357,2027-01-23 05:00:00+00:00,Vanderbilt,Missouri,False,False,0,0,2,False
+401905257,2027-01-23 05:00:00+00:00,Northeastern,Stony Brook,False,False,0,0,2,False
+401905258,2027-01-23 05:00:00+00:00,Towson,William & Mary,False,False,0,0,2,False
+401905259,2027-01-23 05:00:00+00:00,Drexel,North Carolina A&T,False,False,0,0,2,False
+401905260,2027-01-23 05:00:00+00:00,Charleston,Elon,False,False,0,0,2,False
+401905261,2027-01-23 05:00:00+00:00,Hampton,Campbell,False,False,0,0,2,False
+401905262,2027-01-23 05:00:00+00:00,Hofstra,UNC Wilmington,False,False,0,0,2,False
+401902353,2027-01-23 05:00:00+00:00,Georgia,Florida,False,False,0,0,2,False
+401905417,2027-01-23 05:00:00+00:00,Lipscomb,Bellarmine,False,False,0,0,2,False
+401902350,2027-01-23 05:00:00+00:00,Alabama,Oklahoma,False,False,0,0,2,False
+401905716,2027-01-23 05:00:00+00:00,South Dakota,North Dakota State,False,False,0,0,2,False
+401905717,2027-01-23 05:00:00+00:00,Kansas City,St. Thomas,False,False,0,0,2,False
+401905638,2027-01-23 05:00:00+00:00,New Mexico State,Sam Houston,False,False,0,0,2,False
+401905637,2027-01-23 05:00:00+00:00,Middle Tennessee,Missouri State,False,False,0,0,2,False
+401905715,2027-01-23 05:00:00+00:00,South Dakota State,North Dakota,False,False,0,0,2,False
+401905635,2027-01-23 05:00:00+00:00,Western Kentucky,Florida International,False,False,0,0,2,False
+401905634,2027-01-23 05:00:00+00:00,Jacksonville State,Delaware,False,False,0,0,2,False
+401905420,2027-01-23 05:00:00+00:00,Jacksonville,North Florida,False,False,0,0,2,False
+401905419,2027-01-23 05:00:00+00:00,Stetson,West Florida,False,False,0,0,2,False
+401905418,2027-01-23 05:00:00+00:00,Florida Gulf Coast,Queens University,False,False,0,0,2,False
+401905636,2027-01-23 05:00:00+00:00,Kennesaw State,Liberty,False,False,0,0,2,False
+401911323,2027-01-23 19:00:00+00:00,Brown,Princeton,False,False,0,0,2,False
+401911702,2027-01-23 21:30:00+00:00,Southeast Missouri State,Tennessee State,False,False,0,0,2,False
+401911114,2027-01-26 05:00:00+00:00,Western Michigan,Bowling Green,False,False,0,0,2,False
+401911443,2027-01-26 05:00:00+00:00,Nevada,UTEP,False,False,0,0,2,False
+401911428,2027-01-26 05:00:00+00:00,Hawai'i,New Mexico,False,False,0,0,2,False
+401911363,2027-01-26 05:00:00+00:00,Grand Canyon,Air Force,False,False,0,0,2,False
+401911116,2027-01-26 05:00:00+00:00,Buffalo,Eastern Michigan,False,False,0,0,2,False
+401911115,2027-01-26 05:00:00+00:00,Akron,Ohio,False,False,0,0,2,False
+401911113,2027-01-26 05:00:00+00:00,Kent State,Ball State,False,False,0,0,2,False
+401902360,2027-01-26 05:00:00+00:00,Arkansas,LSU,False,False,0,0,2,False
+401911111,2027-01-26 05:00:00+00:00,Massachusetts,Miami (OH),False,False,0,0,2,False
+401902363,2027-01-26 05:00:00+00:00,South Carolina,Texas,False,False,0,0,2,False
+401902362,2027-01-26 05:00:00+00:00,Ole Miss,Vanderbilt,False,False,0,0,2,False
+401902361,2027-01-26 05:00:00+00:00,Auburn,Mississippi State,False,False,0,0,2,False
+401902359,2027-01-26 05:00:00+00:00,Texas A&M,Tennessee,False,False,0,0,2,False
+401902358,2027-01-26 05:00:00+00:00,Missouri,Alabama,False,False,0,0,2,False
+401911112,2027-01-26 05:00:00+00:00,Toledo,Central Michigan,False,False,0,0,2,False
+401912011,2027-01-27 05:00:00+00:00,App State,Old Dominion,False,False,0,0,2,False
+401912013,2027-01-27 05:00:00+00:00,Arkansas State,Louisiana,False,False,0,0,2,False
+401912012,2027-01-27 05:00:00+00:00,Coastal Carolina,Georgia Southern,False,False,0,0,2,False
+401911881,2027-01-27 05:00:00+00:00,Western Carolina,Wofford,False,False,0,0,2,False
+401912014,2027-01-27 05:00:00+00:00,Troy,South Alabama,False,False,0,0,2,False
+401911879,2027-01-27 05:00:00+00:00,Furman,The Citadel,False,False,0,0,2,False
+401905837,2027-01-27 05:00:00+00:00,Central Arkansas,North Alabama,False,False,0,0,2,False
+401905836,2027-01-27 05:00:00+00:00,UT Arlington,Little Rock,False,False,0,0,2,False
+401905835,2027-01-27 05:00:00+00:00,Tarleton State,West Georgia,False,False,0,0,2,False
+401905834,2027-01-27 05:00:00+00:00,Abilene Christian,Austin Peay,False,False,0,0,2,False
+401911880,2027-01-27 05:00:00+00:00,East Tennessee State,Mercer,False,False,0,0,2,False
+401912016,2027-01-28 05:00:00+00:00,Louisiana Tech,Southern Miss,False,False,0,0,2,False
+401912015,2027-01-28 05:00:00+00:00,Marshall,Georgia State,False,False,0,0,2,False
+401911883,2027-01-28 05:00:00+00:00,VMI,Chattanooga,False,False,0,0,2,False
+401911882,2027-01-28 05:00:00+00:00,UNC Greensboro,Tennessee Tech,False,False,0,0,2,False
+401911703,2027-01-28 05:00:00+00:00,Western Illinois,Southeast Missouri State,False,False,0,0,2,False
+401911694,2027-01-28 05:00:00+00:00,UT Martin,SIU Edwardsville,False,False,0,0,2,False
+401905720,2027-01-28 05:00:00+00:00,St. Thomas,South Dakota State,False,False,0,0,2,False
+401905719,2027-01-28 05:00:00+00:00,Omaha,South Dakota,False,False,0,0,2,False
+401905642,2027-01-28 05:00:00+00:00,Liberty,Sam Houston,False,False,0,0,2,False
+401905641,2027-01-28 05:00:00+00:00,Missouri State,Kennesaw State,False,False,0,0,2,False
+401905639,2027-01-28 05:00:00+00:00,Delaware,New Mexico State,False,False,0,0,2,False
+401905424,2027-01-28 05:00:00+00:00,North Florida,Stetson,False,False,0,0,2,False
+401905423,2027-01-28 05:00:00+00:00,Jacksonville,Florida Gulf Coast,False,False,0,0,2,False
+401905422,2027-01-28 05:00:00+00:00,West Florida,Lipscomb,False,False,0,0,2,False
+401905421,2027-01-28 05:00:00+00:00,Queens University,Bellarmine,False,False,0,0,2,False
+401905268,2027-01-28 05:00:00+00:00,UNC Wilmington,Charleston,False,False,0,0,2,False
+401905267,2027-01-28 05:00:00+00:00,Stony Brook,Hampton,False,False,0,0,2,False
+401905266,2027-01-28 05:00:00+00:00,Drexel,Towson,False,False,0,0,2,False
+401905265,2027-01-28 05:00:00+00:00,North Carolina A&T,Monmouth,False,False,0,0,2,False
+401905264,2027-01-28 05:00:00+00:00,Campbell,Hofstra,False,False,0,0,2,False
+401905263,2027-01-28 05:00:00+00:00,Elon,Northeastern,False,False,0,0,2,False
+401905640,2027-01-28 05:00:00+00:00,Florida International,Jacksonville State,False,False,0,0,2,False
+401911569,2027-01-29 01:30:00+00:00,Lindenwood,Morehead State,False,False,0,0,2,False
+401911713,2027-01-29 01:30:00+00:00,Tennessee State,Southern Indiana,False,False,0,0,2,False
+401911414,2027-01-29 05:00:00+00:00,Pennsylvania,Cornell,False,False,0,0,2,False
+401905721,2027-01-29 05:00:00+00:00,North Dakota,North Dakota State,False,False,0,0,2,False
+401911324,2027-01-29 05:00:00+00:00,Dartmouth,Brown,False,False,0,0,2,False
+401912023,2027-01-30 05:00:00+00:00,Troy,Arkansas State,False,False,0,0,2,False
+401911118,2027-01-30 05:00:00+00:00,Akron,Massachusetts,False,False,0,0,2,False
+401911117,2027-01-30 05:00:00+00:00,Ball State,Buffalo,False,False,0,0,2,False
+401911119,2027-01-30 05:00:00+00:00,Bowling Green,Toledo,False,False,0,0,2,False
+401911120,2027-01-30 05:00:00+00:00,Eastern Michigan,Western Michigan,False,False,0,0,2,False
+401911121,2027-01-30 05:00:00+00:00,Kent State,Central Michigan,False,False,0,0,2,False
+401911122,2027-01-30 05:00:00+00:00,Ohio,Miami (OH),False,False,0,0,2,False
+401911325,2027-01-30 05:00:00+00:00,Harvard,Brown,False,False,0,0,2,False
+401911406,2027-01-30 05:00:00+00:00,Wyoming,Grand Canyon,False,False,0,0,2,False
+401911415,2027-01-30 05:00:00+00:00,Pennsylvania,Columbia,False,False,0,0,2,False
+401911429,2027-01-30 05:00:00+00:00,Hawai'i,UC Davis,False,False,0,0,2,False
+401911444,2027-01-30 05:00:00+00:00,UNLV,Nevada,False,False,0,0,2,False
+401911484,2027-01-30 05:00:00+00:00,UTEP,San José State,False,False,0,0,2,False
+401911582,2027-01-30 05:00:00+00:00,Southern Indiana,Morehead State,False,False,0,0,2,False
+401911884,2027-01-30 05:00:00+00:00,Mercer,The Citadel,False,False,0,0,2,False
+401911885,2027-01-30 05:00:00+00:00,Furman,East Tennessee State,False,False,0,0,2,False
+401911886,2027-01-30 05:00:00+00:00,UNC Greensboro,Chattanooga,False,False,0,0,2,False
+401911887,2027-01-30 05:00:00+00:00,Wofford,Samford,False,False,0,0,2,False
+401911888,2027-01-30 05:00:00+00:00,VMI,Tennessee Tech,False,False,0,0,2,False
+401912017,2027-01-30 05:00:00+00:00,Marshall,App State,False,False,0,0,2,False
+401912018,2027-01-30 05:00:00+00:00,Georgia State,Coastal Carolina,False,False,0,0,2,False
+401912019,2027-01-30 05:00:00+00:00,Georgia Southern,Old Dominion,False,False,0,0,2,False
+401912020,2027-01-30 05:00:00+00:00,James Madison,UL Monroe,False,False,0,0,2,False
+401912021,2027-01-30 05:00:00+00:00,Louisiana Tech,South Alabama,False,False,0,0,2,False
+401912022,2027-01-30 05:00:00+00:00,Southern Miss,Louisiana,False,False,0,0,2,False
+401911695,2027-01-30 05:00:00+00:00,SIU Edwardsville,Western Illinois,False,False,0,0,2,False
+401905841,2027-01-30 05:00:00+00:00,West Georgia,Eastern Kentucky,False,False,0,0,2,False
+401905723,2027-01-30 05:00:00+00:00,Kansas City,Oral Roberts,False,False,0,0,2,False
+401905839,2027-01-30 05:00:00+00:00,Tarleton State,Austin Peay,False,False,0,0,2,False
+401902365,2027-01-30 05:00:00+00:00,Arkansas,Mississippi State,False,False,0,0,2,False
+401902366,2027-01-30 05:00:00+00:00,Missouri,Ole Miss,False,False,0,0,2,False
+401902367,2027-01-30 05:00:00+00:00,Oklahoma,South Carolina,False,False,0,0,2,False
+401902368,2027-01-30 05:00:00+00:00,Georgia,LSU,False,False,0,0,2,False
+401902369,2027-01-30 05:00:00+00:00,Tennessee,Florida,False,False,0,0,2,False
+401902370,2027-01-30 05:00:00+00:00,Texas,Kentucky,False,False,0,0,2,False
+401902371,2027-01-30 05:00:00+00:00,Vanderbilt,Texas A&M,False,False,0,0,2,False
+401905269,2027-01-30 05:00:00+00:00,William & Mary,Northeastern,False,False,0,0,2,False
+401905270,2027-01-30 05:00:00+00:00,Charleston,Hofstra,False,False,0,0,2,False
+401905271,2027-01-30 05:00:00+00:00,Elon,Monmouth,False,False,0,0,2,False
+401905272,2027-01-30 05:00:00+00:00,Stony Brook,Drexel,False,False,0,0,2,False
+401905273,2027-01-30 05:00:00+00:00,Towson,Hampton,False,False,0,0,2,False
+401902364,2027-01-30 05:00:00+00:00,Alabama,Auburn,False,False,0,0,2,False
+401905425,2027-01-30 05:00:00+00:00,West Florida,Bellarmine,False,False,0,0,2,False
+401905274,2027-01-30 05:00:00+00:00,Campbell,UNC Wilmington,False,False,0,0,2,False
+401905838,2027-01-30 05:00:00+00:00,UT Arlington,Abilene Christian,False,False,0,0,2,False
+401905722,2027-01-30 05:00:00+00:00,St. Thomas,South Dakota,False,False,0,0,2,False
+401905647,2027-01-30 05:00:00+00:00,Western Kentucky,Middle Tennessee,False,False,0,0,2,False
+401905646,2027-01-30 05:00:00+00:00,Liberty,New Mexico State,False,False,0,0,2,False
+401905840,2027-01-30 05:00:00+00:00,Little Rock,North Alabama,False,False,0,0,2,False
+401905644,2027-01-30 05:00:00+00:00,Florida International,Kennesaw State,False,False,0,0,2,False
+401905643,2027-01-30 05:00:00+00:00,Delaware,Sam Houston,False,False,0,0,2,False
+401905428,2027-01-30 05:00:00+00:00,North Florida,Florida Gulf Coast,False,False,0,0,2,False
+401905427,2027-01-30 05:00:00+00:00,Jacksonville,Stetson,False,False,0,0,2,False
+401905426,2027-01-30 05:00:00+00:00,Queens University,Lipscomb,False,False,0,0,2,False
+401905645,2027-01-30 05:00:00+00:00,Missouri State,Jacksonville State,False,False,0,0,2,False
+401911554,2027-01-30 21:30:00+00:00,Lindenwood,Eastern Illinois,False,False,0,0,2,False
+401911714,2027-01-30 21:30:00+00:00,Tennessee State,UT Martin,False,False,0,0,2,False
+401905724,2027-01-31 05:00:00+00:00,Omaha,South Dakota State,False,False,0,0,2,False
+401911485,2027-02-02 05:00:00+00:00,San José State,New Mexico,False,False,0,0,2,False
+401911445,2027-02-02 05:00:00+00:00,UC Davis,Nevada,False,False,0,0,2,False
+401911128,2027-02-02 05:00:00+00:00,Central Michigan,Massachusetts,False,False,0,0,2,False
+401911127,2027-02-02 05:00:00+00:00,Buffalo,Ohio,False,False,0,0,2,False
+401911126,2027-02-02 05:00:00+00:00,Ball State,Bowling Green,False,False,0,0,2,False
+401911125,2027-02-02 05:00:00+00:00,Western Michigan,Akron,False,False,0,0,2,False
+401911123,2027-02-02 05:00:00+00:00,Miami (OH),Kent State,False,False,0,0,2,False
+401902377,2027-02-02 05:00:00+00:00,Florida,South Carolina,False,False,0,0,2,False
+401902376,2027-02-02 05:00:00+00:00,Texas A&M,Oklahoma,False,False,0,0,2,False
+401902374,2027-02-02 05:00:00+00:00,LSU,Vanderbilt,False,False,0,0,2,False
+401902373,2027-02-02 05:00:00+00:00,Tennessee,Georgia,False,False,0,0,2,False
+401902372,2027-02-02 05:00:00+00:00,Ole Miss,Kentucky,False,False,0,0,2,False
+401911124,2027-02-02 05:00:00+00:00,Eastern Michigan,Toledo,False,False,0,0,2,False
+401902375,2027-02-02 05:00:00+00:00,Mississippi State,Missouri,False,False,0,0,2,False
+401911893,2027-02-03 05:00:00+00:00,Wofford,VMI,False,False,0,0,2,False
+401912029,2027-02-03 05:00:00+00:00,South Alabama,Arkansas State,False,False,0,0,2,False
+401912028,2027-02-03 05:00:00+00:00,UL Monroe,Troy,False,False,0,0,2,False
+401912027,2027-02-03 05:00:00+00:00,Louisiana,Louisiana Tech,False,False,0,0,2,False
+401912026,2027-02-03 05:00:00+00:00,Old Dominion,Georgia State,False,False,0,0,2,False
+401912025,2027-02-03 05:00:00+00:00,Georgia Southern,Marshall,False,False,0,0,2,False
+401912024,2027-02-03 05:00:00+00:00,Coastal Carolina,James Madison,False,False,0,0,2,False
+401911892,2027-02-03 05:00:00+00:00,Western Carolina,Tennessee Tech,False,False,0,0,2,False
+401911890,2027-02-03 05:00:00+00:00,Chattanooga,East Tennessee State,False,False,0,0,2,False
+401911889,2027-02-03 05:00:00+00:00,The Citadel,UNC Greensboro,False,False,0,0,2,False
+401905845,2027-02-03 05:00:00+00:00,North Alabama,West Georgia,False,False,0,0,2,False
+401905844,2027-02-03 05:00:00+00:00,Austin Peay,Little Rock,False,False,0,0,2,False
+401905843,2027-02-03 05:00:00+00:00,Eastern Kentucky,UT Arlington,False,False,0,0,2,False
+401905842,2027-02-03 05:00:00+00:00,Abilene Christian,Central Arkansas,False,False,0,0,2,False
+401911891,2027-02-03 05:00:00+00:00,Samford,Furman,False,False,0,0,2,False
+401911583,2027-02-04 05:00:00+00:00,Morehead State,Southeast Missouri State,False,False,0,0,2,False
+401911555,2027-02-04 05:00:00+00:00,Eastern Illinois,Southern Indiana,False,False,0,0,2,False
+401905728,2027-02-04 05:00:00+00:00,South Dakota State,Oral Roberts,False,False,0,0,2,False
+401905727,2027-02-04 05:00:00+00:00,South Dakota,Kansas City,False,False,0,0,2,False
+401905726,2027-02-04 05:00:00+00:00,North Dakota State,Omaha,False,False,0,0,2,False
+401905725,2027-02-04 05:00:00+00:00,North Dakota,St. Thomas,False,False,0,0,2,False
+401905651,2027-02-04 05:00:00+00:00,Sam Houston,Western Kentucky,False,False,0,0,2,False
+401905650,2027-02-04 05:00:00+00:00,New Mexico State,Middle Tennessee,False,False,0,0,2,False
+401911718,2027-02-04 05:00:00+00:00,UT Martin,Western Illinois,False,False,0,0,2,False
+401905648,2027-02-04 05:00:00+00:00,Delaware,Florida International,False,False,0,0,2,False
+401905430,2027-02-04 05:00:00+00:00,Lipscomb,North Florida,False,False,0,0,2,False
+401905429,2027-02-04 05:00:00+00:00,Bellarmine,Jacksonville,False,False,0,0,2,False
+401905280,2027-02-04 05:00:00+00:00,Hampton,Charleston,False,False,0,0,2,False
+401905279,2027-02-04 05:00:00+00:00,William & Mary,UNC Wilmington,False,False,0,0,2,False
+401905278,2027-02-04 05:00:00+00:00,Monmouth,Campbell,False,False,0,0,2,False
+401905277,2027-02-04 05:00:00+00:00,Stony Brook,Elon,False,False,0,0,2,False
+401905276,2027-02-04 05:00:00+00:00,Hofstra,North Carolina A&T,False,False,0,0,2,False
+401905275,2027-02-04 05:00:00+00:00,Northeastern,Drexel,False,False,0,0,2,False
+401905649,2027-02-04 05:00:00+00:00,Liberty,Missouri State,False,False,0,0,2,False
+401911570,2027-02-05 01:30:00+00:00,Tennessee State,Lindenwood,False,False,0,0,2,False
+401902378,2027-02-05 05:00:00+00:00,LSU,Ole Miss,False,False,0,0,2,False
+401911326,2027-02-06 00:00:00+00:00,Brown,Yale,False,False,0,0,2,False
+401905731,2027-02-06 05:00:00+00:00,South Dakota,Oral Roberts,False,False,0,0,2,False
+401905732,2027-02-06 05:00:00+00:00,South Dakota State,Kansas City,False,False,0,0,2,False
+401905846,2027-02-06 05:00:00+00:00,Abilene Christian,Tarleton State,False,False,0,0,2,False
+401905847,2027-02-06 05:00:00+00:00,Austin Peay,UT Arlington,False,False,0,0,2,False
+401911416,2027-02-06 05:00:00+00:00,Pennsylvania,Princeton,False,False,0,0,2,False
+401905848,2027-02-06 05:00:00+00:00,Little Rock,Central Arkansas,False,False,0,0,2,False
+401905849,2027-02-06 05:00:00+00:00,North Alabama,Eastern Kentucky,False,False,0,0,2,False
+401905730,2027-02-06 05:00:00+00:00,North Dakota State,St. Thomas,False,False,0,0,2,False
+401911430,2027-02-06 05:00:00+00:00,Hawai'i,UTEP,False,False,0,0,2,False
+401911895,2027-02-06 05:00:00+00:00,East Tennessee State,VMI,False,False,0,0,2,False
+401911486,2027-02-06 05:00:00+00:00,UNLV,San José State,False,False,0,0,2,False
+401911556,2027-02-06 05:00:00+00:00,Eastern Illinois,SIU Edwardsville,False,False,0,0,2,False
+401911571,2027-02-06 05:00:00+00:00,UT Martin,Lindenwood,False,False,0,0,2,False
+401911704,2027-02-06 05:00:00+00:00,Southern Indiana,Southeast Missouri State,False,False,0,0,2,False
+401911894,2027-02-06 05:00:00+00:00,Tennessee Tech,The Citadel,False,False,0,0,2,False
+401911896,2027-02-06 05:00:00+00:00,Mercer,Furman,False,False,0,0,2,False
+401911897,2027-02-06 05:00:00+00:00,Samford,Western Carolina,False,False,0,0,2,False
+401911898,2027-02-06 05:00:00+00:00,Chattanooga,Wofford,False,False,0,0,2,False
+401912069,2027-02-06 05:00:00+00:00,App State,Southern Miss,False,False,0,0,2,False
+401911446,2027-02-06 05:00:00+00:00,Nevada,Wyoming,False,False,0,0,2,False
+401905729,2027-02-06 05:00:00+00:00,North Dakota,Omaha,False,False,0,0,2,False
+401911365,2027-02-06 05:00:00+00:00,Grand Canyon,New Mexico,False,False,0,0,2,False
+401905655,2027-02-06 05:00:00+00:00,Sam Houston,Middle Tennessee,False,False,0,0,2,False
+401905656,2027-02-06 05:00:00+00:00,New Mexico State,Western Kentucky,False,False,0,0,2,False
+401902379,2027-02-06 05:00:00+00:00,Auburn,Oklahoma,False,False,0,0,2,False
+401902380,2027-02-06 05:00:00+00:00,Missouri,Tennessee,False,False,0,0,2,False
+401902381,2027-02-06 05:00:00+00:00,Mississippi State,Texas A&M,False,False,0,0,2,False
+401902382,2027-02-06 05:00:00+00:00,Florida,Texas,False,False,0,0,2,False
+401902383,2027-02-06 05:00:00+00:00,Kentucky,Alabama,False,False,0,0,2,False
+401902384,2027-02-06 05:00:00+00:00,South Carolina,Georgia,False,False,0,0,2,False
+401905281,2027-02-06 05:00:00+00:00,Drexel,Monmouth,False,False,0,0,2,False
+401905282,2027-02-06 05:00:00+00:00,Hofstra,Towson,False,False,0,0,2,False
+401905283,2027-02-06 05:00:00+00:00,UNC Wilmington,Hampton,False,False,0,0,2,False
+401902385,2027-02-06 05:00:00+00:00,Vanderbilt,Arkansas,False,False,0,0,2,False
+401905285,2027-02-06 05:00:00+00:00,Stony Brook,Campbell,False,False,0,0,2,False
+401905654,2027-02-06 05:00:00+00:00,Jacksonville State,Kennesaw State,False,False,0,0,2,False
+401905284,2027-02-06 05:00:00+00:00,Northeastern,North Carolina A&T,False,False,0,0,2,False
+401905652,2027-02-06 05:00:00+00:00,Delaware,Missouri State,False,False,0,0,2,False
+401905434,2027-02-06 05:00:00+00:00,Florida Gulf Coast,Stetson,False,False,0,0,2,False
+401905653,2027-02-06 05:00:00+00:00,Liberty,Florida International,False,False,0,0,2,False
+401905432,2027-02-06 05:00:00+00:00,Lipscomb,Jacksonville,False,False,0,0,2,False
+401905431,2027-02-06 05:00:00+00:00,Bellarmine,North Florida,False,False,0,0,2,False
+401905286,2027-02-06 05:00:00+00:00,William & Mary,Charleston,False,False,0,0,2,False
+401905433,2027-02-06 05:00:00+00:00,Queens University,West Florida,False,False,0,0,2,False
+401911584,2027-02-06 21:30:00+00:00,Morehead State,Tennessee State,False,False,0,0,2,False
+401911132,2027-02-09 05:00:00+00:00,Western Michigan,Ohio,False,False,0,0,2,False
+401911487,2027-02-09 05:00:00+00:00,San José State,UC Davis,False,False,0,0,2,False
+401911366,2027-02-09 05:00:00+00:00,UTEP,Grand Canyon,False,False,0,0,2,False
+401911134,2027-02-09 05:00:00+00:00,Central Michigan,Eastern Michigan,False,False,0,0,2,False
+401911133,2027-02-09 05:00:00+00:00,Akron,Buffalo,False,False,0,0,2,False
+401911131,2027-02-09 05:00:00+00:00,Toledo,Ball State,False,False,0,0,2,False
+401911130,2027-02-09 05:00:00+00:00,Massachusetts,Kent State,False,False,0,0,2,False
+401911129,2027-02-09 05:00:00+00:00,Miami (OH),Bowling Green,False,False,0,0,2,False
+401902391,2027-02-09 05:00:00+00:00,Texas,Alabama,False,False,0,0,2,False
+401902390,2027-02-09 05:00:00+00:00,Oklahoma,Tennessee,False,False,0,0,2,False
+401902389,2027-02-09 05:00:00+00:00,Arkansas,Ole Miss,False,False,0,0,2,False
+401902388,2027-02-09 05:00:00+00:00,Kentucky,South Carolina,False,False,0,0,2,False
+401902387,2027-02-09 05:00:00+00:00,Georgia,Vanderbilt,False,False,0,0,2,False
+401902386,2027-02-09 05:00:00+00:00,Auburn,Florida,False,False,0,0,2,False
+401912032,2027-02-10 05:00:00+00:00,Troy,Louisiana,False,False,0,0,2,False
+401912031,2027-02-10 05:00:00+00:00,Arkansas State,UL Monroe,False,False,0,0,2,False
+401911901,2027-02-10 05:00:00+00:00,Furman,Chattanooga,False,False,0,0,2,False
+401911900,2027-02-10 05:00:00+00:00,Tennessee Tech,East Tennessee State,False,False,0,0,2,False
+401912030,2027-02-10 05:00:00+00:00,James Madison,App State,False,False,0,0,2,False
+401911431,2027-02-10 05:00:00+00:00,Air Force,Hawai'i,False,False,0,0,2,False
+401905853,2027-02-10 05:00:00+00:00,West Georgia,Little Rock,False,False,0,0,2,False
+401905852,2027-02-10 05:00:00+00:00,Eastern Kentucky,Central Arkansas,False,False,0,0,2,False
+401905851,2027-02-10 05:00:00+00:00,Tarleton State,North Alabama,False,False,0,0,2,False
+401905850,2027-02-10 05:00:00+00:00,Austin Peay,Abilene Christian,False,False,0,0,2,False
+401911899,2027-02-10 05:00:00+00:00,The Citadel,Western Carolina,False,False,0,0,2,False
+401905734,2027-02-11 05:00:00+00:00,Oral Roberts,North Dakota State,False,False,0,0,2,False
+401911572,2027-02-11 05:00:00+00:00,Western Illinois,Lindenwood,False,False,0,0,2,False
+401911585,2027-02-11 05:00:00+00:00,SIU Edwardsville,Morehead State,False,False,0,0,2,False
+401911705,2027-02-11 05:00:00+00:00,Southeast Missouri State,UT Martin,False,False,0,0,2,False
+401912033,2027-02-11 05:00:00+00:00,Marshall,Coastal Carolina,False,False,0,0,2,False
+401911903,2027-02-11 05:00:00+00:00,UNC Greensboro,Samford,False,False,0,0,2,False
+401912034,2027-02-11 05:00:00+00:00,Old Dominion,Georgia Southern,False,False,0,0,2,False
+401912035,2027-02-11 05:00:00+00:00,Southern Miss,Louisiana Tech,False,False,0,0,2,False
+401905733,2027-02-11 05:00:00+00:00,Kansas City,North Dakota,False,False,0,0,2,False
+401911902,2027-02-11 05:00:00+00:00,VMI,Mercer,False,False,0,0,2,False
+401905660,2027-02-11 05:00:00+00:00,Western Kentucky,Liberty,False,False,0,0,2,False
+401905290,2027-02-11 05:00:00+00:00,Monmouth,Towson,False,False,0,0,2,False
+401905658,2027-02-11 05:00:00+00:00,Jacksonville State,Sam Houston,False,False,0,0,2,False
+401905657,2027-02-11 05:00:00+00:00,Middle Tennessee,Delaware,False,False,0,0,2,False
+401905438,2027-02-11 05:00:00+00:00,Jacksonville,West Florida,False,False,0,0,2,False
+401905437,2027-02-11 05:00:00+00:00,North Florida,Queens University,False,False,0,0,2,False
+401905436,2027-02-11 05:00:00+00:00,Florida Gulf Coast,Lipscomb,False,False,0,0,2,False
+401905435,2027-02-11 05:00:00+00:00,Stetson,Bellarmine,False,False,0,0,2,False
+401905291,2027-02-11 05:00:00+00:00,North Carolina A&T,Elon,False,False,0,0,2,False
+401905659,2027-02-11 05:00:00+00:00,Kennesaw State,New Mexico State,False,False,0,0,2,False
+401905289,2027-02-11 05:00:00+00:00,Campbell,Drexel,False,False,0,0,2,False
+401905288,2027-02-11 05:00:00+00:00,Northeastern,Hofstra,False,False,0,0,2,False
+401905287,2027-02-11 05:00:00+00:00,Charleston,Stony Brook,False,False,0,0,2,False
+401911557,2027-02-12 01:30:00+00:00,Tennessee State,Eastern Illinois,False,False,0,0,2,False
+401911417,2027-02-12 05:00:00+00:00,Cornell,Pennsylvania,False,False,0,0,2,False
+401911327,2027-02-13 00:00:00+00:00,Brown,Dartmouth,False,False,0,0,2,False
+401911136,2027-02-13 05:00:00+00:00,Bowling Green,Buffalo,False,False,0,0,2,False
+401911138,2027-02-13 05:00:00+00:00,Kent State,Akron,False,False,0,0,2,False
+401911139,2027-02-13 05:00:00+00:00,Massachusetts,Eastern Michigan,False,False,0,0,2,False
+401911140,2027-02-13 05:00:00+00:00,Ohio,Central Michigan,False,False,0,0,2,False
+401911367,2027-02-13 05:00:00+00:00,Grand Canyon,Nevada,False,False,0,0,2,False
+401911418,2027-02-13 05:00:00+00:00,Columbia,Pennsylvania,False,False,0,0,2,False
+401911135,2027-02-13 05:00:00+00:00,Ball State,Miami (OH),False,False,0,0,2,False
+401911432,2027-02-13 05:00:00+00:00,Wyoming,Hawai'i,False,False,0,0,2,False
+401911488,2027-02-13 05:00:00+00:00,San José State,Air Force,False,False,0,0,2,False
+401911543,2027-02-13 05:00:00+00:00,UC Davis,UTEP,False,False,0,0,2,False
+401911558,2027-02-13 05:00:00+00:00,UT Martin,Eastern Illinois,False,False,0,0,2,False
+401911586,2027-02-13 05:00:00+00:00,Western Illinois,Morehead State,False,False,0,0,2,False
+401912036,2027-02-13 05:00:00+00:00,App State,Georgia Southern,False,False,0,0,2,False
+401911904,2027-02-13 05:00:00+00:00,Chattanooga,The Citadel,False,False,0,0,2,False
+401911905,2027-02-13 05:00:00+00:00,East Tennessee State,Wofford,False,False,0,0,2,False
+401911906,2027-02-13 05:00:00+00:00,Western Carolina,Furman,False,False,0,0,2,False
+401911907,2027-02-13 05:00:00+00:00,UNC Greensboro,Mercer,False,False,0,0,2,False
+401911908,2027-02-13 05:00:00+00:00,VMI,Samford,False,False,0,0,2,False
+401912037,2027-02-13 05:00:00+00:00,Coastal Carolina,Old Dominion,False,False,0,0,2,False
+401912038,2027-02-13 05:00:00+00:00,Marshall,James Madison,False,False,0,0,2,False
+401912039,2027-02-13 05:00:00+00:00,Georgia State,South Alabama,False,False,0,0,2,False
+401912040,2027-02-13 05:00:00+00:00,Arkansas State,Troy,False,False,0,0,2,False
+401912041,2027-02-13 05:00:00+00:00,Louisiana,Southern Miss,False,False,0,0,2,False
+401912042,2027-02-13 05:00:00+00:00,Louisiana Tech,UL Monroe,False,False,0,0,2,False
+401905857,2027-02-13 05:00:00+00:00,West Georgia,Austin Peay,False,False,0,0,2,False
+401911696,2027-02-13 05:00:00+00:00,Southeast Missouri State,SIU Edwardsville,False,False,0,0,2,False
+401905856,2027-02-13 05:00:00+00:00,North Alabama,Little Rock,False,False,0,0,2,False
+401911137,2027-02-13 05:00:00+00:00,Toledo,Western Michigan,False,False,0,0,2,False
+401905854,2027-02-13 05:00:00+00:00,Eastern Kentucky,Abilene Christian,False,False,0,0,2,False
+401905855,2027-02-13 05:00:00+00:00,UT Arlington,Tarleton State,False,False,0,0,2,False
+401902393,2027-02-13 05:00:00+00:00,Oklahoma,LSU,False,False,0,0,2,False
+401902394,2027-02-13 05:00:00+00:00,Texas A&M,Georgia,False,False,0,0,2,False
+401902396,2027-02-13 05:00:00+00:00,Ole Miss,Mississippi State,False,False,0,0,2,False
+401902397,2027-02-13 05:00:00+00:00,South Carolina,Auburn,False,False,0,0,2,False
+401902398,2027-02-13 05:00:00+00:00,Tennessee,Kentucky,False,False,0,0,2,False
+401902399,2027-02-13 05:00:00+00:00,Vanderbilt,Texas,False,False,0,0,2,False
+401905292,2027-02-13 05:00:00+00:00,Towson,Northeastern,False,False,0,0,2,False
+401905293,2027-02-13 05:00:00+00:00,UNC Wilmington,Stony Brook,False,False,0,0,2,False
+401905294,2027-02-13 05:00:00+00:00,Monmouth,Hofstra,False,False,0,0,2,False
+401905295,2027-02-13 05:00:00+00:00,North Carolina A&T,Drexel,False,False,0,0,2,False
+401905296,2027-02-13 05:00:00+00:00,Campbell,William & Mary,False,False,0,0,2,False
+401905297,2027-02-13 05:00:00+00:00,Elon,Hampton,False,False,0,0,2,False
+401902395,2027-02-13 05:00:00+00:00,Florida,Missouri,False,False,0,0,2,False
+401905440,2027-02-13 05:00:00+00:00,Stetson,Lipscomb,False,False,0,0,2,False
+401905439,2027-02-13 05:00:00+00:00,Florida Gulf Coast,Bellarmine,False,False,0,0,2,False
+401905737,2027-02-13 05:00:00+00:00,South Dakota State,South Dakota,False,False,0,0,2,False
+401905738,2027-02-13 05:00:00+00:00,Omaha,St. Thomas,False,False,0,0,2,False
+401902392,2027-02-13 05:00:00+00:00,Alabama,Arkansas,False,False,0,0,2,False
+401905735,2027-02-13 05:00:00+00:00,Oral Roberts,North Dakota,False,False,0,0,2,False
+401905665,2027-02-13 05:00:00+00:00,Middle Tennessee,Liberty,False,False,0,0,2,False
+401905736,2027-02-13 05:00:00+00:00,Kansas City,North Dakota State,False,False,0,0,2,False
+401905663,2027-02-13 05:00:00+00:00,Jacksonville State,New Mexico State,False,False,0,0,2,False
+401905662,2027-02-13 05:00:00+00:00,Missouri State,Florida International,False,False,0,0,2,False
+401905661,2027-02-13 05:00:00+00:00,Western Kentucky,Delaware,False,False,0,0,2,False
+401905442,2027-02-13 05:00:00+00:00,North Florida,West Florida,False,False,0,0,2,False
+401905441,2027-02-13 05:00:00+00:00,Jacksonville,Queens University,False,False,0,0,2,False
+401905664,2027-02-13 05:00:00+00:00,Kennesaw State,Sam Houston,False,False,0,0,2,False
+401911573,2027-02-13 21:30:00+00:00,Lindenwood,Southern Indiana,False,False,0,0,2,False
+401911328,2027-02-13 23:00:00+00:00,Brown,Harvard,False,False,0,0,2,False
+401911144,2027-02-16 05:00:00+00:00,Bowling Green,Akron,False,False,0,0,2,False
+401911544,2027-02-16 05:00:00+00:00,UTEP,UNLV,False,False,0,0,2,False
+401911447,2027-02-16 05:00:00+00:00,Nevada,UC Davis,False,False,0,0,2,False
+401911433,2027-02-16 05:00:00+00:00,Hawai'i,San José State,False,False,0,0,2,False
+401911407,2027-02-16 05:00:00+00:00,Air Force,Grand Canyon,False,False,0,0,2,False
+401911146,2027-02-16 05:00:00+00:00,Buffalo,Central Michigan,False,False,0,0,2,False
+401911145,2027-02-16 05:00:00+00:00,Ball State,Massachusetts,False,False,0,0,2,False
+401911143,2027-02-16 05:00:00+00:00,Eastern Michigan,Ohio,False,False,0,0,2,False
+401902402,2027-02-16 05:00:00+00:00,Alabama,Mississippi State,False,False,0,0,2,False
+401911141,2027-02-16 05:00:00+00:00,Miami (OH),Toledo,False,False,0,0,2,False
+401902406,2027-02-16 05:00:00+00:00,Texas,Texas A&M,False,False,0,0,2,False
+401902405,2027-02-16 05:00:00+00:00,Ole Miss,Tennessee,False,False,0,0,2,False
+401902404,2027-02-16 05:00:00+00:00,Missouri,Oklahoma,False,False,0,0,2,False
+401902403,2027-02-16 05:00:00+00:00,LSU,Florida,False,False,0,0,2,False
+401902401,2027-02-16 05:00:00+00:00,Georgia,Kentucky,False,False,0,0,2,False
+401902400,2027-02-16 05:00:00+00:00,Arkansas,Auburn,False,False,0,0,2,False
+401911142,2027-02-16 05:00:00+00:00,Kent State,Western Michigan,False,False,0,0,2,False
+401912044,2027-02-17 05:00:00+00:00,Old Dominion,James Madison,False,False,0,0,2,False
+401912045,2027-02-17 05:00:00+00:00,Louisiana,Arkansas State,False,False,0,0,2,False
+401912043,2027-02-17 05:00:00+00:00,Coastal Carolina,Georgia State,False,False,0,0,2,False
+401912046,2027-02-17 05:00:00+00:00,UL Monroe,Southern Miss,False,False,0,0,2,False
+401905861,2027-02-17 05:00:00+00:00,Eastern Kentucky,Austin Peay,False,False,0,0,2,False
+401905860,2027-02-17 05:00:00+00:00,UT Arlington,West Georgia,False,False,0,0,2,False
+401905859,2027-02-17 05:00:00+00:00,Central Arkansas,Tarleton State,False,False,0,0,2,False
+401905858,2027-02-17 05:00:00+00:00,Abilene Christian,North Alabama,False,False,0,0,2,False
+401911574,2027-02-17 05:00:00+00:00,Southeast Missouri State,Lindenwood,False,False,0,0,2,False
+401911697,2027-02-18 01:30:00+00:00,SIU Edwardsville,Tennessee State,False,False,0,0,2,False
+401905742,2027-02-18 05:00:00+00:00,Omaha,Oral Roberts,False,False,0,0,2,False
+401911559,2027-02-18 05:00:00+00:00,Eastern Illinois,Western Illinois,False,False,0,0,2,False
+401911719,2027-02-18 05:00:00+00:00,Southern Indiana,UT Martin,False,False,0,0,2,False
+401911909,2027-02-18 05:00:00+00:00,Western Carolina,East Tennessee State,False,False,0,0,2,False
+401911912,2027-02-18 05:00:00+00:00,Wofford,UNC Greensboro,False,False,0,0,2,False
+401911911,2027-02-18 05:00:00+00:00,Mercer,Tennessee Tech,False,False,0,0,2,False
+401905741,2027-02-18 05:00:00+00:00,St. Thomas,Kansas City,False,False,0,0,2,False
+401911913,2027-02-18 05:00:00+00:00,Samford,Chattanooga,False,False,0,0,2,False
+401912047,2027-02-18 05:00:00+00:00,App State,Marshall,False,False,0,0,2,False
+401911910,2027-02-18 05:00:00+00:00,Furman,VMI,False,False,0,0,2,False
+401905740,2027-02-18 05:00:00+00:00,North Dakota State,South Dakota,False,False,0,0,2,False
+401912048,2027-02-18 05:00:00+00:00,South Alabama,Troy,False,False,0,0,2,False
+401905669,2027-02-18 05:00:00+00:00,Missouri State,Middle Tennessee,False,False,0,0,2,False
+401905668,2027-02-18 05:00:00+00:00,Liberty,Kennesaw State,False,False,0,0,2,False
+401905667,2027-02-18 05:00:00+00:00,Florida International,Western Kentucky,False,False,0,0,2,False
+401905666,2027-02-18 05:00:00+00:00,Delaware,Jacksonville State,False,False,0,0,2,False
+401905444,2027-02-18 05:00:00+00:00,West Florida,Stetson,False,False,0,0,2,False
+401905443,2027-02-18 05:00:00+00:00,Queens University,Florida Gulf Coast,False,False,0,0,2,False
+401905303,2027-02-18 05:00:00+00:00,Hofstra,Charleston,False,False,0,0,2,False
+401905302,2027-02-18 05:00:00+00:00,Drexel,UNC Wilmington,False,False,0,0,2,False
+401905301,2027-02-18 05:00:00+00:00,Northeastern,Campbell,False,False,0,0,2,False
+401905300,2027-02-18 05:00:00+00:00,Towson,Elon,False,False,0,0,2,False
+401905299,2027-02-18 05:00:00+00:00,Hampton,North Carolina A&T,False,False,0,0,2,False
+401905298,2027-02-18 05:00:00+00:00,William & Mary,Monmouth,False,False,0,0,2,False
+401905739,2027-02-18 05:00:00+00:00,North Dakota,South Dakota State,False,False,0,0,2,False
+401911329,2027-02-19 05:00:00+00:00,Princeton,Brown,False,False,0,0,2,False
+401911148,2027-02-20 05:00:00+00:00,Buffalo,Kent State,False,False,0,0,2,False
+401911149,2027-02-20 05:00:00+00:00,Akron,Eastern Michigan,False,False,0,0,2,False
+401909693,2027-02-20 05:00:00+00:00,Duke,Gonzaga,True,False,0,0,2,False
+401911150,2027-02-20 05:00:00+00:00,Western Michigan,Massachusetts,False,False,0,0,2,False
+401911151,2027-02-20 05:00:00+00:00,Toledo,Bowling Green,False,False,0,0,2,False
+401911152,2027-02-20 05:00:00+00:00,Ohio,Ball State,False,False,0,0,2,False
+401911489,2027-02-20 05:00:00+00:00,San José State,Wyoming,False,False,0,0,2,False
+401911408,2027-02-20 05:00:00+00:00,UNLV,Grand Canyon,False,False,0,0,2,False
+401911419,2027-02-20 05:00:00+00:00,Pennsylvania,Yale,False,False,0,0,2,False
+401911434,2027-02-20 05:00:00+00:00,Hawai'i,Nevada,False,False,0,0,2,False
+401911147,2027-02-20 05:00:00+00:00,Central Michigan,Miami (OH),False,False,0,0,2,False
+401911545,2027-02-20 05:00:00+00:00,New Mexico,UTEP,False,False,0,0,2,False
+401911918,2027-02-20 05:00:00+00:00,Samford,Tennessee Tech,False,False,0,0,2,False
+401911587,2027-02-20 05:00:00+00:00,Morehead State,UT Martin,False,False,0,0,2,False
+401911914,2027-02-20 05:00:00+00:00,The Citadel,VMI,False,False,0,0,2,False
+401911915,2027-02-20 05:00:00+00:00,Wofford,Furman,False,False,0,0,2,False
+401911916,2027-02-20 05:00:00+00:00,Mercer,Chattanooga,False,False,0,0,2,False
+401911917,2027-02-20 05:00:00+00:00,Western Carolina,UNC Greensboro,False,False,0,0,2,False
+401912049,2027-02-20 05:00:00+00:00,Georgia State,App State,False,False,0,0,2,False
+401912050,2027-02-20 05:00:00+00:00,James Madison,Coastal Carolina,False,False,0,0,2,False
+401912051,2027-02-20 05:00:00+00:00,Old Dominion,Marshall,False,False,0,0,2,False
+401912052,2027-02-20 05:00:00+00:00,Georgia Southern,Louisiana Tech,False,False,0,0,2,False
+401912053,2027-02-20 05:00:00+00:00,UL Monroe,Arkansas State,False,False,0,0,2,False
+401912054,2027-02-20 05:00:00+00:00,South Alabama,Louisiana,False,False,0,0,2,False
+401912055,2027-02-20 05:00:00+00:00,Troy,Southern Miss,False,False,0,0,2,False
+401911560,2027-02-20 05:00:00+00:00,Southern Indiana,Eastern Illinois,False,False,0,0,2,False
+401905865,2027-02-20 05:00:00+00:00,Central Arkansas,Little Rock,False,False,0,0,2,False
+401905674,2027-02-20 05:00:00+00:00,Sam Houston,New Mexico State,False,False,0,0,2,False
+401905863,2027-02-20 05:00:00+00:00,Tarleton State,Eastern Kentucky,False,False,0,0,2,False
+401902408,2027-02-20 05:00:00+00:00,Mississippi State,LSU,False,False,0,0,2,False
+401902409,2027-02-20 05:00:00+00:00,Oklahoma,Texas,False,False,0,0,2,False
+401902410,2027-02-20 05:00:00+00:00,Texas A&M,Vanderbilt,False,False,0,0,2,False
+401902411,2027-02-20 05:00:00+00:00,Florida,Georgia,False,False,0,0,2,False
+401902412,2027-02-20 05:00:00+00:00,Kentucky,Arkansas,False,False,0,0,2,False
+401902413,2027-02-20 05:00:00+00:00,South Carolina,Ole Miss,False,False,0,0,2,False
+401902414,2027-02-20 05:00:00+00:00,Tennessee,Alabama,False,False,0,0,2,False
+401905304,2027-02-20 05:00:00+00:00,Stony Brook,Hofstra,False,False,0,0,2,False
+401905305,2027-02-20 05:00:00+00:00,Hampton,Monmouth,False,False,0,0,2,False
+401905306,2027-02-20 05:00:00+00:00,North Carolina A&T,William & Mary,False,False,0,0,2,False
+401905307,2027-02-20 05:00:00+00:00,Drexel,Elon,False,False,0,0,2,False
+401902407,2027-02-20 05:00:00+00:00,Auburn,Missouri,False,False,0,0,2,False
+401905308,2027-02-20 05:00:00+00:00,Towson,UNC Wilmington,False,False,0,0,2,False
+401905445,2027-02-20 05:00:00+00:00,Bellarmine,Lipscomb,False,False,0,0,2,False
+401905446,2027-02-20 05:00:00+00:00,Queens University,Stetson,False,False,0,0,2,False
+401905447,2027-02-20 05:00:00+00:00,West Florida,Florida Gulf Coast,False,False,0,0,2,False
+401905448,2027-02-20 05:00:00+00:00,North Florida,Jacksonville,False,False,0,0,2,False
+401905670,2027-02-20 05:00:00+00:00,Delaware,Kennesaw State,False,False,0,0,2,False
+401905671,2027-02-20 05:00:00+00:00,Florida International,Middle Tennessee,False,False,0,0,2,False
+401905672,2027-02-20 05:00:00+00:00,Liberty,Jacksonville State,False,False,0,0,2,False
+401905673,2027-02-20 05:00:00+00:00,Missouri State,Western Kentucky,False,False,0,0,2,False
+401905743,2027-02-20 05:00:00+00:00,North Dakota,South Dakota,False,False,0,0,2,False
+401905744,2027-02-20 05:00:00+00:00,North Dakota State,South Dakota State,False,False,0,0,2,False
+401905862,2027-02-20 05:00:00+00:00,Abilene Christian,West Georgia,False,False,0,0,2,False
+401905309,2027-02-20 05:00:00+00:00,Northeastern,Charleston,False,False,0,0,2,False
+401905864,2027-02-20 05:00:00+00:00,UT Arlington,North Alabama,False,False,0,0,2,False
+401911575,2027-02-20 21:30:00+00:00,Lindenwood,SIU Edwardsville,False,False,0,0,2,False
+401905746,2027-02-21 05:00:00+00:00,Omaha,Kansas City,False,False,0,0,2,False
+401905745,2027-02-21 05:00:00+00:00,St. Thomas,Oral Roberts,False,False,0,0,2,False
+401912058,2027-02-23 05:00:00+00:00,Georgia State,Old Dominion,False,False,0,0,2,False
+401912057,2027-02-23 05:00:00+00:00,James Madison,Georgia Southern,False,False,0,0,2,False
+401912056,2027-02-23 05:00:00+00:00,Coastal Carolina,App State,False,False,0,0,2,False
+401911448,2027-02-23 05:00:00+00:00,Nevada,San José State,False,False,0,0,2,False
+401911370,2027-02-23 05:00:00+00:00,Grand Canyon,UTEP,False,False,0,0,2,False
+401911158,2027-02-23 05:00:00+00:00,Bowling Green,Central Michigan,False,False,0,0,2,False
+401911157,2027-02-23 05:00:00+00:00,Ball State,Western Michigan,False,False,0,0,2,False
+401911155,2027-02-23 05:00:00+00:00,Eastern Michigan,Miami (OH),False,False,0,0,2,False
+401911156,2027-02-23 05:00:00+00:00,Akron,Toledo,False,False,0,0,2,False
+401911153,2027-02-23 05:00:00+00:00,Ohio,Kent State,False,False,0,0,2,False
+401902422,2027-02-23 05:00:00+00:00,Vanderbilt,Kentucky,False,False,0,0,2,False
+401902421,2027-02-23 05:00:00+00:00,Florida,Ole Miss,False,False,0,0,2,False
+401902420,2027-02-23 05:00:00+00:00,Texas A&M,Alabama,False,False,0,0,2,False
+401902419,2027-02-23 05:00:00+00:00,Auburn,LSU,False,False,0,0,2,False
+401902418,2027-02-23 05:00:00+00:00,Oklahoma,Georgia,False,False,0,0,2,False
+401902417,2027-02-23 05:00:00+00:00,Mississippi State,Texas,False,False,0,0,2,False
+401902416,2027-02-23 05:00:00+00:00,Tennessee,South Carolina,False,False,0,0,2,False
+401902415,2027-02-23 05:00:00+00:00,Missouri,Arkansas,False,False,0,0,2,False
+401911154,2027-02-23 05:00:00+00:00,Massachusetts,Buffalo,False,False,0,0,2,False
+401911923,2027-02-24 05:00:00+00:00,Tennessee Tech,Wofford,False,False,0,0,2,False
+401912061,2027-02-24 05:00:00+00:00,South Alabama,UL Monroe,False,False,0,0,2,False
+401912060,2027-02-24 05:00:00+00:00,Southern Miss,Arkansas State,False,False,0,0,2,False
+401912059,2027-02-24 05:00:00+00:00,Louisiana Tech,Louisiana,False,False,0,0,2,False
+401911921,2027-02-24 05:00:00+00:00,Samford,Mercer,False,False,0,0,2,False
+401911922,2027-02-24 05:00:00+00:00,UNC Greensboro,VMI,False,False,0,0,2,False
+401911919,2027-02-24 05:00:00+00:00,East Tennessee State,The Citadel,False,False,0,0,2,False
+401905867,2027-02-24 05:00:00+00:00,Little Rock,UT Arlington,False,False,0,0,2,False
+401905868,2027-02-24 05:00:00+00:00,North Alabama,Central Arkansas,False,False,0,0,2,False
+401911920,2027-02-24 05:00:00+00:00,Chattanooga,Furman,False,False,0,0,2,False
+401911435,2027-02-24 05:00:00+00:00,New Mexico,Hawai'i,False,False,0,0,2,False
+401905866,2027-02-24 05:00:00+00:00,Tarleton State,Abilene Christian,False,False,0,0,2,False
+401905869,2027-02-24 05:00:00+00:00,Austin Peay,West Georgia,False,False,0,0,2,False
+401911588,2027-02-25 05:00:00+00:00,Southeast Missouri State,Morehead State,False,False,0,0,2,False
+401911561,2027-02-25 05:00:00+00:00,SIU Edwardsville,Eastern Illinois,False,False,0,0,2,False
+401905748,2027-02-25 05:00:00+00:00,South Dakota State,Omaha,False,False,0,0,2,False
+401905747,2027-02-25 05:00:00+00:00,South Dakota,St. Thomas,False,False,0,0,2,False
+401905678,2027-02-25 05:00:00+00:00,New Mexico State,Liberty,False,False,0,0,2,False
+401905677,2027-02-25 05:00:00+00:00,Kennesaw State,Missouri State,False,False,0,0,2,False
+401905676,2027-02-25 05:00:00+00:00,Jacksonville State,Florida International,False,False,0,0,2,False
+401905452,2027-02-25 05:00:00+00:00,Florida Gulf Coast,North Florida,False,False,0,0,2,False
+401905675,2027-02-25 05:00:00+00:00,Sam Houston,Delaware,False,False,0,0,2,False
+401905450,2027-02-25 05:00:00+00:00,Lipscomb,Queens University,False,False,0,0,2,False
+401905449,2027-02-25 05:00:00+00:00,Bellarmine,West Florida,False,False,0,0,2,False
+401905315,2027-02-25 05:00:00+00:00,Elon,Campbell,False,False,0,0,2,False
+401905314,2027-02-25 05:00:00+00:00,UNC Wilmington,North Carolina A&T,False,False,0,0,2,False
+401905313,2027-02-25 05:00:00+00:00,Charleston,Hampton,False,False,0,0,2,False
+401905312,2027-02-25 05:00:00+00:00,William & Mary,Towson,False,False,0,0,2,False
+401905311,2027-02-25 05:00:00+00:00,Drexel,Stony Brook,False,False,0,0,2,False
+401905310,2027-02-25 05:00:00+00:00,Monmouth,Northeastern,False,False,0,0,2,False
+401905451,2027-02-25 05:00:00+00:00,Stetson,Jacksonville,False,False,0,0,2,False
+401911715,2027-02-26 01:30:00+00:00,UT Martin,Tennessee State,False,False,0,0,2,False
+401912068,2027-02-26 05:00:00+00:00,Southern Miss,South Alabama,False,False,0,0,2,False
+401912067,2027-02-26 05:00:00+00:00,Arkansas State,Louisiana Tech,False,False,0,0,2,False
+401912066,2027-02-26 05:00:00+00:00,UL Monroe,Louisiana,False,False,0,0,2,False
+401912064,2027-02-26 05:00:00+00:00,Old Dominion,Coastal Carolina,False,False,0,0,2,False
+401912063,2027-02-26 05:00:00+00:00,Georgia Southern,Georgia State,False,False,0,0,2,False
+401912062,2027-02-26 05:00:00+00:00,App State,James Madison,False,False,0,0,2,False
+401911420,2027-02-26 05:00:00+00:00,Harvard,Pennsylvania,False,False,0,0,2,False
+401912065,2027-02-26 05:00:00+00:00,Marshall,Troy,False,False,0,0,2,False
+401911330,2027-02-27 00:00:00+00:00,Brown,Cornell,False,False,0,0,2,False
+401905870,2027-02-27 05:00:00+00:00,Tarleton State,UT Arlington,False,False,0,0,2,False
+401905871,2027-02-27 05:00:00+00:00,West Georgia,Central Arkansas,False,False,0,0,2,False
+401905872,2027-02-27 05:00:00+00:00,Eastern Kentucky,Little Rock,False,False,0,0,2,False
+401905873,2027-02-27 05:00:00+00:00,Austin Peay,North Alabama,False,False,0,0,2,False
+401911159,2027-02-27 05:00:00+00:00,Ball State,Akron,False,False,0,0,2,False
+401911160,2027-02-27 05:00:00+00:00,Western Michigan,Central Michigan,False,False,0,0,2,False
+401911161,2027-02-27 05:00:00+00:00,Eastern Michigan,Buffalo,False,False,0,0,2,False
+401911162,2027-02-27 05:00:00+00:00,Massachusetts,Bowling Green,False,False,0,0,2,False
+401911163,2027-02-27 05:00:00+00:00,Kent State,Toledo,False,False,0,0,2,False
+401911164,2027-02-27 05:00:00+00:00,Miami (OH),Ohio,False,False,0,0,2,False
+401911421,2027-02-27 05:00:00+00:00,Dartmouth,Pennsylvania,False,False,0,0,2,False
+401911371,2027-02-27 05:00:00+00:00,Grand Canyon,San José State,False,False,0,0,2,False
+401911436,2027-02-27 05:00:00+00:00,UTEP,Hawai'i,False,False,0,0,2,False
+401911449,2027-02-27 05:00:00+00:00,Nevada,UNLV,False,False,0,0,2,False
+401911562,2027-02-27 05:00:00+00:00,Eastern Illinois,Morehead State,False,False,0,0,2,False
+401911698,2027-02-27 05:00:00+00:00,SIU Edwardsville,Southern Indiana,False,False,0,0,2,False
+401911924,2027-02-27 05:00:00+00:00,The Citadel,Mercer,False,False,0,0,2,False
+401911925,2027-02-27 05:00:00+00:00,East Tennessee State,Samford,False,False,0,0,2,False
+401911926,2027-02-27 05:00:00+00:00,Furman,UNC Greensboro,False,False,0,0,2,False
+401911927,2027-02-27 05:00:00+00:00,Tennessee Tech,Chattanooga,False,False,0,0,2,False
+401911928,2027-02-27 05:00:00+00:00,VMI,Western Carolina,False,False,0,0,2,False
+401905752,2027-02-27 05:00:00+00:00,Oral Roberts,Kansas City,False,False,0,0,2,False
+401905751,2027-02-27 05:00:00+00:00,South Dakota State,St. Thomas,False,False,0,0,2,False
+401905319,2027-02-27 05:00:00+00:00,Elon,William & Mary,False,False,0,0,2,False
+401905749,2027-02-27 05:00:00+00:00,North Dakota State,North Dakota,False,False,0,0,2,False
+401905750,2027-02-27 05:00:00+00:00,South Dakota,Omaha,False,False,0,0,2,False
+401902423,2027-02-27 05:00:00+00:00,Alabama,Vanderbilt,False,False,0,0,2,False
+401902424,2027-02-27 05:00:00+00:00,Arkansas,Florida,False,False,0,0,2,False
+401902425,2027-02-27 05:00:00+00:00,LSU,Texas A&M,False,False,0,0,2,False
+401902426,2027-02-27 05:00:00+00:00,Georgia,Missouri,False,False,0,0,2,False
+401902428,2027-02-27 05:00:00+00:00,Ole Miss,Oklahoma,False,False,0,0,2,False
+401902429,2027-02-27 05:00:00+00:00,South Carolina,Mississippi State,False,False,0,0,2,False
+401902430,2027-02-27 05:00:00+00:00,Texas,Tennessee,False,False,0,0,2,False
+401905316,2027-02-27 05:00:00+00:00,Monmouth,Stony Brook,False,False,0,0,2,False
+401905317,2027-02-27 05:00:00+00:00,Drexel,Hofstra,False,False,0,0,2,False
+401905318,2027-02-27 05:00:00+00:00,Hampton,Towson,False,False,0,0,2,False
+401902427,2027-02-27 05:00:00+00:00,Kentucky,Auburn,False,False,0,0,2,False
+401905321,2027-02-27 05:00:00+00:00,Charleston,UNC Wilmington,False,False,0,0,2,False
+401905453,2027-02-27 05:00:00+00:00,Bellarmine,Queens University,False,False,0,0,2,False
+401905454,2027-02-27 05:00:00+00:00,Lipscomb,West Florida,False,False,0,0,2,False
+401905455,2027-02-27 05:00:00+00:00,Florida Gulf Coast,Jacksonville,False,False,0,0,2,False
+401905456,2027-02-27 05:00:00+00:00,Stetson,North Florida,False,False,0,0,2,False
+401905683,2027-02-27 05:00:00+00:00,Middle Tennessee,Western Kentucky,False,False,0,0,2,False
+401905679,2027-02-27 05:00:00+00:00,New Mexico State,Delaware,False,False,0,0,2,False
+401905680,2027-02-27 05:00:00+00:00,Kennesaw State,Florida International,False,False,0,0,2,False
+401905681,2027-02-27 05:00:00+00:00,Jacksonville State,Missouri State,False,False,0,0,2,False
+401905682,2027-02-27 05:00:00+00:00,Sam Houston,Liberty,False,False,0,0,2,False
+401905320,2027-02-27 05:00:00+00:00,North Carolina A&T,Campbell,False,False,0,0,2,False
+401911706,2027-02-27 21:30:00+00:00,Tennessee State,Southeast Missouri State,False,False,0,0,2,False
+401911576,2027-02-27 21:30:00+00:00,Lindenwood,Western Illinois,False,False,0,0,2,False
+401911331,2027-02-27 23:00:00+00:00,Brown,Columbia,False,False,0,0,2,False
+401911490,2027-03-02 05:00:00+00:00,San José State,UTEP,False,False,0,0,2,False
+401911450,2027-03-02 05:00:00+00:00,Air Force,Nevada,False,False,0,0,2,False
+401911409,2027-03-02 05:00:00+00:00,Hawai'i,Grand Canyon,False,False,0,0,2,False
+401911170,2027-03-02 05:00:00+00:00,Central Michigan,Akron,False,False,0,0,2,False
+401911169,2027-03-02 05:00:00+00:00,Buffalo,Ball State,False,False,0,0,2,False
+401905327,2027-03-02 05:00:00+00:00,Campbell,Charleston,False,False,0,0,2,False
+401911167,2027-03-02 05:00:00+00:00,Toledo,Massachusetts,False,False,0,0,2,False
+401911166,2027-03-02 05:00:00+00:00,Kent State,Eastern Michigan,False,False,0,0,2,False
+401911165,2027-03-02 05:00:00+00:00,Ohio,Bowling Green,False,False,0,0,2,False
+401905326,2027-03-02 05:00:00+00:00,UNC Wilmington,Elon,False,False,0,0,2,False
+401911168,2027-03-02 05:00:00+00:00,Western Michigan,Miami (OH),False,False,0,0,2,False
+401905324,2027-03-02 05:00:00+00:00,Towson,Drexel,False,False,0,0,2,False
+401905325,2027-03-02 05:00:00+00:00,Hampton,William & Mary,False,False,0,0,2,False
+401902432,2027-03-02 05:00:00+00:00,Oklahoma,Vanderbilt,False,False,0,0,2,False
+401902433,2027-03-02 05:00:00+00:00,Ole Miss,Auburn,False,False,0,0,2,False
+401902434,2027-03-02 05:00:00+00:00,Tennessee,Mississippi State,False,False,0,0,2,False
+401902435,2027-03-02 05:00:00+00:00,Texas,Missouri,False,False,0,0,2,False
+401902431,2027-03-02 05:00:00+00:00,LSU,Arkansas,False,False,0,0,2,False
+401902437,2027-03-02 05:00:00+00:00,Kentucky,Texas A&M,False,False,0,0,2,False
+401902438,2027-03-02 05:00:00+00:00,South Carolina,Florida,False,False,0,0,2,False
+401905322,2027-03-02 05:00:00+00:00,Stony Brook,Northeastern,False,False,0,0,2,False
+401905323,2027-03-02 05:00:00+00:00,Hofstra,Monmouth,False,False,0,0,2,False
+401902436,2027-03-02 05:00:00+00:00,Alabama,Georgia,False,False,0,0,2,False
+401905874,2027-03-03 05:00:00+00:00,Abilene Christian,Eastern Kentucky,False,False,0,0,2,False
+401905875,2027-03-03 05:00:00+00:00,West Georgia,Tarleton State,False,False,0,0,2,False
+401905876,2027-03-03 05:00:00+00:00,Central Arkansas,UT Arlington,False,False,0,0,2,False
+401905877,2027-03-03 05:00:00+00:00,Little Rock,Austin Peay,False,False,0,0,2,False
+401905684,2027-03-04 05:00:00+00:00,Florida International,Sam Houston,False,False,0,0,2,False
+401905685,2027-03-04 05:00:00+00:00,Western Kentucky,Jacksonville State,False,False,0,0,2,False
+401905686,2027-03-04 05:00:00+00:00,Middle Tennessee,Kennesaw State,False,False,0,0,2,False
+401905687,2027-03-04 05:00:00+00:00,Missouri State,New Mexico State,False,False,0,0,2,False
+401911175,2027-03-05 05:00:00+00:00,Miami (OH),Massachusetts,False,False,0,0,2,False
+401911174,2027-03-05 05:00:00+00:00,Toledo,Ohio,False,False,0,0,2,False
+401911176,2027-03-05 05:00:00+00:00,Central Michigan,Ball State,False,False,0,0,2,False
+401911172,2027-03-05 05:00:00+00:00,Bowling Green,Eastern Michigan,False,False,0,0,2,False
+401911171,2027-03-05 05:00:00+00:00,Buffalo,Western Michigan,False,False,0,0,2,False
+401911173,2027-03-05 05:00:00+00:00,Akron,Kent State,False,False,0,0,2,False
+401911491,2027-03-06 05:00:00+00:00,Wyoming,San José State,False,False,0,0,2,False
+401911451,2027-03-06 05:00:00+00:00,Nevada,New Mexico,False,False,0,0,2,False
+401911437,2027-03-06 05:00:00+00:00,Hawai'i,UNLV,False,False,0,0,2,False
+401911373,2027-03-06 05:00:00+00:00,Grand Canyon,UC Davis,False,False,0,0,2,False
+401911332,2027-03-06 05:00:00+00:00,Pennsylvania,Brown,False,False,0,0,2,False
+401905881,2027-03-06 05:00:00+00:00,Central Arkansas,Austin Peay,False,False,0,0,2,False
+401905880,2027-03-06 05:00:00+00:00,UT Arlington,Eastern Kentucky,False,False,0,0,2,False
+401905879,2027-03-06 05:00:00+00:00,North Alabama,Tarleton State,False,False,0,0,2,False
+401905878,2027-03-06 05:00:00+00:00,Little Rock,Abilene Christian,False,False,0,0,2,False
+401905692,2027-03-06 05:00:00+00:00,Missouri State,Sam Houston,False,False,0,0,2,False
+401905690,2027-03-06 05:00:00+00:00,Middle Tennessee,Jacksonville State,False,False,0,0,2,False
+401905689,2027-03-06 05:00:00+00:00,Florida International,New Mexico State,False,False,0,0,2,False
+401905688,2027-03-06 05:00:00+00:00,Delaware,Liberty,False,False,0,0,2,False
+401902446,2027-03-06 05:00:00+00:00,Vanderbilt,Tennessee,False,False,0,0,2,False
+401902445,2027-03-06 05:00:00+00:00,Georgia,South Carolina,False,False,0,0,2,False
+401902444,2027-03-06 05:00:00+00:00,Florida,Kentucky,False,False,0,0,2,False
+401902443,2027-03-06 05:00:00+00:00,Texas A&M,Texas,False,False,0,0,2,False
+401902442,2027-03-06 05:00:00+00:00,Mississippi State,Ole Miss,False,False,0,0,2,False
+401902441,2027-03-06 05:00:00+00:00,Missouri,LSU,False,False,0,0,2,False
+401902440,2027-03-06 05:00:00+00:00,Auburn,Alabama,False,False,0,0,2,False
+401902439,2027-03-06 05:00:00+00:00,Arkansas,Oklahoma,False,False,0,0,2,False
+401905691,2027-03-06 05:00:00+00:00,Western Kentucky,Kennesaw State,False,False,0,0,2,False
+401911546,2027-03-06 05:00:00+00:00,UTEP,Air Force,False,False,0,0,2,False

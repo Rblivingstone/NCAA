@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Live games{% endblock %}
+{% block content %}
+<h1>Live games</h1>
+<p class="lede">The model's forecast updates as the game is played. At every refresh, the box score so far reweights the
+posterior over both teams' skills, updates this game's shooting/turnover/rebounding rates (conjugate beta update),
+re-estimates the tempo, and then simulates the rest of the game from the current score — giving a projected final
+box score and each team's chance to win. "Unusual so far" compares the box score to date with what the pre-game model
+expected over the same number of possessions.</p>
+<div class="toolbar">
+  <select id="source"><option value="espn">Live from ESPN</option><option value="replay" selected>Replay a {{ season }} tournament game</option></select>
+  <span id="espn-ctl"><input type="date" id="date"> <select id="espn-game"></select>
+    <label><input type="checkbox" id="auto" checked> auto-refresh every 20 s</label></span>
+  <span id="replay-ctl"><select id="replay-game"></select>
+    <button id="play">▶ Play</button>
+    <input type="range" id="minute" min="0" max="40" step="0.5" value="0" style="width:260px">
+    <span class="muted" id="minute-label"></span></span>
+</div>
+<div class="muted" id="msg"></div>
+<div id="live"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const LABELS = { pts: "Points", fgm: "FGM", fga: "FGA", fg3m: "3PM", fg3a: "3PA", ftm: "FTM", fta: "FTA",
+    oreb: "Off reb", dreb: "Def reb", tov: "Turnovers", ast: "Assists", stl: "Steals", blk: "Blocks", pf: "Fouls" };
+  let timer = null, playing = null, length = 40, busy = false, again = false;
+
+  // ----- source switching -----
+  const replays = await (await fetch("/api/live/replay_games?season={{ season }}")).json();
+  for (const g of replays) $("replay-game").add(new Option(`${g.date} · ${g.teams[0]} vs ${g.teams[1]} (${g.score[0]}–${g.score[1]})`, g.game_id));
+  $("date").value = new Date().toISOString().slice(0, 10);
+  $("source").onchange = setSource;
+  $("date").onchange = loadScoreboard;
+  $("espn-game").onchange = () => refresh();
+  $("replay-game").onchange = () => { $("minute").value = 0; refresh(); };
+  $("minute").oninput = () => refresh();
+  $("auto").onchange = schedule;
+  $("play").onclick = () => {
+    if (playing) { clearInterval(playing); playing = null; $("play").textContent = "▶ Play"; return; }
+    $("play").textContent = "⏸ Pause";
+    playing = setInterval(() => {
+      const m = Math.min(+$("minute").value + 0.5, length);
+      $("minute").value = m; refresh();
+      if (m >= length) $("play").click();
+    }, 900);
+  };
+  setSource();
+
+  function setSource() {
+    const replay = $("source").value === "replay";
+    $("replay-ctl").hidden = !replay; $("espn-ctl").hidden = replay;
+    if (replay) refresh(); else loadScoreboard();
+    schedule();
+  }
+  async function loadScoreboard() {
+    const r = await (await fetch(`/api/live/scoreboard?date=${$("date").value}`)).json();
+    $("espn-game").innerHTML = r.games.map((g) =>
+      `<option value="${g.game_id}">${g.status === "in" ? "● " : ""}${g.teams[1]} @ ${g.teams[0]} — ${g.detail}</option>`).join("");
+    $("msg").textContent = r.error ? `${r.error}. Live mode needs network access to site.api.espn.com; replay works offline from the archive.` :
+      (r.games.length ? "" : "No games on this date.");
+    if (r.games.length) refresh(); else $("live").innerHTML = "";
+  }
+  function schedule() {
+    clearInterval(timer);
+    if ($("source").value === "espn" && $("auto").checked) timer = setInterval(() => refresh(), 20000);
+  }
+
+  // ----- one refresh -----
+  async function refresh() {
+    if (busy) { again = true; return; }   // run once more with the latest controls when this one finishes
+    busy = true;
+    try {
+      const replay = $("source").value === "replay";
+      const id = replay ? $("replay-game").value : $("espn-game").value;
+      if (!id) return;
+      const q = replay ? `source=replay&season={{ season }}&id=${id}&minute=${$("minute").value}` : `source=espn&id=${id}`;
+      const r = await (await fetch(`/api/live/game?${q}`)).json();
+      if (r.error) { $("msg").textContent = r.error; return; }
+      if (replay) {
+        length = Math.max(40, ...r.timeline.map((t) => t.elapsed), +$("minute").max);
+        $("minute-label").textContent = `minute ${(+$("minute").value).toFixed(1)}`;
+      }
+      render(r);
+    } finally {
+      busy = false;
+      if (again) { again = false; refresh(); }
+    }
+  }
+
+  function render(r) {
+    const st = r.state, m = r.model, [H, A] = st.teams;
+    const sc = st.teams.map((t) => st.box[t] ? st.box[t].pts : 0);
+    let h = `<div class="live-top">
+      <div class="panel scorebug">
+        <div class="row"><span class="tm">${A}${st.possession === A ? ' <i class="ball">●</i>' : ""}</span><span class="pts">${sc[1]}</span></div>
+        <div class="row"><span class="tm">${H}${st.possession === H ? ' <i class="ball">●</i>' : ""} <span class="muted">${st.neutral ? "(neutral)" : "(home)"}</span></span><span class="pts">${sc[0]}</span></div>
+        <div class="muted">${st.detail}${st.status === "in" ? ` · ${st.remaining.toFixed(1)} min left` : ""}</div></div>`;
+    if (m) {
+      const pw = (p, who) => `<div class="stat"><div class="v">${fmtPct(p)}</div><div class="k">${who}</div></div>`;
+      h += `<div class="stats">${pw(m.p_win[0], `${H} wins — model now`)}${pw(m.pregame.p_win[0], "pre-game")}` +
+        (st.espn_home_wp != null ? pw(st.espn_home_wp, "ESPN's win probability") : "") +
+        `<div class="stat"><div class="v">${m.margin.mean >= 0 ? "+" : ""}${m.margin.mean.toFixed(1)}</div>
+          <div class="k">projected final margin (${H}); 80%: ${m.margin.p10}…${m.margin.p90}</div></div>` +
+        (m.unusualness ? `<div class="stat"><div class="v" style="color:${m.unusualness.p_value < 0.05 ? "var(--upset)" : "inherit"}">${(100 * m.unusualness.p_value).toFixed(0)}%</div>
+          <div class="k">unusual so far: share of simulated games this unusual after ${m.unusualness.possessions} possessions${m.unusualness.drivers.length ?
+            " · " + m.unusualness.drivers.map((d) => `${d.team} ${LABELS[d.stat] || d.stat}`).join(", ") : ""}</div></div>` : "") + `</div>`;
+    } else h += `<div class="muted">One of these teams is not in the model.</div>`;
+    h += `</div>`;
+    h += `<div class="cols2" style="margin-top:12px"><div class="panel"><b>Win probability for ${H}</b>
+      <div class="kde-legend"><span class="key"><i style="background:var(--series-1)"></i>this model</span>
+      <span class="key"><i style="background:var(--series-2)"></i>ESPN</span></div>${timeline(r.timeline)}</div>`;
+    if (m) {
+      h += `<div class="panel"><b>Box score: so far → projected final</b> <span class="muted">(posterior mean, 80% interval)</span>
+        <table class="data"><tr><th>Stat</th><th class="num">${H} now</th><th class="num">final</th><th class="num">${A} now</th><th class="num">final</th></tr>` +
+        Object.keys(LABELS).map((k) => `<tr><td>${LABELS[k]}</td>` + [0, 1].map((j) => {
+          const now = st.box[st.teams[j]] ? st.box[st.teams[j]][k] : 0, f = m.final[k];
+          return `<td class="num">${now}</td><td class="num"><b>${f.mean[j]}</b> <span class="muted">(${f.p10[j]}–${f.p90[j]})</span></td>`;
+        }).join("") + `</tr>`).join("") + `</table>
+        <div class="muted" style="margin-top:4px">~${m.possessions_left.toFixed(0)} possessions each left · overtime chance ${fmtPct(m.p_overtime)} ·
+          ${m.effective_draws.toFixed(0)} effective posterior draws after the in-game update · ${r.posterior} posterior</div></div>`;
+    }
+    h += `</div>`;
+    $("live").innerHTML = h;
+  }
+
+  function timeline(tl) {
+    const W = 520, H = 200, pad = 26, left = 40, maxX = Math.max(40, ...tl.map((t) => t.elapsed));
+    const x = (v) => left + v / maxX * (W - left - pad), y = (p) => H - pad - p * (H - 2 * pad);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="win probability over the game">`;
+    for (const p of [0, 0.5, 1]) s += `<line x1="${left}" x2="${W - pad}" y1="${y(p)}" y2="${y(p)}" stroke="var(--line)" ${p === 0.5 ? 'stroke-dasharray="3 3"' : ""}/>
+      <text x="${left - 4}" y="${y(p) + 3}" text-anchor="end">${p * 100}%</text>`;
+    s += `<line x1="${x(20)}" x2="${x(20)}" y1="${pad / 2}" y2="${H - pad}" stroke="var(--line)"/><text x="${x(20)}" y="${H - 8}" text-anchor="middle">half</text>`;
+    s += `<text x="${left}" y="${H - 8}">tip</text><text x="${x(40)}" y="${H - 8}" text-anchor="middle">40'</text>`;
+    const line = (key, j, dash) => {
+      const pts = tl.filter((t) => t[key] != null).map((t) => `${x(t.elapsed).toFixed(1)},${y(t[key]).toFixed(1)}`);
+      return pts.length ? `<polyline points="${pts.join(" ")}" fill="none" stroke="var(--series-${j})" stroke-width="2" ${dash ? 'stroke-dasharray="5 3"' : ""}/>` : "";
+    };
+    s += line("espn", 2, true) + line("ours", 1, false);
+    const last = tl[tl.length - 1];
+    if (last && last.ours != null) s += `<circle cx="${x(last.elapsed)}" cy="${y(last.ours)}" r="4" fill="var(--series-1)" stroke="var(--panel)" stroke-width="2"/>`;
+    return s + `</svg>`;
+  }
+})();
+</script>
+{% endblock %}
