@@ -21,6 +21,8 @@ class BracketView {
     this.picks = {};          // gameId -> team index (pick mode)
     this.gameScores = {};     // gameId -> scoring info (pick mode)
     this.highlight = null;    // team index highlighted in dist mode
+    this.compare = null;      // /api/compare data: overlay the real results
+    this.markActual = false;  // pick mode: mark picks right/wrong against the real results
     this.games = {};
     this.b.games.forEach((g, i) => (this.games[g.id] = { ...g, dist: summary.games[i], idx: i }));
     this.tip = document.getElementById("tooltip");
@@ -90,6 +92,12 @@ class BracketView {
   }
 
   refresh() {
+    this.el.querySelectorAll(".game").forEach((node) => {
+      const c = this.compare && this.compare.games[node.dataset.id];
+      const show = c && (this.mode === "dist");
+      node.classList.toggle("model-wrong", !!(show && c.wrong));
+      node.classList.toggle("model-right", !!(show && !c.wrong));
+    });
     this.el.querySelectorAll(".slot").forEach((node) => {
       const g = this.games[node.dataset.id];
       const side = +node.dataset.side;
@@ -98,7 +106,11 @@ class BracketView {
       else this.fillPick(node, g, side);
     });
     const champ = this.el.querySelector("#champion");
-    if (this.mode === "dist") {
+    if (this.mode === "dist" && this.compare && this.compare.games["R6"]) {
+      const c = this.compare.games["R6"];
+      const w = this.games["R6"].dist.teams.find((t) => this.team(t.team).name === c.winner);
+      champ.innerHTML = `Actual champion<br><b>${c.winner}</b> model gave ${fmtPct(w ? w.p_win : 0)}`;
+    } else if (this.mode === "dist") {
       const w = this.games["R6"].dist.teams.slice().sort((a, b) => b.p_win - a.p_win)[0];
       champ.innerHTML = `Most likely champion<br><b>${this.team(w.team).name}</b> ${fmtPct(w.p_win)}`;
     } else {
@@ -109,6 +121,18 @@ class BracketView {
 
   fillDist(node, g, side) {
     const dist = g.dist.sides[side];
+    const c = this.compare && this.compare.games[g.id];
+    if (c) {
+      // Who was really here, shaded by how likely the model thought that was.
+      const name = c.teams[side], p = c.p_slot[side];
+      const t = this.b.teams.findIndex((x) => x.name === name);
+      node.style.setProperty("--p", Math.round(p * 100) + "%");
+      node.classList.add(name === c.winner ? "winner" : "loser");
+      if (name !== c.model_top[side]) node.classList.add("not-top");
+      node.innerHTML = `${teamLabel(this.team(t))}<span class="prob">${fmtPct(p)}</span>`;
+      node.dataset.team = t;
+      return;
+    }
     let t, p;
     if (this.highlight != null) {
       t = this.highlight;
@@ -134,6 +158,7 @@ class BracketView {
   fillPick(node, g, side) {
     const t = this.pickedSide(g, side);
     node.style.removeProperty("--p");
+    node.removeAttribute("title");
     if (t == null) { node.innerHTML = `<span class="empty">—</span>`; delete node.dataset.team; return; }
     node.dataset.team = t;
     const w = this.picks[g.id];
@@ -141,6 +166,12 @@ class BracketView {
     const sc = this.gameScores[g.id];
     if (w != null) {
       node.classList.add(w === t ? "winner" : "loser");
+      const c = this.markActual && this.compare && this.compare.games[g.id];
+      if (c && w === t) {
+        const right = c.winner === this.team(t).name;
+        node.classList.add(right ? "pick-right" : "pick-wrong");
+        node.title = right ? "Correct pick" : `Wrong: ${c.winner} won this game`;
+      }
       if (w === t && sc) {
         node.classList.add(sc.p_win >= 0.5 ? "expected" : "upset");
         extra = `<span class="prob">${fmtPct(sc.p_win)}</span>`;
@@ -151,6 +182,7 @@ class BracketView {
 
   slotClick(node) {
     if (node.dataset.team === undefined) return;
+    if (this.mode === "dist" && this.compare) return;
     const t = +node.dataset.team;
     if (this.mode === "dist") {
       this.highlight = this.highlight === t ? null : t;
@@ -205,6 +237,12 @@ class BracketView {
     const teams = d.teams.slice(0, 16);
     const top2 = d.teams.slice(0, 2);
     let h = `<div class="tip-head">${this.roundName(g)}</div>`;
+    const c = this.compare && this.compare.games[id];
+    if (c && (this.mode === "dist" || this.markActual)) {
+      h += `<div class="tip-pick ${c.wrong ? "bad" : "good"}">${c.wrong ? "✗ Model got this wrong" : "✓ Model's favorite won"}:
+        <b>${c.winner}</b> beat ${c.loser}; model gave ${c.winner} ${fmtPct(c.p_winner)} head to head.
+        Pre-tournament chance of being in this game: ${c.teams.map((t, i) => `${t} ${fmtPct(c.p_slot[i])}`).join(", ")}.</div>`;
+    }
     if (this.mode === "pick" && this.gameScores[id]) {
       const sc = this.gameScores[id];
       h += `<div class="tip-pick"><b>${sc.winner}</b> over ${sc.loser}: model gave ${fmtPct(sc.p_win)}

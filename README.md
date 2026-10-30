@@ -136,7 +136,12 @@ passing over. `ncaa/bracket.py` searches globally.
 
 On the *Build and score* page: objective, champion, upset toggle (count,
 definition, keep the Final Four), and a table of each candidate champion's
-best bracket with its relative likelihood.
+best bracket with its relative likelihood. Any bracket also gets **ESPN
+points, predicted vs realized**. The prediction is its score in each of the
+10,000 simulated tournaments (mean, 10–90% range, histogram). The realization
+is its score against what actually happened, broken down by round, with the
+delta between them. "Mark picks against actual results" puts ✓/✗ on every
+pick.
 
 ## Running it
 
@@ -165,6 +170,10 @@ Then open http://127.0.0.1:5000:
   distribution of who reaches it and who wins it, and the most likely
   matchups. Click a team (or use *Follow team*) to trace its odds through the
   bracket. An advancement-odds table sits below.
+* **Compare with actual results** (toggle on the distribution bracket) –
+  each line shows the team that really got there, shaded by the model's
+  pre-tournament probability of that. Games where the model's head-to-head
+  favourite lost are marked ✗ (✓ otherwise), with a per-round summary.
 * **Score a bracket** – click winners to enter results (or *Load actual
   results*, which fills in the real tournament from the data). Shows the
   log-likelihood, odds of exactly these outcomes, comparison with coin flips,

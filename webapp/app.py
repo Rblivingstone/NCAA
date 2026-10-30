@@ -12,7 +12,7 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 from ncaa import data, model
-from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, expected_points,
+from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, espn_points, expected_points,
                           favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
                           resolve_picks, score_bracket, upset_distribution)
 from ncaa.simulate import BOX_STATS, simulate_games
@@ -29,6 +29,12 @@ def state():
     sims, summary, W = load_simulation(SEASON)
     post = model.load_posterior(SEASON)
     return br, sims, summary, W, post
+
+
+@lru_cache(maxsize=1)
+def actual() -> dict[str, str]:
+    """The real tournament results as {game id: winner}."""
+    return actual_picks(state()[0])
 
 
 @app.route("/")
@@ -58,8 +64,50 @@ def api_summary():
 
 @app.route("/api/actual")
 def api_actual():
-    br = state()[0]
-    return jsonify(actual_picks(br))
+    return jsonify(actual())
+
+
+@lru_cache(maxsize=1)
+def compare() -> dict:
+    """The real tournament set against the model's pre-tournament distribution.
+
+    Per game: who actually occupied each slot and how likely the model thought
+    that was, who won, the model's head-to-head probability for that actual
+    matchup, and whether the model's favourite in it lost ("wrong").
+    """
+    br, _, summary, W, _ = state()
+    act = actual()
+    Wm = W.mean(0)
+    games, played = {}, {}
+    for i, g in enumerate(br.games):
+        if g.id not in act:
+            continue
+        occ = [v if kind == "team" else played[v] for kind, v in g.sources]
+        w = br.tidx[act[g.id]]
+        l = occ[1] if occ[0] == w else occ[0]
+        played[g.id] = w
+        sides = summary["games"][i]["sides"]
+        top = [max(sd, key=sd.get) for sd in sides]
+        games[g.id] = {"round": g.round, "teams": [br.teams[t] for t in occ], "winner": br.teams[w],
+                       "loser": br.teams[l], "p_winner": float(Wm[w, l]),
+                       "wrong": bool(Wm[w, l] < 0.5),
+                       "p_slot": [float(sd.get(str(t), 0.0)) for sd, t in zip(sides, occ)],
+                       "model_top": [br.teams[int(t)] for t in top]}
+    rounds = []
+    for r in range(7):
+        gs = [v for v in games.values() if v["round"] == r]
+        if not gs:
+            continue
+        slots = [(t, p, top) for v in gs for t, p, top in zip(v["teams"], v["p_slot"], v["model_top"])]
+        rounds.append({"round": r, "games": len(gs), "model_wrong": sum(v["wrong"] for v in gs),
+                       "slots": len(slots), "top_pick_there": sum(t == top for t, _, top in slots),
+                       "mean_p_slot": float(np.mean([p for _, p, _ in slots]))})
+    return {"games": games, "rounds": rounds}
+
+
+@app.route("/api/compare")
+def api_compare():
+    return jsonify(compare())
 
 
 @app.route("/api/score", methods=["POST"])
@@ -70,6 +118,9 @@ def api_score():
     picks = (request.get_json(silent=True) or {}).get("picks", {})
     out = score_bracket(br, picks, W, summary, sims)
     out["expected_points"] = expected_points(br, picks, summary)
+    # Predicted (over simulated tournaments) vs realised ESPN score of these
+    # picks; only meaningful for picks made before the tournament.
+    out["espn"] = espn_points(br, picks, sims, actual()) if picks else None
     return jsonify(out)
 
 
@@ -86,7 +137,7 @@ FINAL_FOUR_GAMES = ("R4", "R5", "R6")  # region finals onward decide the Final F
 @lru_cache(maxsize=256)
 def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep_final_four: bool) -> dict:
     """Build the optimal bracket under the requested objective and constraints."""
-    br, _, summary, W, _ = state()
+    br, sims, summary, W, _ = state()
     forced = {}
     if keep_final_four:
         # Hold the region finals onward at the unconstrained optimum, so any
@@ -110,6 +161,7 @@ def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep
         "champion": named["R6"],
         "log_likelihood": bracket_log_likelihood(br, picks, W),
         "expected_points": expected_points(br, named, summary),
+        "espn": espn_points(br, named, sims, actual()),
         "upsets": [{"id": p["id"], "winner": br.teams[p["winner"]], "loser": br.teams[p["loser"]],
                     "seeds": [br.seed[br.teams[p["winner"]]], br.seed[br.teams[p["loser"]]]]}
                    for p in played if is_upset(br, p["winner"], p["loser"], gap)],

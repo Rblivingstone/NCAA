@@ -29,10 +29,17 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   <button id="load-actual">Load actual results</button>
   <button id="load-fav">Game-by-game favorites</button>
   <button id="clear">Clear</button>
+  <label class="switch"><input type="checkbox" id="mark-actual"> Mark picks against actual results</label>
   <span class="legend"><span><span class="swatch" style="background:var(--win-soft)"></span>Model favorite won</span>
   <span><span class="swatch" style="background:var(--upset-soft)"></span>Upset (model &lt; 50%)</span></span>
 </div>
 <div class="stats" id="stats"></div>
+<div class="panel" id="espn" style="margin-top:12px" hidden>
+  <b>ESPN points: predicted vs realized</b>
+  <span class="muted">— predicted = this bracket scored against each of the 10,000 simulated tournaments;
+    realized = scored against what actually happened (10-20-40-80-160-320)</span>
+  <div class="cols2" style="margin-top:8px"><div id="espn-hist"></div><div><table class="data" id="espn-table"></table></div></div>
+</div>
 <div class="bracket-wrap panel" style="margin-top:12px"><div id="bracket"></div></div>
 <div class="cols2" style="margin-top:14px">
   <div class="panel"><b>Where this bracket falls among model-simulated brackets</b>
@@ -94,8 +101,10 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     const o = await r.json();
     view.setPicksByName(o.picks); schedule();
     const ups = o.upsets.map((u) => `${u.seeds[0]} ${u.winner} over ${u.seeds[1]} ${u.loser}`);
+    const e = o.espn;
     $("opt-note").innerHTML = `<b>${o.champion}</b> champion · 1 in ${Math.exp(-o.log_likelihood).toExponential(2)} ` +
-      `(log P ${o.log_likelihood.toFixed(2)}) · ${o.expected_points.toFixed(1)} expected ESPN points · ` +
+      `(log P ${o.log_likelihood.toFixed(2)}) · ESPN points: predicted ${e.expected.toFixed(1)}, realized ${e.realized.toFixed(0)} ` +
+      `(<b style="color:${e.delta >= 0 ? "var(--win)" : "var(--upset)"}">${e.delta >= 0 ? "+" : ""}${e.delta.toFixed(1)}</b>) · ` +
       `${ups.length} upset${ups.length === 1 ? "" : "s"}${ups.length ? ": " + ups.join(", ") : ""}`;
     if (o.by_champion.length > 1) {
       $("champ-table").innerHTML = `<div class="muted" style="margin-bottom:4px">Best bracket for each candidate champion
@@ -123,7 +132,42 @@ how it compares with brackets the model itself generates. Or let the optimizer b
 
   function stat(v, k) { return `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`; }
 
+  const markBox = document.getElementById("mark-actual");
+  let cmp = null;
+  markBox.onchange = async () => {
+    if (markBox.checked && !cmp) cmp = await (await fetch("/api/compare")).json();
+    view.compare = cmp; view.markActual = markBox.checked; view.refresh();
+  };
+
+  function drawEspn(e) {
+    const box = document.getElementById("espn");
+    box.hidden = !e;
+    if (!e) return;
+    const W = 520, H = 170, pad = 24, c = e.hist, max = Math.max(...c), n = c.length * e.bin;
+    const x = (v) => pad + v / n * (W - 2 * pad);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    c.forEach((v, i) => { const h = v / max * (H - 2 * pad - 10);
+      svg += `<rect class="hist-bar" x="${x(i * e.bin)}" y="${H - pad - h}" width="${Math.max(1, x(e.bin) - x(0) - 1)}" height="${h}"/>`; });
+    for (const [v, cls, label, dy] of [[e.expected, "", "predicted " + e.expected.toFixed(0), 12], [e.realized, "hist-mark", "realized " + e.realized.toFixed(0), 24]])
+      svg += `<line class="${cls}" x1="${x(v)}" x2="${x(v)}" y1="${pad / 2}" y2="${H - pad}" stroke="var(--ink)" stroke-dasharray="${cls ? "" : "3 3"}"/>` +
+        `<text x="${x(v) + 4}" y="${dy}" style="${cls ? "fill:var(--upset)" : ""}">${label}</text>`;
+    svg += `<text x="${pad}" y="${H - 6}">0</text><text x="${W - pad}" y="${H - 6}" text-anchor="end">${n}</text>` +
+      `<text x="${W / 2}" y="${H - 6}" text-anchor="middle">ESPN points in simulated tournaments</text></svg>`;
+    document.getElementById("espn-hist").innerHTML = svg +
+      `<div class="muted">10–90% range ${e.p10.toFixed(0)}–${e.p90.toFixed(0)}; realized score beats ${fmtPct(e.percentile)} of simulations.</div>`;
+    const sign = (v) => (v >= 0 ? "+" : "") + v.toFixed(1);
+    document.getElementById("espn-table").innerHTML =
+      `<tr><th>Round</th><th class="num">Picks</th><th class="num">Correct: expected</th><th class="num">realized</th>
+        <th class="num">Points: expected</th><th class="num">realized</th><th class="num">Δ</th></tr>` +
+      e.by_round.map((b) => `<tr><td>${b.round}</td><td class="num">${b.picks}</td><td class="num">${b.expected_correct.toFixed(1)}</td>
+        <td class="num">${b.realized_correct}</td><td class="num">${b.expected_points.toFixed(1)}</td><td class="num">${b.realized_points.toFixed(0)}</td>
+        <td class="num" style="color:${b.realized_points >= b.expected_points ? "var(--win)" : "var(--upset)"}">${sign(b.realized_points - b.expected_points)}</td></tr>`).join("") +
+      `<tr><td><b>Total</b></td><td></td><td></td><td></td><td class="num"><b>${e.expected.toFixed(1)}</b></td>
+        <td class="num"><b>${e.realized.toFixed(0)}</b></td><td class="num"><b>${sign(e.delta)}</b></td></tr>`;
+  }
+
   function render(r) {
+    drawEspn(r.espn);
     const st = document.getElementById("stats");
     if (!r.n_games) { st.innerHTML = stat("0", "games entered"); document.getElementById("games").innerHTML = "";
       document.getElementById("hist").innerHTML = ""; return; }

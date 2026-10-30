@@ -597,3 +597,38 @@ def upset_distribution(bracket: Bracket, sims: dict, gap: int = 1) -> dict:
     n = (seeds[w] - seeds[lose] >= gap).sum(1)
     return {"mean": float(n.mean()), "median": int(np.median(n)), "p10": int(np.quantile(n, 0.1)),
             "p90": int(np.quantile(n, 0.9)), "hist": np.bincount(n, minlength=MAX_UPSETS + 1)[:MAX_UPSETS + 1].tolist()}
+
+
+def espn_points(bracket: Bracket, picks: dict[str, str], sims: dict, actual: dict[str, str],
+                points=ESPN_POINTS) -> dict:
+    """Predicted vs realised pool score of a set of picks.
+
+    A pick for a game scores ``points[round]`` when the picked team wins that
+    game.  The prediction is the distribution of that score over the simulated
+    tournaments (its mean is the expected score); the realisation scores the
+    same picks against the actual results.
+    """
+    gi = [bracket.gidx[g] for g in picks if g in bracket.gidx and picks[g] in bracket.tidx]
+    pick_idx = np.array([bracket.tidx[picks[bracket.games[i].id]] for i in gi])
+    pts = np.array([points[bracket.games[i].round] for i in gi], dtype=float)
+    rounds = np.array([bracket.games[i].round for i in gi])
+    hit = sims["winners"][:, gi] == pick_idx                    # sims x picked games
+    sim_scores = hit @ pts
+    real_hit = np.array([actual.get(bracket.games[i].id) == picks[bracket.games[i].id] for i in gi], dtype=bool)
+    realized = float(real_hit @ pts) if len(gi) else 0.0
+    by_round = []
+    for r in range(1, len(ROUNDS)):
+        m = rounds == r
+        if m.any():
+            by_round.append({"round": ROUNDS[r], "picks": int(m.sum()), "points_each": points[r],
+                             "expected_correct": float(hit[:, m].sum(1).mean()),
+                             "realized_correct": int(real_hit[m].sum()),
+                             "expected_points": float((hit[:, m] @ pts[m]).mean()),
+                             "realized_points": float(real_hit[m] @ pts[m])})
+    return {"expected": float(sim_scores.mean()), "sd": float(sim_scores.std()),
+            "p10": float(np.quantile(sim_scores, 0.1)), "p90": float(np.quantile(sim_scores, 0.9)),
+            "realized": realized, "delta": realized - float(sim_scores.mean()),
+            "percentile": float((sim_scores < realized).mean() + 0.5 * (sim_scores == realized).mean()),
+            "by_round": by_round,
+            "hist": np.histogram(sim_scores, bins=np.arange(0, 1930, 40))[0].tolist(), "bin": 40,
+            "max": int(pts.sum())}

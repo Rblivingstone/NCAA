@@ -111,3 +111,19 @@ textarea { width: 100%; height: 90px; font: 12px ui-monospace, monospace; backgr
 .builder #upset-opts[hidden] { display: none; }
 table.champ tr[data-champ] { cursor: pointer; }
 table.champ tr[data-champ]:hover td { background: var(--accent-soft); }
+
+/* ---- actual-results overlay ---- */
+.game { position: relative; }
+.game.model-wrong { border-color: var(--upset); box-shadow: 0 0 0 1px var(--upset); }
+.game.model-wrong::after, .game.model-right::after { position: absolute; top: -7px; right: -6px; width: 15px; height: 15px;
+  border-radius: 50%; font-size: 10px; line-height: 15px; text-align: center; color: #fff; z-index: 1; }
+.game.model-wrong::after { content: "✗"; background: var(--upset); }
+.game.model-right::after { content: "✓"; background: var(--win); opacity: .8; }
+.slot.not-top .name { text-decoration: underline dotted var(--upset); text-underline-offset: 2px; }
+.slot.winner.pick-right { background: var(--win-soft); }
+.slot.winner.pick-right::after { content: "✓"; color: var(--win); font-weight: 700; margin-left: 2px; }
+.slot.winner.pick-wrong { background: var(--upset-soft); text-decoration: line-through; text-decoration-color: var(--upset); }
+.slot.winner.pick-wrong::after { content: "✗"; color: var(--upset); font-weight: 700; margin-left: 2px; }
+.tip-pick.bad { color: var(--upset); }
+.tip-pick.good { color: var(--win); }
+.tip-pick b { color: var(--ink); }

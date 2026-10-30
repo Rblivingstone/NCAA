@@ -225,3 +225,16 @@ def test_best_bracket_by_champion(bracket):
     assert overall["log_likelihood"] >= per_champ[0]["log_likelihood"] - 1e-9
     few = most_likely_bracket(bracket, W, n_champions=0)
     assert overall["log_likelihood"] >= few["log_likelihood"] - 1e-9
+
+
+def test_espn_points_prediction_and_realisation(bracket, post):
+    from ncaa.bracket import espn_points, expected_points
+
+    sims = simulate_tournament(bracket, post, 300, seed=6)
+    s = summarize(bracket, sims)
+    actual = actual_picks(bracket)
+    r = espn_points(bracket, actual, sims, actual)
+    assert r["realized"] == 1920                                  # a perfect bracket scores everything
+    assert r["expected"] == pytest.approx(expected_points(bracket, actual, s))
+    assert r["delta"] == pytest.approx(r["realized"] - r["expected"])
+    assert sum(b["realized_points"] for b in r["by_round"]) == r["realized"]
