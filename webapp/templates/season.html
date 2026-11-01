@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Season tracker{% endblock %}
+{% block content %}
+<h1>Season tracker</h1>
+<p class="lede">Every night <code>python -m ncaa update --season {{ live_season }}</code> fetches the day's box scores,
+scores each finished game against the forecast the model made <em>before</em> it was played (win probability and how
+unusual the whole box score was), and refits. Until games are played the model is last season's, carried over and
+shrunk toward average. Upcoming games are forecast from the latest posterior.</p>
+<div class="toolbar">
+  <label>Season <select id="season"><option>{{ live_season }}</option><option>{{ season }}</option></select></label>
+  <span class="muted" id="status"></span>
+</div>
+<div class="stats" id="summary"></div>
+<div class="panel" style="margin-top:12px">
+  <div class="toolbar" style="margin:0"><b>Upcoming games</b>
+    <input type="date" id="date"> <select id="days"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option></select>
+    <span class="muted" id="up-note"></span></div>
+  <div class="scroll" style="margin-top:6px"><table class="data" id="upcoming"></table></div>
+</div>
+<div class="panel" style="margin-top:12px">
+  <div class="toolbar" style="margin:0"><b>Results, scored out of sample</b>
+    <select id="team"><option value="">All teams</option></select></div>
+  <div class="scroll" style="margin-top:6px; max-height:520px"><table class="data" id="ledger"></table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  $("season").onchange = () => { loadStatus(); loadUpcoming(); };
+  $("team").onchange = loadStatus; $("date").onchange = loadUpcoming; $("days").onchange = loadUpcoming;
+  $("date").value = new Date().toISOString().slice(0, 10);
+  await loadStatus(); loadUpcoming();
+
+  async function loadStatus() {
+    const r = await (await fetch(`/api/season/status?season=${$("season").value}&team=${encodeURIComponent($("team").value)}`)).json();
+    const st = r.status || {};
+    $("status").textContent = `model: ${r.posterior}` + (st.updated ? ` · last update ${new Date(st.updated).toLocaleString()}` : " · not updated yet");
+    if ($("team").options.length <= 1) for (const t of r.teams) $("team").add(new Option(t));
+    const s = r.summary, stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+    $("summary").innerHTML = stat(s.games, "games scored out of sample") + (s.games ? stat(s.log_loss.toFixed(3), "log-loss (coin flip 0.693)") +
+      stat(s.brier.toFixed(3), "Brier score") + stat(fmtPct(s.accuracy), "favorite won") +
+      stat(fmtPct(s.share_unusual_05), "of games 'very unusual' (p<0.05; 5% if calibrated)") : "");
+    $("ledger").innerHTML = r.games.length ? `<tr><th>Date</th><th>Game</th><th class="num">Pre-game P(first team)</th><th class="num">Result</th>
+      <th class="num">Unusualness</th><th>Driven by</th></tr>` + r.games.map((g) => {
+        const won = g.home_pts > g.away_pts, p = g.p_home, upset = (p > 0.5) !== won;
+        return `<tr><td>${g.date.slice(0, 10)}</td><td><a href="/matchup?a=${encodeURIComponent(g.home)}&b=${encodeURIComponent(g.away)}">${g.neutral ? `${g.home} vs ${g.away}` : `${g.away} @ ${g.home}`}</a></td>
+          <td class="num">${fmtPct(p)}</td><td class="num" style="color:${upset ? "var(--upset)" : "inherit"}">${g.home_pts}–${g.away_pts}</td>
+          <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness.toFixed(3)}</td>
+          <td class="muted">${g.drivers || ""}</td></tr>`; }).join("")
+      : `<tr><td class="muted">No finished games scored yet — they appear here after the first nightly update with box scores.</td></tr>`;
+  }
+
+  async function loadUpcoming() {
+    const r = await fetch(`/api/season/upcoming?season=${$("season").value}&date=${$("date").value}&days=${$("days").value}`);
+    if (!r.ok) { $("upcoming").innerHTML = `<tr><td class="muted">${await r.text()}</td></tr>`; return; }
+    const d = await r.json();
+    $("up-note").textContent = `${d.games.length} games · forecasts from the ${d.posterior} posterior`;
+    $("upcoming").innerHTML = d.games.length ? `<tr><th>When</th><th>Away</th><th>Home</th><th class="num">P(home wins)</th><th class="num">Projected score</th><th></th></tr>` +
+      d.games.map((g) => `<tr><td>${new Date(g.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+        <td>${g.away}</td><td>${g.home}${g.neutral ? " <span class='muted'>(neutral)</span>" : ""}</td>
+        <td class="num">${g.p_home != null ? fmtPct(g.p_home) : "<span class='muted'>team not modelled</span>"}</td>
+        <td class="num">${g.pred_score ? `${g.pred_score[1]}–${g.pred_score[0]}` : ""}</td>
+        <td>${g.p_home != null ? `<a href="/matchup?a=${encodeURIComponent(g.home)}&b=${encodeURIComponent(g.away)}">simulate</a>` : ""}</td></tr>`).join("")
+      : `<tr><td class="muted">No games scheduled in this window.</td></tr>`;
+  }
+})();
+</script>
+{% endblock %}

@@ -6,9 +6,26 @@
 the shading is that probability. Hover a game for the full distribution of who gets there and who wins.
 Click a team to follow it through the bracket (click again to clear).</p>
 <div class="toolbar">
+  <label>As of <select id="asof"><option value="">Before the tournament</option></select></label>
+  <span class="muted" id="asof-note"></span>
+</div>
+<div class="toolbar">
+  <label class="switch"><input type="checkbox" id="compare"> Compare with actual results</label>
+  <label class="switch"><input type="checkbox" id="alert-on" checked> Flag potential upsets</label>
+  <select id="alert-at" title="Flag when the worse seed's chance is at least"><option value="0.35">≥ 35%</option>
+    <option value="0.4" selected>≥ 40%</option><option value="0.45">≥ 45%</option><option value="0.5">≥ 50% (model favors the lower seed)</option></select>
   <label>Follow team <select id="follow"><option value="">—</option></select></label>
   <span class="legend"><span><span class="swatch" style="background:var(--accent-soft)"></span>P(team is here)</span>
   <span class="muted" id="follow-note"></span></span>
+</div>
+<div id="compare-panel" class="panel" style="margin-bottom:12px" hidden>
+  <div class="legend" style="margin-bottom:8px">
+    <span>Each line shows the team that <b>actually</b> got there; shading = the model's pre-tournament probability of that.</span>
+    <span><span class="swatch" style="background:var(--upset)"></span>✗ model's head-to-head favorite lost</span>
+    <span><span class="swatch" style="background:var(--win)"></span>✓ favorite won</span>
+    <span><u style="text-decoration:underline dotted var(--upset)">dotted</u> = not the model's most likely team for that line</span>
+  </div>
+  <table class="data" id="compare-table"></table>
 </div>
 <div class="bracket-wrap panel"><div id="bracket"></div></div>
 <h2 style="font-size:16px;margin-top:22px">Advancement odds</h2>
@@ -19,8 +36,56 @@ Click a team to follow it through the bracket (click again to clear).</p>
 (async () => {
   const s = await (await fetch("/api/summary")).json();
   document.getElementById("nsims").textContent = s.n_sims.toLocaleString();
-  const view = new BracketView(document.getElementById("bracket"), s, { mode: "dist" });
+  let view = new BracketView(document.getElementById("bracket"), s, { mode: "dist" });
+  // ----- the bracket as it stood at any point of the tournament -----
+  const days = await (await fetch("/api/tournament_days")).json();
+  const asof = document.getElementById("asof");
+  for (const d of days) asof.add(new Option(`End of ${new Date(d + "T12:00:00").toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`, d));
+  asof.onchange = async () => {
+    const note = document.getElementById("asof-note");
+    let sum = s;
+    if (asof.value) {
+      note.textContent = "Re-simulating the rest of the tournament…";
+      sum = await (await fetch(`/api/bracket_asof?asof=${asof.value}T23:59:00-04:00`)).json();
+      note.textContent = `${sum.games_final} games final and locked in; the rest simulated ${sum.n_sims.toLocaleString()} times from there.`;
+    } else note.textContent = "";
+    const keep = { compare: view.compare, h2h: view.h2h, alertAt: view.alertAt };
+    view = new BracketView(document.getElementById("bracket"), sum, { mode: "dist" });
+    Object.assign(view, keep); view.refresh();
+    sel.onchange();
+  };
+
+  // ----- potential-upset flags -----
+  {
+    const h2h = await (await fetch("/api/h2h")).json();
+    view.h2h = h2h.p;
+    const on = document.getElementById("alert-on"), at = document.getElementById("alert-at");
+    const apply = () => { view.alertAt = on.checked ? +at.value : null; view.refresh(); };
+    on.onchange = apply; at.onchange = apply; apply();
+  }
   const sel = document.getElementById("follow");
+  let cmp = null;
+  document.getElementById("compare").onchange = async (e) => {
+    if (e.target.checked && !cmp) cmp = await (await fetch("/api/compare")).json();
+    view.compare = e.target.checked ? cmp : null;
+    view.highlight = null; sel.value = ""; note();
+    sel.disabled = e.target.checked;
+    document.getElementById("compare-panel").hidden = !e.target.checked;
+    if (e.target.checked) drawCompare();
+    view.refresh();
+  };
+  function drawCompare() {
+    const rows = cmp.rounds.filter((r) => r.round > 0);
+    const tot = rows.reduce((a, r) => ({ g: a.g + r.games, w: a.w + r.model_wrong }), { g: 0, w: 0 });
+    document.getElementById("compare-table").innerHTML =
+      `<tr><th>Round</th><th class="num">Games</th><th class="num">Model wrong ✗</th><th class="num">Model's top team was there</th>
+        <th class="num">Avg. pre-tournament P of the team that was there</th></tr>` +
+      cmp.rounds.map((r) => `<tr><td>${s.bracket.rounds[r.round]}</td><td class="num">${r.games}</td>
+        <td class="num">${r.model_wrong}</td><td class="num">${r.top_pick_there} / ${r.slots}</td>
+        <td class="num">${fmtPct(r.mean_p_slot)}</td></tr>`).join("") +
+      `<tr><td><b>Total (excl. First Four)</b></td><td class="num">${tot.g}</td><td class="num">${tot.w}
+        (${fmtPct(tot.w / tot.g)})</td><td></td><td></td></tr>`;
+  }
   const order = s.bracket.teams.map((t, i) => [t, i]).sort((a, b) => a[0].name.localeCompare(b[0].name));
   for (const [t, i] of order) sel.add(new Option(`${t.name} (${t.region} ${t.seed})`, i));
   sel.onchange = () => { view.highlight = sel.value === "" ? null : +sel.value; view.refresh(); note(); };

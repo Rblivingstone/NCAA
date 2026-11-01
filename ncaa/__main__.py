@@ -4,6 +4,7 @@
     python -m ncaa fit      --season 2026   # NUTS posterior over team skills
     python -m ncaa simulate --season 2026   # Monte Carlo tournaments + win matrix
     python -m ncaa build    --season 2026   # all three
+    python -m ncaa update   --season 2027   # nightly during a season: fetch, score new games, refit
 """
 from __future__ import annotations
 
@@ -19,9 +20,10 @@ from .simulate import estimate_lead_beta
 
 def cmd_fetch(a):
     games, bracket = data.fetch(a.season)
-    print(f"{len(games)} team-games, {games.team.nunique()} teams, "
-          f"{sum(len(v) for r in bracket['seeds'].values() for v in r.values())} tournament teams, "
-          f"{len(bracket['results'])} tournament results")
+    print(f"{len(games)} team-games, {games.team.nunique() if len(games) else 0} teams")
+    if bracket:
+        print(f"{sum(len(v) for r in bracket['seeds'].values() for v in r.values())} tournament teams, "
+              f"{len(bracket['results'])} tournament results")
 
 
 def cmd_fit(a):
@@ -53,9 +55,16 @@ def cmd_simulate(a):
     print("title odds:", json.dumps([(t, round(p, 3)) for p, t in champ]))
 
 
+def cmd_update(a):
+    from . import season
+
+    st = season.update(a.season, refit=a.refit)
+    print(json.dumps(st, indent=1))
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="ncaa")
-    p.add_argument("command", choices=["fetch", "fit", "simulate", "build"])
+    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update"])
     p.add_argument("--season", type=int, default=2026)
     p.add_argument("--method", choices=["nuts", "vi"], default="nuts",
                    help="nuts: full MCMC (slow, exact); vi: variational approximation (fast)")
@@ -66,9 +75,10 @@ def main(argv=None):
     p.add_argument("--win-draws", type=int, default=100, help="posterior draws for the pairwise win matrix")
     p.add_argument("--win-sims", type=int, default=100, help="games per pair per draw for the win matrix")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--refit", choices=["vi", "nuts", "none"], default="vi", help="update: how to refit after scoring")
     a = p.parse_args(argv)
     steps = {"fetch": [cmd_fetch], "fit": [cmd_fit], "simulate": [cmd_simulate],
-             "build": [cmd_fetch, cmd_fit, cmd_simulate]}[a.command]
+             "build": [cmd_fetch, cmd_fit, cmd_simulate], "update": [cmd_update]}[a.command]
     for step in steps:
         step(a)
 

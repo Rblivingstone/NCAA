@@ -5,3 +5,4 @@ jax>=0.4.30
 numpyro>=0.15
 flask>=3.0
 pytest>=8
+tzdata>=2024.1

@@ -100,12 +100,23 @@ class Bracket:
         }
 
 
-def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: int = 0) -> dict:
+def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: int | None = 0,
+                        full_box: bool = False, forced: dict | None = None, live: dict | None = None) -> dict:
     """Play the whole tournament ``n_sims`` times.
 
     Each simulated tournament uses a single posterior draw for every game, so
-    parameter uncertainty is carried through the bracket coherently.
+    parameter uncertainty is carried through the bracket coherently.  With
+    ``full_box`` the complete simulated box score of every game is returned
+    too (``box[stat]`` is sims x games x 2, plus ``ot``).
+
+    During the tournament, ``forced`` ({game id: winning team index}) fixes
+    games already played, and ``live`` ({game id: P(top team wins)}) settles
+    games in progress with their current in-game win probability; everything
+    else is simulated.  This is what keeps the bracket current in real time.
     """
+    forced, live = forced or {}, live or {}
+    from .simulate import BOX_STATS
+
     rng = np.random.default_rng(seed)
     draws = rng.permutation(np.resize(np.arange(post.n_draws), n_sims))
     pidx = post.team_index(bracket.teams)
@@ -113,6 +124,8 @@ def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: in
     winners = np.full((n_sims, G), -1, dtype=np.int16)
     sides = np.full((n_sims, G, 2), -1, dtype=np.int16)
     scores = np.zeros((n_sims, G, 2), dtype=np.int16)
+    box = {s: np.zeros((n_sims, G, 2), dtype=np.int16) for s in BOX_STATS} if full_box else None
+    ot = np.zeros((n_sims, G), dtype=np.int16)
     for rnd in range(len(ROUNDS)):
         gs = [i for i, g in enumerate(bracket.games) if g.round == rnd]
         if not gs:
@@ -122,11 +135,25 @@ def simulate_tournament(bracket: Bracket, post: Posterior, n_sims: int, seed: in
                 sides[:, i, side] = v if kind == "team" else winners[:, bracket.gidx[v]]
         top, bot = sides[:, gs, 0].ravel(), sides[:, gs, 1].ravel()
         k = np.repeat(draws, len(gs))
-        res = simulate_games(post, k, pidx[top], pidx[bot], rng, full_box=False)
+        res = simulate_games(post, k, pidx[top], pidx[bot], rng, full_box=full_box)
         win = np.where(res["a_wins"], top, bot).reshape(n_sims, len(gs))
+        for col, i in enumerate(gs):
+            gid = bracket.games[i].id
+            if gid in forced:
+                win[:, col] = forced[gid]
+            elif gid in live:
+                t0, t1 = sides[:, i, 0], sides[:, i, 1]
+                win[:, col] = np.where(rng.random(n_sims) < live[gid], t0, t1)
         winners[:, gs] = win
         scores[:, gs] = res["pts"].reshape(n_sims, len(gs), 2)
-    return {"winners": winners, "sides": sides, "scores": scores, "draws": draws}
+        ot[:, gs] = res["ot"].reshape(n_sims, len(gs))
+        if full_box:
+            for s in BOX_STATS:
+                box[s][:, gs] = res[s].reshape(n_sims, len(gs), 2)
+    out = {"winners": winners, "sides": sides, "scores": scores, "draws": draws}
+    if full_box:
+        out |= {"box": box, "ot": ot}
+    return out
 
 
 def summarize(bracket: Bracket, sims: dict, top_n_matchups: int = 5) -> dict:
@@ -326,3 +353,309 @@ def load_simulation(season: int) -> tuple[dict, dict, np.ndarray | None]:
     if (d / "win_matrix.npz").exists():
         W = np.load(d / "win_matrix.npz")["W"].astype(np.float32)
     return sims, summary, W
+
+
+# ---------------------------------------------------------------------------
+# Optimal brackets
+# ---------------------------------------------------------------------------
+
+# ESPN Tournament Challenge points per correct pick, by round (First Four unscored).
+ESPN_POINTS = [0, 10, 20, 40, 80, 160, 320]
+MAX_UPSETS = 32
+
+
+@dataclass
+class Constraints:
+    """Restrictions on the bracket search.
+
+    forced:     game id -> team index that must win that game (e.g. a champion,
+                or a fixed Final Four).
+    n_upsets:   exact number of upsets the bracket must contain (None = any).
+    upset_gap:  a win counts as an upset when the winner is seeded at least this
+                many lines below the loser (1 = any lower seed; 8-over-9 is not
+                an upset, 9-over-8 is).
+    """
+    forced: dict = field(default_factory=dict)
+    n_upsets: int | None = None
+    upset_gap: int = 1
+
+
+def is_upset(bracket: Bracket, winner: int, loser: int, gap: int = 1) -> bool:
+    return bracket.seed[bracket.teams[winner]] - bracket.seed[bracket.teams[loser]] >= gap
+
+
+def _dp(bracket: Bracket, value, c: Constraints = Constraints()) -> tuple[dict[str, int], float, np.ndarray]:
+    """Exact dynamic programme over the bracket tree.
+
+    ``value(game)`` returns a T x T matrix: the score of ``w`` beating ``l`` in
+    that game.  For every game, every team ``t`` that could win it and every
+    upset count ``u``, ``best[g][t, u]`` is the highest total over the whole
+    sub-bracket feeding ``g`` given that ``t`` wins ``g`` with ``u`` upsets
+    along the way.  A bracket's score is a sum over games and each sub-bracket
+    only touches the rest through its winner (and its upset count), so this is
+    the global optimum.  In particular ``best["R6"][t]`` is the best bracket
+    with champion ``t`` — every champion is tried, and the best one is kept.
+    Returns the picks, their score, and that per-champion score vector.
+    """
+    T = len(bracket.teams)
+    U = MAX_UPSETS + 1 if c.n_upsets is not None else 1
+    seeds = np.array([bracket.seed[t] for t in bracket.teams])
+    upset = (seeds[:, None] - seeds[None, :] >= c.upset_gap) if c.n_upsets is not None \
+        else np.zeros((T, T), dtype=bool)
+    best, back = {}, {}
+
+    def side(src) -> np.ndarray:
+        kind, v = src
+        if kind == "team":
+            out = np.full((T, U), -np.inf)
+            out[v, 0] = 0.0
+            return out
+        return best[v]
+
+    for g in bracket.games:
+        val = value(g)                                            # [w, l]
+        sides = [side(g.sources[0]), side(g.sources[1])]
+        b = np.full((T, U), -np.inf)
+        bk = np.zeros((T, U, 3), dtype=int)                       # opponent, opponent's upsets, own upsets
+        for own, other in ((0, 1), (1, 0)):
+            mine, theirs = sides[own], sides[other]
+            ts = np.flatnonzero(np.isfinite(mine).any(1))
+            os_ = np.flatnonzero(np.isfinite(theirs).any(1))
+            if not len(ts):
+                continue
+            # cand[t, o, v]: opponent o's sub-bracket with v upsets, plus this game.
+            cand = theirs[os_][None, :, :] + val[np.ix_(ts, os_)][:, :, None]
+            up = upset[np.ix_(ts, os_)]
+            if U > 1:  # an upset in this game shifts the count by one
+                shifted = np.full_like(cand, -np.inf)
+                shifted[:, :, 1:] = cand[:, :, :-1]
+                cand = np.where(up[:, :, None], shifted, cand)
+            oi = cand.argmax(1)                                   # [t, v_total_other]
+            cmax = np.take_along_axis(cand, oi[:, None, :], 1)[:, 0, :]
+            # max-plus convolution with the winner's own sub-bracket upsets
+            tot = mine[ts][:, :, None] + cmax[:, None, :]         # [t, u_own, v]
+            for u in range(U):
+                uo = np.arange(u + 1)
+                vals = tot[:, uo, u - uo]                         # [t, splits]
+                k = vals.argmax(1)
+                bv = vals[np.arange(len(ts)), k]
+                better = bv > b[ts, u]
+                tt = ts[better]
+                b[tt, u] = bv[better]
+                own_u = uo[k[better]]
+                o = os_[oi[better, u - own_u]]
+                v = u - own_u - upset[tt, o].astype(int)
+                bk[tt, u] = np.stack([o, v, own_u], 1)
+        if g.id in c.forced:
+            keep = np.zeros(T, dtype=bool)
+            keep[c.forced[g.id]] = True
+            b[~keep] = -np.inf
+        best[g.id], back[g.id] = b, bk
+
+    u_final = 0 if U == 1 else c.n_upsets
+    root = best["R6"][:, u_final]
+    if not np.isfinite(root).any():
+        raise ValueError("no bracket satisfies these constraints")
+    picks: dict[str, int] = {}
+    stack = [("R6", int(root.argmax()), u_final)]
+    while stack:
+        gid, w, u = stack.pop()
+        picks[gid] = w
+        g = bracket.games[bracket.gidx[gid]]
+        o, v, own_u = back[gid][w, u]
+        for kind, src in g.sources:
+            if kind == "game":
+                mine = w in bracket.possible_teams(src)
+                stack.append((src, w, own_u) if mine else (src, int(o), int(v)))
+    return picks, float(root.max()), root
+
+
+def bracket_log_likelihood(bracket: Bracket, picks: dict[str, int], W: np.ndarray) -> float:
+    """Exact log P(bracket) = log E_theta prod_g P(winner beats loser | theta)."""
+    named = {gid: bracket.teams[t] for gid, t in picks.items()}
+    played = resolve_picks(bracket, named)
+    w = np.array([p["winner"] for p in played])
+    l = np.array([p["loser"] for p in played])
+    return float(_log_mean_exp(np.log(W[:, w, l]).sum(1)))
+
+
+def count_upsets(bracket: Bracket, picks: dict[str, int], gap: int = 1) -> int:
+    played = resolve_picks(bracket, {g: bracket.teams[t] for g, t in picks.items()})
+    return sum(is_upset(bracket, p["winner"], p["loser"], gap) for p in played)
+
+
+def favourites(bracket: Bracket, Wm: np.ndarray) -> dict[str, int]:
+    """Greedy bracket: advance whichever team is favoured in each game as it comes."""
+    winners: dict[str, int] = {}
+    for g in bracket.games:
+        a, b = (v if kind == "team" else winners[v] for kind, v in g.sources)
+        winners[g.id] = a if Wm[a, b] >= 0.5 else b
+    return winners
+
+
+def _satisfies(bracket: Bracket, picks: dict[str, int], c: Constraints) -> bool:
+    if any(picks.get(g) != t for g, t in c.forced.items()):
+        return False
+    return c.n_upsets is None or count_upsets(bracket, picks, c.upset_gap) == c.n_upsets
+
+
+def _refine(bracket: Bracket, W: np.ndarray, logW: np.ndarray, picks: dict, c: Constraints,
+            max_iter: int = 50) -> tuple[dict, float]:
+    """Minorize-maximize: reweight posterior draws by the current bracket, re-solve the DP."""
+    ll = bracket_log_likelihood(bracket, picks, W)
+    for _ in range(max_iter):
+        played = resolve_picks(bracket, {g: bracket.teams[t] for g, t in picks.items()})
+        wi = np.array([p["winner"] for p in played])
+        li = np.array([p["loser"] for p in played])
+        per_draw = logW[:, wi, li].sum(1)
+        wt = np.exp(per_draw - per_draw.max())
+        L = np.tensordot(wt / wt.sum(), logW, axes=1)
+        new = _dp(bracket, lambda g, L=L: L, c)[0]
+        new_ll = bracket_log_likelihood(bracket, new, W)
+        if new == picks or new_ll <= ll + 1e-9:
+            break
+        picks, ll = new, new_ll
+    return picks, ll
+
+
+def _with_champion(c: Constraints, t: int) -> Constraints:
+    return Constraints(forced={**c.forced, "R6": int(t)}, n_upsets=c.n_upsets, upset_gap=c.upset_gap)
+
+
+def most_likely_bracket(bracket: Bracket, W: np.ndarray, c: Constraints = Constraints(),
+                        n_champions: int = 10) -> dict:
+    """The most probable complete bracket under the model (subject to ``c``).
+
+    The exact objective log E_k[prod_g W_k(g)] is not a plain sum over games,
+    because games share uncertainty about team skill.  With per-game
+    probabilities averaged first ("plug-in") it is, and the DP solves that
+    exactly.  For the exact objective, a minorize-maximize loop climbs from a
+    start: weight each posterior draw by how well it explains the current
+    bracket, then re-solve the DP on the weighted log-probabilities; each step
+    can only raise the true probability.  That climb is local, so it is
+    restarted from:
+
+      * both plug-in optima and the game-by-game favourites, and
+      * the best bracket for each of the ``n_champions`` most promising
+        champions (ranked by the DP's per-champion scores): optimise with the
+        champion held fixed, then release it and climb again.
+
+    The best result wins; ``by_champion`` lists the per-champion candidates.
+    """
+    logW = np.log(W)
+    Lp = np.log(W.mean(0))
+    starts = {"mean probability": _dp(bracket, lambda g: Lp, c)[0],
+              "mean log-probability": _dp(bracket, lambda g: logW.mean(0), c)[0]}
+    fav = favourites(bracket, W.mean(0))
+    if _satisfies(bracket, fav, c):
+        starts["game-by-game favourites"] = fav
+    results = [(*_refine(bracket, W, logW, p, c), name) for name, p in starts.items()]
+
+    root = _dp(bracket, lambda g: Lp, c)[2]
+    order = [int(t) for t in np.argsort(-root) if np.isfinite(root[t])][:n_champions]
+    by_champion = []
+    for t in order:
+        cc = _with_champion(c, t)
+        cands = [_dp(bracket, lambda g: Lp, cc)[0]] + [r[0] for r in results if r[0]["R6"] == t]
+        fixed = max((_refine(bracket, W, logW, p, cc) for p in cands), key=lambda r: r[1])
+        by_champion.append({"champion": t, "picks": fixed[0], "log_likelihood": fixed[1]})
+        results.append((*_refine(bracket, W, logW, fixed[0], c), f"champion restart: {bracket.teams[t]}"))
+    picks, ll, name = max(results, key=lambda r: r[1])
+    by_champion.sort(key=lambda r: -r["log_likelihood"])
+    return {"picks": picks, "log_likelihood": ll, "start": name, "by_champion": by_champion}
+
+
+def best_bracket_by_champion(bracket: Bracket, W: np.ndarray, champions, c: Constraints = Constraints()) -> list:
+    """The most likely bracket for each of the given champions, best first."""
+    out = []
+    for t in champions:
+        try:
+            res = most_likely_bracket(bracket, W, _with_champion(c, t), n_champions=1)
+        except ValueError:
+            continue
+        out.append({"champion": int(t), "picks": res["picks"], "log_likelihood": res["log_likelihood"]})
+    return sorted(out, key=lambda r: -r["log_likelihood"])
+
+
+def _win_probabilities(bracket: Bracket, summary: dict) -> np.ndarray:
+    pwin = np.zeros((len(bracket.games), len(bracket.teams)))
+    for i, g in enumerate(summary["games"]):
+        for t in g["teams"]:
+            pwin[i, t["team"]] = t["p_win"]
+    return pwin
+
+
+def max_expected_points_bracket(bracket: Bracket, summary: dict, c: Constraints = Constraints(),
+                                points=ESPN_POINTS) -> dict:
+    """The bracket with the highest expected pool score (ESPN scoring by default).
+
+    A pick scores if the picked team really wins that game, so the expected
+    score is the sum over games of points x P(picked team wins that game),
+    using the simulated marginal probabilities.  The DP enforces that a team
+    picked to win a game is also picked to win every earlier game on its path.
+    """
+    pwin = _win_probabilities(bracket, summary)
+    T = len(bracket.teams)
+
+    def value(g):
+        return np.repeat((points[g.round] * pwin[bracket.gidx[g.id]])[:, None], T, axis=1)
+
+    picks, total, _ = _dp(bracket, value, c)
+    return {"picks": picks, "expected_points": total}
+
+
+def expected_points(bracket: Bracket, picks: dict[str, str], summary: dict, points=ESPN_POINTS) -> float:
+    """Expected pool score of a set of pre-tournament picks."""
+    pwin = _win_probabilities(bracket, summary)
+    total = 0.0
+    for gid, name in picks.items():
+        if gid in bracket.gidx and name in bracket.tidx:
+            i = bracket.gidx[gid]
+            total += points[bracket.games[i].round] * pwin[i, bracket.tidx[name]]
+    return total
+
+
+def upset_distribution(bracket: Bracket, sims: dict, gap: int = 1) -> dict:
+    """How many upsets a simulated tournament contains (a guide to a 'realistic' count)."""
+    seeds = np.array([bracket.seed[t] for t in bracket.teams])
+    w = sims["winners"].astype(int)
+    sides = sims["sides"].astype(int)
+    lose = np.where(sides[..., 0] == w, sides[..., 1], sides[..., 0])
+    n = (seeds[w] - seeds[lose] >= gap).sum(1)
+    return {"mean": float(n.mean()), "median": int(np.median(n)), "p10": int(np.quantile(n, 0.1)),
+            "p90": int(np.quantile(n, 0.9)), "hist": np.bincount(n, minlength=MAX_UPSETS + 1)[:MAX_UPSETS + 1].tolist()}
+
+
+def espn_points(bracket: Bracket, picks: dict[str, str], sims: dict, actual: dict[str, str],
+                points=ESPN_POINTS) -> dict:
+    """Predicted vs realised pool score of a set of picks.
+
+    A pick for a game scores ``points[round]`` when the picked team wins that
+    game.  The prediction is the distribution of that score over the simulated
+    tournaments (its mean is the expected score); the realisation scores the
+    same picks against the actual results.
+    """
+    gi = [bracket.gidx[g] for g in picks if g in bracket.gidx and picks[g] in bracket.tidx]
+    pick_idx = np.array([bracket.tidx[picks[bracket.games[i].id]] for i in gi])
+    pts = np.array([points[bracket.games[i].round] for i in gi], dtype=float)
+    rounds = np.array([bracket.games[i].round for i in gi])
+    hit = sims["winners"][:, gi] == pick_idx                    # sims x picked games
+    sim_scores = hit @ pts
+    real_hit = np.array([actual.get(bracket.games[i].id) == picks[bracket.games[i].id] for i in gi], dtype=bool)
+    realized = float(real_hit @ pts) if len(gi) else 0.0
+    by_round = []
+    for r in range(1, len(ROUNDS)):
+        m = rounds == r
+        if m.any():
+            by_round.append({"round": ROUNDS[r], "picks": int(m.sum()), "points_each": points[r],
+                             "expected_correct": float(hit[:, m].sum(1).mean()),
+                             "realized_correct": int(real_hit[m].sum()),
+                             "expected_points": float((hit[:, m] @ pts[m]).mean()),
+                             "realized_points": float(real_hit[m] @ pts[m])})
+    return {"expected": float(sim_scores.mean()), "sd": float(sim_scores.std()),
+            "p10": float(np.quantile(sim_scores, 0.1)), "p90": float(np.quantile(sim_scores, 0.9)),
+            "realized": realized, "delta": realized - float(sim_scores.mean()),
+            "percentile": float((sim_scores < realized).mean() + 0.5 * (sim_scores == realized).mean()),
+            "by_round": by_round,
+            "hist": np.histogram(sim_scores, bins=np.arange(0, 1930, 40))[0].tolist(), "bin": 40,
+            "max": int(pts.sum())}

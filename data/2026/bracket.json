@@ -235,7 +235,8 @@
     86,
     83
    ],
-   "winner": "Howard"
+   "winner": "Howard",
+   "date": "2026-03-17T22:40:00+00:00"
   },
   {
    "round": "First Four",
@@ -248,7 +249,8 @@
     66,
     68
    ],
-   "winner": "Texas"
+   "winner": "Texas",
+   "date": "2026-03-18T01:29:00+00:00"
   },
   {
    "round": "First Four",
@@ -261,7 +263,8 @@
     55,
     67
    ],
-   "winner": "Prairie View A&M"
+   "winner": "Prairie View A&M",
+   "date": "2026-03-18T22:40:00+00:00"
   },
   {
    "round": "First Four",
@@ -274,7 +277,8 @@
     79,
     89
    ],
-   "winner": "Miami (OH)"
+   "winner": "Miami (OH)",
+   "date": "2026-03-19T01:15:00+00:00"
   },
   {
    "round": "1st Round",
@@ -287,7 +291,8 @@
     64,
     66
    ],
-   "winner": "TCU"
+   "winner": "TCU",
+   "date": "2026-03-19T16:15:00+00:00"
   },
   {
    "round": "1st Round",
@@ -300,7 +305,8 @@
     76,
     47
    ],
-   "winner": "Nebraska"
+   "winner": "Nebraska",
+   "date": "2026-03-19T16:40:00+00:00"
   },
   {
    "round": "1st Round",
@@ -313,7 +319,8 @@
     83,
     79
    ],
-   "winner": "Louisville"
+   "winner": "Louisville",
+   "date": "2026-03-19T17:30:00+00:00"
   },
   {
    "round": "1st Round",
@@ -326,7 +333,8 @@
     82,
     83
    ],
-   "winner": "High Point"
+   "winner": "High Point",
+   "date": "2026-03-19T17:50:00+00:00"
   },
   {
    "round": "1st Round",
@@ -339,7 +347,8 @@
     71,
     65
    ],
-   "winner": "Duke"
+   "winner": "Duke",
+   "date": "2026-03-19T19:00:00+00:00"
   },
   {
    "round": "1st Round",
@@ -352,7 +361,8 @@
     78,
     68
    ],
-   "winner": "Vanderbilt"
+   "winner": "Vanderbilt",
+   "date": "2026-03-19T19:15:00+00:00"
   },
   {
    "round": "1st Round",
@@ -365,7 +375,8 @@
     92,
     67
    ],
-   "winner": "Michigan State"
+   "winner": "Michigan State",
+   "date": "2026-03-19T20:27:00+00:00"
   },
   {
    "round": "1st Round",
@@ -378,7 +389,8 @@
     97,
     78
    ],
-   "winner": "Arkansas"
+   "winner": "Arkansas",
+   "date": "2026-03-19T20:27:00+00:00"
   },
   {
    "round": "1st Round",
@@ -391,7 +403,8 @@
     78,
     82
    ],
-   "winner": "VCU"
+   "winner": "VCU",
+   "date": "2026-03-19T22:50:00+00:00"
   },
   {
    "round": "1st Round",
@@ -404,7 +417,8 @@
     101,
     80
    ],
-   "winner": "Michigan"
+   "winner": "Michigan",
+   "date": "2026-03-19T23:30:00+00:00"
   },
   {
    "round": "1st Round",
@@ -417,7 +431,8 @@
     71,
     79
    ],
-   "winner": "Texas"
+   "winner": "Texas",
+   "date": "2026-03-19T23:35:00+00:00"
   },
   {
    "round": "1st Round",
@@ -430,7 +445,8 @@
     50,
     63
    ],
-   "winner": "Texas A&M"
+   "winner": "Texas A&M",
+   "date": "2026-03-19T23:35:00+00:00"
   },
   {
    "round": "1st Round",
@@ -443,7 +459,8 @@
     105,
     70
    ],
-   "winner": "Illinois"
+   "winner": "Illinois",
+   "date": "2026-03-20T01:55:00+00:00"
   },
   {
    "round": "1st Round",
@@ -456,7 +473,8 @@
     77,
     102
    ],
-   "winner": "Saint Louis"
+   "winner": "Saint Louis",
+   "date": "2026-03-20T02:10:00+00:00"
   },
   {
    "round": "1st Round",
@@ -469,7 +487,8 @@
     78,
     47
    ],
-   "winner": "Houston"
+   "winner": "Houston",
+   "date": "2026-03-20T02:15:00+00:00"
   },
   {
    "round": "1st Round",
@@ -482,7 +501,8 @@
     73,
     64
    ],
-   "winner": "Gonzaga"
+   "winner": "Gonzaga",
+   "date": "2026-03-20T02:24:00+00:00"
   },
   {
    "round": "1st Round",
@@ -495,7 +515,8 @@
     89,
     84
    ],
-   "winner": "Kentucky"
+   "winner": "Kentucky",
+   "date": "2026-03-20T16:15:00+00:00"
   },
   {
    "round": "1st Round",
@@ -508,7 +529,8 @@
     91,
     71
    ],
-   "winner": "Texas Tech"
+   "winner": "Texas Tech",
+   "date": "2026-03-20T16:40:00+00:00"
   },
   {
    "round": "1st Round",
@@ -521,7 +543,8 @@
     92,
     58
    ],
-   "winner": "Arizona"
+   "winner": "Arizona",
+   "date": "2026-03-20T17:35:00+00:00"
   },
   {
    "round": "1st Round",
@@ -534,7 +557,8 @@
     82,
     73
    ],
-   "winner": "Virginia"
+   "winner": "Virginia",
+   "date": "2026-03-20T17:50:00+00:00"
   },
   {
    "round": "1st Round",
@@ -547,7 +571,8 @@
     108,
     74
    ],
-   "winner": "Iowa State"
+   "winner": "Iowa State",
+   "date": "2026-03-20T19:07:00+00:00"
   },
   {
    "round": "1st Round",
@@ -560,7 +585,8 @@
     90,
     70
    ],
-   "winner": "Alabama"
+   "winner": "Alabama",
+   "date": "2026-03-20T19:15:00+00:00"
   },
   {
    "round": "1st Round",
@@ -573,7 +599,8 @@
     76,
     86
    ],
-   "winner": "Utah State"
+   "winner": "Utah State",
+   "date": "2026-03-20T20:10:00+00:00"
   },
   {
    "round": "1st Round",
@@ -586,7 +613,8 @@
     78,
     56
    ],
-   "winner": "Tennessee"
+   "winner": "Tennessee",
+   "date": "2026-03-20T20:25:00+00:00"
   },
   {
    "round": "1st Round",
@@ -599,7 +627,8 @@
     61,
     67
    ],
-   "winner": "Iowa"
+   "winner": "Iowa",
+   "date": "2026-03-20T22:50:00+00:00"
   },
   {
    "round": "1st Round",
@@ -612,7 +641,8 @@
     79,
     53
    ],
-   "winner": "St. John's"
+   "winner": "St. John's",
+   "date": "2026-03-20T23:25:00+00:00"
   },
   {
    "round": "1st Round",
@@ -625,7 +655,8 @@
     75,
     71
    ],
-   "winner": "UCLA"
+   "winner": "UCLA",
+   "date": "2026-03-20T23:31:00+00:00"
   },
   {
    "round": "1st Round",
@@ -638,7 +669,8 @@
     104,
     71
    ],
-   "winner": "Purdue"
+   "winner": "Purdue",
+   "date": "2026-03-20T23:35:00+00:00"
   },
   {
    "round": "1st Round",
@@ -651,7 +683,8 @@
     114,
     55
    ],
-   "winner": "Florida"
+   "winner": "Florida",
+   "date": "2026-03-21T01:25:00+00:00"
   },
   {
    "round": "1st Round",
@@ -664,7 +697,8 @@
     68,
     60
    ],
-   "winner": "Kansas"
+   "winner": "Kansas",
+   "date": "2026-03-21T02:07:00+00:00"
   },
   {
    "round": "1st Round",
@@ -677,7 +711,8 @@
     80,
     66
    ],
-   "winner": "Miami"
+   "winner": "Miami",
+   "date": "2026-03-21T02:07:00+00:00"
   },
   {
    "round": "1st Round",
@@ -690,7 +725,8 @@
     82,
     71
    ],
-   "winner": "UConn"
+   "winner": "UConn",
+   "date": "2026-03-21T02:31:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -703,7 +739,8 @@
     95,
     72
    ],
-   "winner": "Michigan"
+   "winner": "Michigan",
+   "date": "2026-03-21T16:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -716,7 +753,8 @@
     77,
     69
    ],
-   "winner": "Michigan State"
+   "winner": "Michigan State",
+   "date": "2026-03-21T18:45:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -729,7 +767,8 @@
     81,
     58
    ],
-   "winner": "Duke"
+   "winner": "Duke",
+   "date": "2026-03-21T21:25:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -742,7 +781,8 @@
     88,
     57
    ],
-   "winner": "Houston"
+   "winner": "Houston",
+   "date": "2026-03-21T22:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -755,7 +795,8 @@
     68,
     74
    ],
-   "winner": "Texas"
+   "winner": "Texas",
+   "date": "2026-03-21T23:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -768,7 +809,8 @@
     76,
     55
    ],
-   "winner": "Illinois"
+   "winner": "Illinois",
+   "date": "2026-03-22T00:15:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -781,7 +823,8 @@
     74,
     72
    ],
-   "winner": "Nebraska"
+   "winner": "Nebraska",
+   "date": "2026-03-22T01:02:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -794,7 +837,8 @@
     94,
     88
    ],
-   "winner": "Arkansas"
+   "winner": "Arkansas",
+   "date": "2026-03-22T01:45:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -807,7 +851,8 @@
     79,
     69
    ],
-   "winner": "Purdue"
+   "winner": "Purdue",
+   "date": "2026-03-22T16:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -820,7 +865,8 @@
     82,
     63
    ],
-   "winner": "Iowa State"
+   "winner": "Iowa State",
+   "date": "2026-03-22T18:45:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -833,7 +879,8 @@
     65,
     67
    ],
-   "winner": "St. John's"
+   "winner": "St. John's",
+   "date": "2026-03-22T21:15:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -846,7 +893,8 @@
     72,
     79
    ],
-   "winner": "Tennessee"
+   "winner": "Tennessee",
+   "date": "2026-03-22T22:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -859,7 +907,8 @@
     72,
     73
    ],
-   "winner": "Iowa"
+   "winner": "Iowa",
+   "date": "2026-03-22T23:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -872,7 +921,8 @@
     78,
     66
    ],
-   "winner": "Arizona"
+   "winner": "Arizona",
+   "date": "2026-03-23T00:11:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -885,7 +935,8 @@
     73,
     57
    ],
-   "winner": "UConn"
+   "winner": "UConn",
+   "date": "2026-03-23T01:10:00+00:00"
   },
   {
    "round": "2nd Round",
@@ -898,7 +949,8 @@
     90,
     65
    ],
-   "winner": "Alabama"
+   "winner": "Alabama",
+   "date": "2026-03-23T02:08:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -911,7 +963,8 @@
     79,
     77
    ],
-   "winner": "Purdue"
+   "winner": "Purdue",
+   "date": "2026-03-26T23:10:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -924,7 +977,8 @@
     71,
     77
    ],
-   "winner": "Iowa"
+   "winner": "Iowa",
+   "date": "2026-03-26T23:30:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -937,7 +991,8 @@
     55,
     65
    ],
-   "winner": "Illinois"
+   "winner": "Illinois",
+   "date": "2026-03-27T02:05:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -950,7 +1005,8 @@
     109,
     88
    ],
-   "winner": "Arizona"
+   "winner": "Arizona",
+   "date": "2026-03-27T02:06:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -963,7 +1019,8 @@
     80,
     75
    ],
-   "winner": "Duke"
+   "winner": "Duke",
+   "date": "2026-03-27T23:10:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -976,7 +1033,8 @@
     90,
     77
    ],
-   "winner": "Michigan"
+   "winner": "Michigan",
+   "date": "2026-03-27T23:35:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -989,7 +1047,8 @@
     67,
     63
    ],
-   "winner": "UConn"
+   "winner": "UConn",
+   "date": "2026-03-28T01:55:00+00:00"
   },
   {
    "round": "Sweet 16",
@@ -1002,7 +1061,8 @@
     62,
     76
    ],
-   "winner": "Tennessee"
+   "winner": "Tennessee",
+   "date": "2026-03-28T02:35:00+00:00"
   },
   {
    "round": "Elite 8",
@@ -1015,7 +1075,8 @@
     71,
     59
    ],
-   "winner": "Illinois"
+   "winner": "Illinois",
+   "date": "2026-03-28T22:09:00+00:00"
   },
   {
    "round": "Elite 8",
@@ -1028,7 +1089,8 @@
     79,
     64
    ],
-   "winner": "Arizona"
+   "winner": "Arizona",
+   "date": "2026-03-29T00:59:00+00:00"
   },
   {
    "round": "Elite 8",
@@ -1041,7 +1103,8 @@
     95,
     62
    ],
-   "winner": "Michigan"
+   "winner": "Michigan",
+   "date": "2026-03-29T18:15:00+00:00"
   },
   {
    "round": "Elite 8",
@@ -1054,7 +1117,8 @@
     72,
     73
    ],
-   "winner": "UConn"
+   "winner": "UConn",
+   "date": "2026-03-29T21:05:00+00:00"
   },
   {
    "round": "Final Four",
@@ -1067,7 +1131,8 @@
     71,
     62
    ],
-   "winner": "UConn"
+   "winner": "UConn",
+   "date": "2026-04-04T22:09:00+00:00"
   },
   {
    "round": "Final Four",
@@ -1080,7 +1145,8 @@
     73,
     91
    ],
-   "winner": "Michigan"
+   "winner": "Michigan",
+   "date": "2026-04-05T01:19:00+00:00"
   },
   {
    "round": "National Championship",
@@ -1093,7 +1159,8 @@
     69,
     63
    ],
-   "winner": "Michigan"
+   "winner": "Michigan",
+   "date": "2026-04-07T00:50:00+00:00"
   }
  ]
 }
