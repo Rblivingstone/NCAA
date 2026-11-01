@@ -209,3 +209,18 @@ code { font: 12px ui-monospace, monospace; background: var(--accent-soft); paddi
 .mix-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .mix-k { width: 64px; font-weight: 600; text-transform: capitalize; }
 .mix-l { font-size: 11px; }
+
+/* ---- rankings / team / games ---- */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: var(--panel); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--accent); color: #fff; }
+table.data th.sortcol, table.data td.sortcol { background: var(--accent-soft); }
+.badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--accent-soft); color: var(--ink); vertical-align: 1px; }
+.assess { margin: 6px 0 0 18px; padding: 0; line-height: 1.6; }
+.divbar { position: relative; height: 12px; }
+.divbar .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.divbar .ci { position: absolute; top: 5px; height: 2px; background: var(--muted); opacity: .6; border-radius: 1px; }
+.divbar .pt { position: absolute; top: 2px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--panel); }
+h1 a { color: inherit; text-decoration: none; }
+h1 a:hover { text-decoration: underline; }

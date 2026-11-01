@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Games{% endblock %}
+{% block content %}
+<h1>Games</h1>
+<p class="lede">Every game in the schedule. Upcoming games show the model's pre-game forecast; finished games show the result,
+the forecast the model made before tip-off (once the nightly ledger has scored it) and how unusual the box score was. Open a game
+for its full view: the prior distributions before tip-off, the live Bayesian forecast during, and the play-by-play update
+history against the prior afterwards.</p>
+<div class="toolbar">
+  <label>Season <select id="season">{% for s in seasons|reverse %}<option>{{ s }}</option>{% endfor %}</select></label>
+  <button id="prev">◀</button><input type="date" id="date"><button id="next">▶</button>
+  <label>or team <select id="team"><option value="">—</option></select></label>
+  <span class="muted" id="note"></span>
+</div>
+<div class="panel"><table class="data" id="games"></table></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  let dates = [];
+  $("season").onchange = async () => { await teams(); $("team").value = ""; await jumpToNearest(); };
+  $("date").onchange = () => { $("team").value = ""; load(); };
+  $("team").onchange = load;
+  $("prev").onclick = () => step(-1); $("next").onclick = () => step(1);
+  await teams(); await jumpToNearest();
+
+  async function teams() {
+    const r = await (await fetch(`/api/rankings?season=${$("season").value}`)).json();
+    $("team").innerHTML = `<option value="">—</option>` + r.teams.map((t) => t.team).sort().map((t) => `<option>${t}</option>`).join("");
+  }
+  async function jumpToNearest() {
+    const r = await (await fetch(`/api/games?season=${$("season").value}&date=1900-01-01`)).json();
+    dates = r.dates;
+    const today = new Date().toISOString().slice(0, 10);
+    $("date").value = dates.find((d) => d >= today) || dates[dates.length - 1] || today;
+    load();
+  }
+  function step(k) {
+    const i = dates.indexOf($("date").value);
+    const j = i < 0 ? dates.findIndex((d) => d > $("date").value) : i + k;
+    if (dates[j]) { $("date").value = dates[j]; $("team").value = ""; load(); }
+  }
+  async function load() {
+    const q = $("team").value ? `team=${encodeURIComponent($("team").value)}` : `date=${$("date").value}`;
+    $("note").textContent = "Loading…";
+    const r = await (await fetch(`/api/games?season=${$("season").value}&${q}`)).json();
+    $("note").textContent = `${r.games.length} games · model: ${r.posterior}`;
+    $("games").innerHTML = r.games.length ? `<tr><th>When</th><th>Away</th><th>Home</th><th class="num">Score</th>
+      <th class="num">P(home wins)</th><th class="num">Unusualness</th><th></th></tr>` + r.games.map((g) => {
+        const p = g.completed ? g.p_home_pregame : g.p_home;
+        const when = new Date(g.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        const sc = g.completed ? `${g.score[1]}–${g.score[0]}` : (g.pred_score ? `<span class="muted">proj. ${g.pred_score[1]}–${g.pred_score[0]}</span>` : "");
+        const upset = g.completed && p != null && (p > 0.5) !== (g.score[0] > g.score[1]);
+        return `<tr><td>${when}${g.tournament ? ' <span class="badge">NCAA</span>' : ""}</td>
+          <td><a href="/team/${encodeURIComponent(g.away)}?season=${$("season").value}">${g.away}</a></td>
+          <td><a href="/team/${encodeURIComponent(g.home)}?season=${$("season").value}">${g.home}</a>${g.neutral ? ' <span class="muted">(neutral)</span>' : ""}</td>
+          <td class="num" style="color:${upset ? "var(--upset)" : "inherit"}">${sc}</td>
+          <td class="num">${p != null ? fmtPct(p) + (g.completed ? ' <span class="muted">pre-game</span>' : "") : ""}</td>
+          <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness != null ? g.unusualness.toFixed(3) : ""}</td>
+          <td><a href="/game/${g.game_id}?season=${$("season").value}">${g.completed ? "update history" : "forecast"} →</a></td></tr>`;
+      }).join("") : `<tr><td class="muted">No games on this date.</td></tr>`;
+  }
+})();
+</script>
+{% endblock %}

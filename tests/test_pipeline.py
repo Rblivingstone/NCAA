@@ -436,3 +436,19 @@ def test_pool_finish_probabilities_match_monte_carlo(bracket, post):
     assert res["p_first"] <= res["p_top10"] + 1e-9
     w = pool.winning_score(N, rows)
     assert w["p10"] <= w["median"] <= w["p90"]
+
+
+def test_team_analysis_is_zero_for_an_average_team(post):
+    import dataclasses
+
+    from ncaa.teams import skill_profile, style_vulnerabilities
+
+    z = post.z.copy()
+    z[:, 3] = 0.0                                              # make one team exactly average
+    p = dataclasses.replace(post, z=z)
+    team = post.teams[3]
+    assert all(abs(r["impact"]) < 1e-9 for r in skill_profile(p, team))
+    assert all(abs(s["relative"]) < 1e-9 for s in style_vulnerabilities(p, team))
+    strong = post.teams[0]                                     # synthetic best shooter
+    prof = {(r["side"], r["stat"]): r for r in skill_profile(post, strong)}
+    assert prof[("off", "p2")]["impact"] > 0 and prof[("def", "p2")]["impact"] > 0

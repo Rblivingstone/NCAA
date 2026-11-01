@@ -122,10 +122,39 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         model.add_to_posterior(season, lead_beta=beta)
         status["posterior"] = f"{season} fit ({refit})"
         log(f"refit {season} with {refit}")
+    record_ratings(season)
     status["seconds"] = round(time.time() - t0)
     (model.artifact_dir(season)).mkdir(parents=True, exist_ok=True)
     (model.artifact_dir(season) / "status.json").write_text(json.dumps(status, indent=1))
     return status
+
+
+def ratings_history_path(season: int):
+    return model.artifact_dir(season) / "ratings_history.csv"
+
+
+def record_ratings(season: int) -> None:
+    """Append today's ratings for every team, so team pages can show how the assessment moves."""
+    from .ratings import team_ratings
+
+    post, label = current_posterior(season)
+    if post is None:
+        return
+    today = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d")
+    rows = pd.DataFrame([{"date": today, "team": r["team"], "net": r["net"], "net_lo": r["net_lo"], "net_hi": r["net_hi"],
+                          "ortg": r["ortg"], "drtg": r["drtg"], "rank": r["rank"], "model": label}
+                         for r in team_ratings(post)])
+    path = ratings_history_path(season)
+    if path.exists():
+        old = pd.read_csv(path)
+        rows = pd.concat([old[old.date != today], rows], ignore_index=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows.to_csv(path, index=False)
+
+
+def load_ratings_history(season: int) -> pd.DataFrame:
+    path = ratings_history_path(season)
+    return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
 
 def upcoming(season: int, post: model.Posterior, start=None, days: int = 1, n: int = 1500) -> list[dict]:

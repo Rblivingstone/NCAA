@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ team }}{% endblock %}
+{% block content %}
+<div class="toolbar" style="margin-bottom:4px">
+  <h1 style="margin:0">{{ team }}</h1>
+  <label>Season <select id="season">{% for s in seasons|reverse %}<option>{{ s }}</option>{% endfor %}</select></label>
+  <span class="muted" id="model"></span>
+</div>
+<div id="out"><div class="muted">Loading…</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const team = {{ team|tojson }};
+  const q = new URLSearchParams(location.search);
+  if (q.get("season")) $("season").value = q.get("season");
+  $("season").onchange = load;
+  await load();
+
+  async function load() {
+    const r = await fetch(`/api/team?season=${$("season").value}&name=${encodeURIComponent(team)}`);
+    if (!r.ok) { $("out").innerHTML = `<div class="muted">${await r.text()}</div>`; return; }
+    const d = await r.json(), R = d.rating;
+    $("model").textContent = `model: ${d.posterior}`;
+    const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+    let h = `<div class="stats">${stat("#" + R.rank, "overall rank")}${stat((R.net >= 0 ? "+" : "") + R.net.toFixed(1),
+        `net rating per 100 possessions<br>90%: ${R.net_lo.toFixed(1)} to ${R.net_hi.toFixed(1)}`)}
+      ${stat(R.ortg.toFixed(1), "offense (pts / 100 poss)")}${stat(R.drtg.toFixed(1), "defense (allowed / 100 poss)")}
+      ${stat(d.tempo.possessions.toFixed(0), "possessions per 40 min")}${stat((R.trend >= 0 ? "+" : "") + R.trend.toFixed(1), "change in form this season")}</div>`;
+    h += `<div class="panel" style="margin-top:12px"><b>Assessment</b><ul class="assess">${d.assessment.map((l) => `<li>${l}</li>`).join("")}</ul></div>`;
+    h += `<div class="cols2" style="margin-top:12px"><div class="panel"><b>How our assessment has moved</b>${trend(d)}</div>
+      <div class="panel"><b>Opponent styles: what hurts this team</b>
+      <div class="muted" style="margin:4px 0 6px">Change in net efficiency (pts/100) against an average opponent made one standard deviation
+        better at one thing, <em>relative to how that style hurts an average team</em>. Red = exposed, green = handles it well. These are
+        second-order effects: the model has no explicit matchup terms, so they come from how the team's own rates combine.</div>
+      ${styleChart(d.styles)}</div></div>`;
+    h += `<div class="panel" style="margin-top:12px"><b>Core strengths and weaknesses</b>
+      <div class="muted" style="margin:4px 0 6px">Each skill's contribution: how many points per 100 possessions the team's offense scores
+        (or its defense saves) because of it, versus an average D1 team at that skill. Bar = 90% credible interval.</div>${profileTable(d.profile)}</div>`;
+    h += `<div class="panel" style="margin-top:12px"><b>Games</b><div class="scroll" style="max-height:420px">${gamesTable(d)}</div></div>`;
+    $("out").innerHTML = h;
+  }
+
+  function trend(d) {
+    // Within-season form by two-week period, plus nightly snapshots when the season is being tracked.
+    const f = d.form, hist = d.history;
+    const W = 520, H = 190, padL = 40, pad = 22;
+    const pts = f.map((p) => ({ t: new Date(p.date).getTime(), v: d.rating.net + p.net, lo: d.rating.net + p.net_lo, hi: d.rating.net + p.net_hi }));
+    const hp = hist.map((p) => ({ t: new Date(p.date).getTime(), v: p.net, lo: p.net_lo, hi: p.net_hi }));
+    const all = pts.concat(hp);
+    if (!all.length) return `<div class="muted">No history yet.</div>`;
+    const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t), t0 + 864e5);
+    const v0 = Math.min(...all.map((p) => p.lo)) - 1, v1 = Math.max(...all.map((p) => p.hi)) + 1;
+    const x = (t) => padL + (t - t0) / (t1 - t0) * (W - padL - pad), y = (v) => H - pad - (v - v0) / (v1 - v0) * (H - 2 * pad);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="team strength over time">`;
+    for (const v of [v0 + 1, (v0 + v1) / 2, v1 - 1]) s += `<line x1="${padL}" x2="${W - pad}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end">${v.toFixed(0)}</text>`;
+    if (pts.length > 1) {
+      s += `<path d="M${pts.map((p) => `${x(p.t)},${y(p.hi)}`).join("L")}L${pts.slice().reverse().map((p) => `${x(p.t)},${y(p.lo)}`).join("L")}Z" fill="var(--accent-soft)"/>`;
+      s += `<polyline points="${pts.map((p) => `${x(p.t)},${y(p.v)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+    }
+    if (hp.length) s += hp.map((p) => `<line x1="${x(p.t)}" x2="${x(p.t)}" y1="${y(p.lo)}" y2="${y(p.hi)}" stroke="var(--ink)" opacity=".5"/>
+      <circle cx="${x(p.t)}" cy="${y(p.v)}" r="3.5" fill="var(--ink)"/>`).join("");
+    const fmt = (t) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
+    s += `<text x="${padL}" y="${H - 6}">${fmt(t0)}</text><text x="${W - pad}" y="${H - 6}" text-anchor="end">${fmt(t1)}</text></svg>`;
+    return s + `<div class="muted">Blue: net rating through the season implied by the model's two-week form (shaded: approximate 90% band).
+      ${hp.length ? "Dots: the rating each nightly fit gave, with 90% intervals." : "Nightly snapshots appear here once the season is being updated."}</div>`;
+  }
+
+  function styleChart(styles) {
+    const max = Math.max(0.5, ...styles.map((s) => Math.max(Math.abs(s.relative_lo), Math.abs(s.relative_hi))));
+    return `<table class="data styles">` + styles.map((s) => {
+      const c = s.relative < 0 ? "var(--upset)" : "var(--win)";
+      const pos = (v) => 50 + v / max * 50;
+      return `<tr><td>${s.style}</td><td class="num" style="color:${Math.abs(s.relative) > 0.1 && (s.p_worse > 0.8 || s.p_worse < 0.2) ? c : "inherit"}">${s.relative >= 0 ? "+" : ""}${s.relative.toFixed(2)}</td>
+        <td style="width:45%"><div class="divbar"><span class="mid"></span>
+          <span class="ci" style="left:${pos(s.relative_lo)}%;width:${pos(s.relative_hi) - pos(s.relative_lo)}%"></span>
+          <span class="pt" style="left:${pos(s.relative)}%;background:${c}"></span></div></td>
+        <td class="num muted">${s.relative < 0 ? fmtPct(s.p_worse) + " sure" : fmtPct(1 - s.p_worse) + " sure"}</td></tr>`;
+    }).join("") + `</table>`;
+  }
+
+  function profileTable(profile) {
+    const max = Math.max(1, ...profile.map((r) => Math.max(Math.abs(r.impact_lo), Math.abs(r.impact_hi))));
+    const pos = (v) => 50 + v / max * 50;
+    const sec = (side, title) => `<tr><th colspan="3">${title}</th><th class="num">vs D1 teams</th></tr>` + profile.filter((r) => r.side === side)
+      .sort((a, b) => b.impact - a.impact).map((r) => `<tr><td>${r.label}${r.style ? ' <span class="muted">(style)</span>' : ""}</td>
+        <td class="num">${r.impact >= 0 ? "+" : ""}${r.impact.toFixed(1)}</td>
+        <td style="width:40%"><div class="divbar"><span class="mid"></span>
+          <span class="ci" style="left:${pos(r.impact_lo)}%;width:${pos(r.impact_hi) - pos(r.impact_lo)}%"></span>
+          <span class="pt" style="left:${pos(r.impact)}%;background:${r.impact >= 0 ? "var(--win)" : "var(--upset)"}"></span></div></td>
+        <td class="num muted" style="white-space:nowrap">${r.style ? "more than" : "better than"} ${Math.round(100 * r.percentile)}%</td></tr>`).join("");
+    return `<div class="cols2"><table class="data">${sec("off", "Offense")}</table><table class="data">${sec("def", "Defense")}</table></div>`;
+  }
+
+  function gamesTable(d) {
+    if (!d.games.length) return `<div class="muted">No games in this season's schedule.</div>`;
+    return `<table class="data"><tr><th>Date</th><th>Game</th><th class="num">Result</th><th class="num">Pre-game P(${team} wins)</th><th class="num">Unusualness</th></tr>` +
+      d.games.map((g) => {
+        const home = g.home === team, opp = home ? g.away : g.home;
+        const p = g.p_home_pregame != null ? (home ? g.p_home_pregame : 1 - g.p_home_pregame) : null;
+        const res = g.score ? (() => { const [a, b] = home ? g.score : [g.score[1], g.score[0]]; return `${a > b ? "W" : "L"} ${a}–${b}`; })() : "";
+        return `<tr><td>${new Date(g.date).toLocaleDateString([], { month: "short", day: "numeric" })}</td>
+          <td><a href="/game/${g.game_id}?season=${d.season}">${home ? "vs" : g.neutral ? "vs" : "@"} ${opp}</a>${g.neutral ? ' <span class="muted">(neutral)</span>' : ""}</td>
+          <td class="num">${res || '<span class="muted">upcoming</span>'}</td><td class="num">${p != null ? fmtPct(p) : ""}</td>
+          <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness != null ? g.unusualness.toFixed(3) : ""}</td></tr>`;
+      }).join("") + `</table>`;
+  }
+})();
+</script>
+{% endblock %}

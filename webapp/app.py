@@ -658,5 +658,210 @@ def api_tournament_days():
     return jsonify(days)
 
 
+# ---------------------------------------------------------------------------
+# Rankings, team pages, games
+# ---------------------------------------------------------------------------
+from ncaa import teams as teams_mod
+from ncaa.live import LiveState, STATS as LIVE_STATS
+from ncaa.ratings import team_ratings
+
+SEASONS = sorted({SEASON, LIVE_SEASON})
+
+
+@lru_cache(maxsize=4)
+def _ratings(season: int, stamp: float):
+    post, label = season_post(season)
+    br = state()[0] if season == SEASON else None
+    return team_ratings(post, br), label
+
+
+def ratings_for(season: int):
+    path = model.artifact_dir(season) / "posterior.npz"
+    return _ratings(season, path.stat().st_mtime if path.exists() else 0.0)
+
+
+@app.route("/rankings")
+def rankings_page():
+    return render_template("rankings.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="rankings")
+
+
+@app.route("/teams")
+def teams_redirect():
+    from flask import redirect
+    return redirect("/rankings")
+
+
+@app.route("/api/rankings")
+def api_rankings():
+    """Teams ranked by overall (net), offense (ORtg) or defense (DRtg)."""
+    season = int(request.args.get("season", SEASON))
+    rows, label = ratings_for(season)
+    rows = [r for r in rows if r["team"] != "Non-D1"]
+    rank = {}
+    for key, rev in (("net", True), ("ortg", True), ("drtg", False)):
+        for i, r in enumerate(sorted(rows, key=lambda r: r[key], reverse=rev), 1):
+            rank.setdefault(r["team"], {})[key] = i
+    out = [dict(r, rank_overall=rank[r["team"]]["net"], rank_offense=rank[r["team"]]["ortg"],
+                rank_defense=rank[r["team"]]["drtg"]) for r in rows]
+    return jsonify({"season": season, "posterior": label, "teams": out})
+
+
+@app.route("/team/<path:name>")
+def team_page(name):
+    return render_template("team.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, team=name, page="rankings")
+
+
+def _end_of_data(season: int):
+    g = data.load_games(season)
+    return g.date.max() if len(g) else pd.Timestamp.now(tz="UTC")
+
+
+@app.route("/api/team")
+def api_team():
+    season = int(request.args.get("season", SEASON))
+    name = request.args.get("name", "")
+    post, label = season_post(season)
+    if post is None or name not in post.teams:
+        abort(404, "team not in the model for this season")
+    rows, _ = ratings_for(season)
+    rating = next(r for r in rows if r["team"] == name)
+    profile = teams_mod.skill_profile(post, name)
+    styles = teams_mod.style_vulnerabilities(post, name)
+    tempo = teams_mod.tempo_note(post, name)
+    hist = season_mod.load_ratings_history(season)
+    hist = hist[hist.team == name].to_dict("records") if len(hist) else []
+    # Games: results (with the out-of-sample pre-game forecast when the ledger has it) and upcoming.
+    sched = data.load_schedule(season)
+    games = []
+    if len(sched):
+        led = season_mod.load_ledger(season).set_index("game_id") if len(season_mod.load_ledger(season)) else None
+        mine = sched[(sched.home == name) | (sched.away == name)].sort_values("date")
+        for r in mine.itertuples():
+            row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
+                   "neutral": bool(r.neutral), "completed": bool(r.completed),
+                   "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
+            if led is not None and r.game_id in led.index:
+                lr = led.loc[r.game_id]
+                p_home = float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home)
+                row |= {"p_home_pregame": p_home, "unusualness": float(lr.unusualness)}
+            games.append(row)
+    return jsonify({"season": season, "posterior": label, "team": name, "rating": rating,
+                    "assessment": teams_mod.assessment(profile, styles, rating, tempo),
+                    "profile": profile, "styles": styles, "tempo": tempo,
+                    "form": teams_mod.form_history(post, name, _end_of_data(season)),
+                    "history": hist, "games": games})
+
+
+@app.route("/games")
+def games_page():
+    return render_template("games.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="games")
+
+
+@app.route("/api/games")
+def api_games():
+    """Games for a date (or all of a team's games), with forecasts for the ones not yet played."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    sched = data.load_schedule(season)
+    if not len(sched):
+        return jsonify({"games": [], "dates": []})
+    team = request.args.get("team", "")
+    if team:
+        rows = sched[(sched.home == team) | (sched.away == team)]
+    else:
+        day = pd.Timestamp(request.args.get("date") or pd.Timestamp.now(tz="America/New_York").strftime("%Y-%m-%d"))
+        local = sched.date.dt.tz_convert("America/New_York").dt.tz_localize(None).dt.normalize()
+        rows = sched[local == day]
+    rows = rows.sort_values("date")
+    post, label = season_post(season)
+    led = season_mod.load_ledger(season)
+    led = led.set_index("game_id") if len(led) else None
+    upcoming_ids = {u["game_id"]: u for u in
+                    (season_mod.upcoming(season, post, start=rows.date.min().strftime("%Y-%m-%d"),
+                                         days=(rows.date.max() - rows.date.min()).days + 2)
+                     if post is not None and len(rows) and (~rows.completed).any() and len(rows) <= 120 else [])}
+    out = []
+    for r in rows.itertuples():
+        row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
+               "neutral": bool(r.neutral), "completed": bool(r.completed), "tournament": bool(r.tournament),
+               "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
+        if r.game_id in upcoming_ids and "p_home" in upcoming_ids[r.game_id]:
+            u = upcoming_ids[r.game_id]
+            row |= {"p_home": u["p_home"], "pred_score": u["pred_score"]}
+        if led is not None and r.game_id in led.index:
+            lr = led.loc[r.game_id]
+            row |= {"p_home_pregame": float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home),
+                    "unusualness": float(lr.unusualness)}
+        out.append(row)
+    local_dates = sorted(sched.date.dt.tz_convert("America/New_York").dt.strftime("%Y-%m-%d").unique())
+    return jsonify({"season": season, "posterior": label, "games": out, "dates": local_dates})
+
+
+@app.route("/game/<int:game_id>")
+def game_page(game_id):
+    return render_template("game.html", season=SEASON, live_season=LIVE_SEASON, game_id=game_id, page="games")
+
+
+def _final_state_from_box(season: int, game_id: int, row) -> LiveState | None:
+    g = real_games()
+    rows = g[g.game_id == game_id]
+    if not len(rows):
+        return None
+    box = {}
+    for t, prefix in ((row.home, ""), (row.away, "")):
+        r = rows[rows.team == t]
+        if not len(r):
+            return None
+        r = r.iloc[0]
+        box[t] = {k: int(r[k]) for k in LIVE_STATS}
+    return LiveState(game_id, [row.home, row.away], ["", ""], bool(row.neutral), "post", 2, 0.0, box, detail="Final")
+
+
+@app.route("/api/game")
+def api_game():
+    """One game, whatever its state: prior before tip-off, live during, update history after."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    gid = int(request.args["id"])
+    sched = data.load_schedule(season)
+    row = sched[sched.game_id == gid]
+    if not len(row):
+        abort(404, "game not found in this season's schedule")
+    row = next(row.itertuples())
+    post, label = season_post(season)
+    meta = {"season": season, "date": row.date.isoformat(), "home": row.home, "away": row.away,
+            "neutral": bool(row.neutral), "tournament": bool(row.tournament)}
+    led = season_mod.load_ledger(season)
+    if len(led) and gid in set(led.game_id):
+        lr = led[led.game_id == gid].iloc[0]
+        meta["ledger"] = {"p_home": float(lr.p_home) if lr.home == row.home else 1 - float(lr.p_home),
+                          "unusualness": float(lr.unusualness), "model": lr.model}
+    timeline, kind, state_ = None, "pre", None
+    if row.completed:
+        kind = "post"
+        try:
+            state_ = _replay.game(gid, 999)
+            timeline = _replay_timeline(season, gid)
+        except Exception as e:
+            meta["note"] = f"play-by-play not available ({e}); showing the final box score against the prior"
+            state_ = _final_state_from_box(season, gid, row)
+    else:
+        now = pd.Timestamp.now(tz="UTC")
+        if row.date - pd.Timedelta(hours=1) <= now <= row.date + pd.Timedelta(hours=4):
+            try:
+                live = _espn.game(gid)
+                if live.status == "in":
+                    kind, state_ = "live", live
+            except Exception as e:
+                meta["note"] = f"live feed unavailable ({e})"
+    if state_ is None:
+        state_ = LiveState(gid, [row.home, row.away], ["", ""], bool(row.neutral), "pre" if kind == "pre" else "post",
+                           1, 20.0, {}, detail="Scheduled" if kind == "pre" else "Final")
+    view = _model_view(post, state_) if post is not None else None
+    if kind == "live":
+        with _lock:
+            timeline = list(_history.get(gid, []))
+    return jsonify({"kind": kind, "meta": meta, "state": state_.to_json(), "model": view, "posterior": label,
+                    "timeline": timeline})
+
+
 if __name__ == "__main__":
     app.run(debug=True)

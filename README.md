@@ -159,6 +159,22 @@ passing over. `ncaa/bracket.py` searches globally.
   public picks upsets *more* freely than the model, the logic reverses and
   chalk wins, so the public model is a choice in the UI.
 
+* **Pool composition and difficulty.** Rivals are a configurable mix of
+  archetypes: *casual* (mostly seeds), *informed* (close to the model),
+  *chalk* (favourites nearly always) and *upset* (discounts seeds, picks
+  freely). Each rival draws its own strategy parameters from its archetype's
+  range. **Pick correlation** ρ uses a Gaussian copula: a rival picks team a
+  when √ρ·Z_g + √(1−ρ)·Z_ig < Φ⁻¹(p_ig), where Z_g is a pool-wide shock for
+  that game. Every pick share stays exactly the same whatever ρ is; only how
+  often rivals make the *same combinations* changes. Simulated tournaments
+  are paired with independent pool "climates", and given both, rivals are
+  independent, so these all have exact formulas: expected/median/90th-
+  percentile winning score, and P(first), P(top 10%), P(last) for any
+  bracket (checked against brute-force pools). In 2026 at 100 rivals, raising
+  ρ from 0 to 0.8 lowers the median winning score from 1,400 to 1,230. It
+  also removes the edge from contrarian picks: a herd is beatable by the
+  favourites bracket.
+
 On the *Build and score* page: objective, champion, upset toggle (count,
 definition, keep the Final Four), and a table of each candidate champion's
 best bracket with its relative likelihood. Any bracket also gets **ESPN
@@ -321,8 +337,25 @@ Then open http://127.0.0.1:5000:
   bookkeeping, while real box scores are looser (team rebounds, end-of-half
   heaves), and including them made 20% of games score below 0.05. That
   rigidity is a known limitation of the simulator.
-* **Team ratings** – offensive/defensive efficiency, net rating with 90%
-  interval, tempo and component rates.
+* **Rankings** – overall (net rating), offense or defense, for any season,
+  with 90% intervals, tempo and season trend.
+* **Team pages** – current strength and rank, and how the assessment has
+  moved (within-season form, plus nightly snapshots once a season is
+  tracked). Core strengths and weaknesses: each skill's contribution in
+  points per 100 possessions with its percentile among D1 teams.
+  Matchup vulnerabilities: how much an opponent one SD better at one thing
+  (3-point shooting or volume, interior scoring, offensive rebounding,
+  drawing fouls, ball pressure, heavy fouling, rim protection, perimeter
+  defense, defensive rebounding) hurts this team *relative to how it hurts
+  an average team*, with the probability that the difference is real.
+  These are second-order effects, since the model has no explicit matchup
+  terms. Plus a plain-language assessment, a tempo note and the team's games.
+* **Games** – any date or team: upcoming games with forecasts; finished
+  games with the logged pre-game forecast and unusualness. Each game has its
+  own page: before tip-off the prior distributions; during, the live
+  Bayesian forecast (20-second refresh); afterwards, the play-by-play update
+  history (win probability vs ESPN, the shift of every stat) against the
+  prior.
 
 Set `NCAA_SEASON` to serve a different season for the bracket pages and
 `NCAA_LIVE_SEASON` (default 2027) for the season and live pages.
