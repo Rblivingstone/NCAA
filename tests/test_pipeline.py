@@ -390,3 +390,49 @@ def test_shift_probability_superiority():
     pre = rng.poisson(10, 5000)
     q = superiority(np.full(10, 13), pre)
     assert q == pytest.approx((pre < 13).mean() + 0.5 * (pre == 13).mean())
+
+
+def test_pick_correlation_keeps_shares_but_raises_agreement(bracket):
+    from ncaa.pool import PoolSpec, simulate_public
+
+    Wm = _random_W(len(bracket.teams), 12).mean(0)
+    mix = (("casual", 0.5), ("chalk", 0.5))
+    lo = simulate_public(bracket, Wm, 6000, PoolSpec(mix, 0.0), seed=1, climates=1)
+    hi = simulate_public(bracket, Wm, 6000, PoolSpec(mix, 0.8), seed=1, climates=6000)
+    r64 = [i for i, g in enumerate(bracket.games) if g.round == 1]
+    top = [bracket.games[i].sources[0][1] for i in r64]
+    share_lo = (lo[:, r64] == top).mean(0)
+    share_hi = (hi[:, r64] == top).mean(0)
+    assert np.abs(share_lo - share_hi).max() < 0.03                # same pick shares...
+    hi_c = simulate_public(bracket, Wm, 6000, PoolSpec(mix, 0.8), seed=1, climates=3)
+    agree = lambda P: (P[0::3][:1000] == P[3::3][:1000]).mean()  # noqa: E731  same climate pairs
+    assert agree(hi_c) > agree(lo) + 0.03                           # ...but more similar brackets
+
+
+def test_pool_finish_probabilities_match_monte_carlo(bracket, post):
+    from ncaa.pool import Pool, PoolSpec, score_brackets
+
+    sims = simulate_tournament(bracket, post, 600, seed=21)
+    s = summarize(bracket, sims)
+    Wm = _random_W(len(bracket.teams), 5).mean(0)
+    pool = Pool(bracket, sims, Wm, s, PoolSpec(rho=0.5), n_public=900, seed=3, climates=3)
+    mine = pool.leverage_bracket(0.0)
+    rows = np.arange(600)
+    ours = pool.scores(mine)
+    clim = np.arange(900) % 3
+    rng = np.random.default_rng(0)
+    N = 9
+    res = pool.finish(mine, N, rows)
+    first, top, last = [], [], []
+    for _ in range(30):
+        for t in rows:
+            riv = pool.public_picks[clim == t % 3]
+            opp = score_brackets(riv[rng.integers(len(riv), size=N)], pool.winners[t:t + 1], pool.pts)[0]
+            above, ties = (opp > ours[t]).sum(), (opp == ours[t]).sum()
+            first.append(1 / (ties + 1) if above == 0 else 0)
+            last.append(1 / (ties + 1) if (opp < ours[t]).sum() == 0 else 0)
+    assert res["p_first"] == pytest.approx(np.mean(first), abs=0.02)
+    assert res["p_last"] == pytest.approx(np.mean(last), abs=0.02)
+    assert res["p_first"] <= res["p_top10"] + 1e-9
+    w = pool.winning_score(N, rows)
+    assert w["p10"] <= w["median"] <= w["p90"]

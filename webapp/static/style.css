@@ -202,3 +202,10 @@ code { font: 12px ui-monospace, monospace; background: var(--accent-soft); paddi
 .live-kde .shift-row b.off { color: var(--upset); }
 .live-kde .spark { display: block; width: 100%; height: auto; }
 .live-kde.shifted { border: 2px solid var(--upset); box-shadow: 0 0 0 3px var(--upset-soft); padding: 7px 9px 3px; }
+
+/* ---- pool composition ---- */
+.pool-panel { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pool-panel[hidden] { display: none; }
+.mix-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.mix-k { width: 64px; font-weight: 600; text-transform: capitalize; }
+.mix-l { font-size: 11px; }
