@@ -4,13 +4,14 @@
 <h1>Team rankings</h1>
 <p class="lede">Every team's posterior skills turned into expected points per 100 possessions against an average Division I
 opponent on a neutral floor. <b>Overall</b> is the net rating (offense minus defense), <b>Offense</b> ranks points scored
-per 100 possessions, <b>Defense</b> ranks points allowed (lower is better). Intervals are 90% credible intervals. Click a
-team for its full assessment.</p>
+per 100 possessions, <b>Defense</b> ranks points allowed (lower is better). Intervals are 90% credible intervals. During a
+season every team ranked is a current Division I team, and its rating is updated (Bayesian) as soon as each of its games goes
+final; <b>Moved</b> is how far those updates have shifted it this season. Click a team for its full assessment.</p>
 <div class="toolbar">
   <span class="seg" id="by">
     <button data-by="overall" class="on">Overall</button><button data-by="offense">Offense</button><button data-by="defense">Defense</button>
   </span>
-  <label>Season <select id="season">{% for s in seasons|reverse %}<option {{ 'selected' if s == season }}>{{ s }}</option>{% endfor %}</select></label>
+  <label>Season <select id="season">{% for s in seasons|reverse %}<option {{ 'selected' if s == default_season }}>{{ s }}</option>{% endfor %}</select></label>
   <input id="q" placeholder="Filter teams…">
   <label><input type="checkbox" id="field"> Tournament field only</label>
   <span class="muted" id="model"></span>
@@ -27,7 +28,8 @@ team for its full assessment.</p>
   await load();
   async function load() {
     data = await (await fetch(`/api/rankings?season=${$("season").value}`)).json();
-    $("model").textContent = `model: ${data.posterior}`;
+    $("model").textContent = `model: ${data.posterior}` + (data.games_folded_in ?
+      ` · ratings update after every final game (${data.games_folded_in} so far; latest ${new Date(data.last_update).toLocaleDateString()})` : "");
     draw();
   }
   function draw() {
@@ -39,13 +41,15 @@ team for its full assessment.</p>
     const iv = (v, lo, hi) => `${v.toFixed(1)} <span class="muted">[${lo.toFixed(1)}, ${hi.toFixed(1)}]</span>`;
     const hl = (k) => (k === by ? ' class="num sortcol"' : ' class="num"');
     $("t").innerHTML = `<tr><th class="num">#</th><th>Team</th><th${hl("overall")}>Net rating</th><th${hl("offense")}>Offense</th>
-      <th${hl("defense")}>Defense</th><th class="num">Tempo</th><th class="num">Season trend</th><th class="num">Seed</th></tr>` +
+      <th${hl("defense")}>Defense</th><th class="num">Tempo</th><th class="num">Games in</th><th class="num">Moved</th><th class="num">Seed</th></tr>` +
       rows.map((r) => `<tr><td class="num">${r[key]}</td><td><a href="/team/${encodeURIComponent(r.team)}?season=${data.season}">${r.team}</a></td>
         <td${hl("overall")}>${iv(r.net, r.net_lo, r.net_hi)}</td>
         <td${hl("offense")}>${r.ortg.toFixed(1)} <span class="muted">#${r.rank_offense}</span></td>
         <td${hl("defense")}>${r.drtg.toFixed(1)} <span class="muted">#${r.rank_defense}</span></td>
         <td class="num">${r.tempo.toFixed(1)}</td>
-        <td class="num" style="color:${r.trend_lo > 0 ? "var(--win)" : r.trend_hi < 0 ? "var(--upset)" : "inherit"}">${r.trend >= 0 ? "+" : ""}${r.trend.toFixed(1)}</td>
+        <td class="num">${r.games || ""}</td>
+        <td class="num" title="change in net rating from this season's game-by-game Bayesian updates (last game: ${r.last >= 0 ? "+" : ""}${r.last.toFixed(1)})"
+          style="color:${r.moved > 0.05 ? "var(--win)" : r.moved < -0.05 ? "var(--upset)" : "inherit"}">${r.games ? (r.moved >= 0 ? "+" : "") + r.moved.toFixed(1) : ""}</td>
         <td class="num">${r.seed || ""}</td></tr>`).join("");
   }
 })();

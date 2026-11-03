@@ -218,6 +218,38 @@ Division I start at average. In a backtest (fit on November 2025 games, predict 
 learned ρ is 0.67, also the prior's mean, so a month of games barely
 identifies it.
 
+**Ratings update the moment a game is final** (`ncaa/updates.py`). Between
+nightly refits, each team carries a Gaussian belief over its 22 skills. When a
+game goes final, its whole box score updates both teams through the model's
+own likelihood (the same beta-binomial counts, fouls and tempo the fit uses,
+with league-wide parameters at their posterior means). A Laplace
+approximation (Newton to the mode, covariance from the curvature) gives the
+new beliefs. This is assumed-density filtering: the cross-covariance between
+the two teams is dropped, and each update takes under a second.
+
+* On the 2026 final it matches exact importance-sampling updates of the full
+  posterior within Monte Carlo noise.
+* In a backtest (fit through Feb 15, 2026, then fold in each of the next
+  1,240 games after predicting it), next-game log-loss improves from 0.588
+  to 0.584. The gain grows with time since the fit (0.599 → 0.592 more than
+  two weeks out).
+
+Each game is scored in the out-of-sample ledger against the beliefs from
+*before* it, then folded in and logged (`updates.csv`: both teams' rating and
+uncertainty before and after). Updates arrive from three sources, and the
+first one wins:
+
+* `python -m ncaa watch` polls the live scoreboard;
+* any Game or Live page that sees a game go final applies it;
+* the nightly `update` reads the per-game ESPN archive (which updates sooner)
+  and the box-score files.
+
+The nightly refit then resets the beliefs. **Every Division I team is
+ranked** (365 in 2026–27, taken from conference membership in the schedule).
+Renamed programs carry over their ratings (`data.TEAM_ALIASES`). A program
+new to Division I starts at the average of last season's bottom quarter,
+shrunk like everyone else's carry-over, with wide uncertainty.
+
 **Live in-game forecast** (`ncaa/ingame.py`). At each refresh the box score so
 far updates the model in three Bayesian steps:
 

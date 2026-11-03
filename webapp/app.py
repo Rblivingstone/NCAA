@@ -459,10 +459,25 @@ def _season_post(season: int, stamp: float):
     return season_mod.current_posterior(season)
 
 
+def _stamp(season: int) -> float:
+    """Changes whenever the season's model does: a refit, or a game folded into the ratings."""
+    d = model.artifact_dir(season)
+    return max([p.stat().st_mtime for p in (d / "posterior.npz", d / "team_state.npz") if p.exists()] or [0.0])
+
+
 def season_post(season: int):
-    """Latest posterior for a season (re-read when the nightly update rewrites it)."""
-    path = model.artifact_dir(season) / "posterior.npz"
-    return _season_post(season, path.stat().st_mtime if path.exists() else 0.0)
+    """The season's model as of now (re-read after a refit or a game update)."""
+    return _season_post(season, _stamp(season))
+
+
+def _maybe_apply_final(season: int, state) -> None:
+    """A game the live feed shows as final updates the ratings straight away."""
+    if season == LIVE_SEASON and state.status == "post":
+        try:
+            with _lock:
+                season_mod.apply_live_final(season, state, log=lambda *_: None)
+        except Exception as e:  # never let a rating update break the page
+            app.logger.warning("could not apply final for %s: %s", state.game_id, e)
 
 
 @app.route("/season")
@@ -601,6 +616,7 @@ def api_live_game():
         else:
             season = int(request.args.get("season", LIVE_SEASON))
             state = _espn.game(gid)
+            _maybe_apply_final(season, state)
             timeline = None
     except Exception as e:
         return jsonify({"error": f"could not load game {gid}: {e}"}), 502
@@ -676,13 +692,13 @@ def _ratings(season: int, stamp: float):
 
 
 def ratings_for(season: int):
-    path = model.artifact_dir(season) / "posterior.npz"
-    return _ratings(season, path.stat().st_mtime if path.exists() else 0.0)
+    return _ratings(season, _stamp(season))
 
 
 @app.route("/rankings")
 def rankings_page():
-    return render_template("rankings.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="rankings")
+    return render_template("rankings.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="rankings",
+                           default_season=int(request.args.get("season", LIVE_SEASON)))
 
 
 @app.route("/teams")
@@ -696,14 +712,27 @@ def api_rankings():
     """Teams ranked by overall (net), offense (ORtg) or defense (DRtg)."""
     season = int(request.args.get("season", SEASON))
     rows, label = ratings_for(season)
-    rows = [r for r in rows if r["team"] != "Non-D1"]
+    d1 = set(data.d1_teams(season))
+    rows = [r for r in rows if r["team"] != "Non-D1" and (not d1 or r["team"] in d1)]
+    # How far each team has moved through this season's game-by-game updates.
+    up = season_mod.load_updates(season)
+    moved = {}
+    if len(up):
+        for t, g in up.groupby("team"):
+            g = g.sort_values("date")
+            moved[t] = {"games": len(g), "moved": float(g.net_after.iloc[-1] - g.net_before.iloc[0]),
+                        "last": float(g.net_after.iloc[-1] - g.net_before.iloc[-1]), "last_date": g.date.iloc[-1]}
+    rows = [dict(r, **moved.get(r["team"], {"games": 0, "moved": 0.0, "last": 0.0, "last_date": None})) for r in rows]
     rank = {}
     for key, rev in (("net", True), ("ortg", True), ("drtg", False)):
         for i, r in enumerate(sorted(rows, key=lambda r: r[key], reverse=rev), 1):
             rank.setdefault(r["team"], {})[key] = i
     out = [dict(r, rank_overall=rank[r["team"]]["net"], rank_offense=rank[r["team"]]["ortg"],
                 rank_defense=rank[r["team"]]["drtg"]) for r in rows]
-    return jsonify({"season": season, "posterior": label, "teams": out})
+    st_path = model.artifact_dir(season) / "status.json"
+    status = json.loads(st_path.read_text()) if st_path.exists() else {}
+    return jsonify({"season": season, "posterior": label, "teams": out, "games_folded_in": len(up) // 2 if len(up) else 0,
+                    "last_update": max(moved[t]["last_date"] for t in moved) if moved else status.get("updated")})
 
 
 @app.route("/team/<path:name>")
@@ -730,6 +759,8 @@ def api_team():
     tempo = teams_mod.tempo_note(post, name)
     hist = season_mod.load_ratings_history(season)
     hist = hist[hist.team == name].to_dict("records") if len(hist) else []
+    up = season_mod.load_updates(season)
+    per_game = up[up.team == name].sort_values("date").to_dict("records") if len(up) else []
     # Games: results (with the out-of-sample pre-game forecast when the ledger has it) and upcoming.
     sched = data.load_schedule(season)
     games = []
@@ -749,7 +780,7 @@ def api_team():
                     "assessment": teams_mod.assessment(profile, styles, rating, tempo),
                     "profile": profile, "styles": styles, "tempo": tempo,
                     "form": teams_mod.form_history(post, name, _end_of_data(season)),
-                    "history": hist, "games": games})
+                    "history": hist, "updates": per_game, "games": games})
 
 
 @app.route("/games")
@@ -848,6 +879,7 @@ def api_game():
         if row.date - pd.Timedelta(hours=1) <= now <= row.date + pd.Timedelta(hours=4):
             try:
                 live = _espn.game(gid)
+                _maybe_apply_final(season, live)
                 if live.status == "in":
                     kind, state_ = "live", live
             except Exception as e:

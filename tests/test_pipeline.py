@@ -452,3 +452,55 @@ def test_team_analysis_is_zero_for_an_average_team(post):
     strong = post.teams[0]                                     # synthetic best shooter
     prof = {(r["side"], r["stat"]): r for r in skill_profile(post, strong)}
     assert prof[("off", "p2")]["impact"] > 0 and prof[("def", "p2")]["impact"] > 0
+
+
+def test_laplace_update_moves_ratings_the_right_way(post):
+    from ncaa.updates import init_state, laplace_update, net_rating
+
+    st = init_state(post, "synthetic")
+    st.cov *= 25.0                               # the synthetic posterior is very tight; give the prior room to move
+    a, b = post.teams[30], post.teams[31]
+    before = [net_rating(st, post, t) for t in (a, b)]
+    hot = {"pts": 100, "fgm": 38, "fga": 60, "fg3m": 12, "fg3a": 25, "ftm": 12, "fta": 15, "oreb": 14,
+           "dreb": 30, "tov": 6, "ast": 24, "stl": 9, "blk": 6, "pf": 12}
+    cold = {"pts": 55, "fgm": 20, "fga": 66, "fg3m": 3, "fg3a": 24, "ftm": 12, "fta": 16, "oreb": 6,
+            "dreb": 20, "tov": 18, "ast": 8, "stl": 3, "blk": 1, "pf": 18}
+    laplace_update(st, post, a, b, 0.0, hot, cold, 40.0)
+    after = [net_rating(st, post, t) for t in (a, b)]
+    assert after[0][0] > before[0][0] + 0.5 and after[1][0] < before[1][0] - 0.5   # winner up, loser down
+    assert after[0][1] < before[0][1] and after[1][1] < before[1][1]               # both less uncertain
+
+
+def test_live_final_is_scored_then_applied_once(tmp_path, monkeypatch):
+    import json
+    import shutil
+    from pathlib import Path
+
+    from ncaa import model, season
+    from ncaa.live import parse_summary
+    from ncaa.updates import load_updates
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2026").mkdir()
+    for f in ("posterior.npz", "teams.json"):
+        shutil.copy(real / f, tmp_path / "2026" / f)
+    final = parse_summary(json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text()))
+    assert season.apply_live_final(2026, final, log=lambda *_: None) == 1
+    up = load_updates(2026)
+    assert set(up.team) == {"Michigan", "UConn"} and len(up) == 2
+    led = season.load_ledger(2026)
+    assert len(led) == 1 and 0.5 < led.p_home.iloc[0] < 0.9      # the pre-game forecast, logged before updating
+    assert season.apply_live_final(2026, final, log=lambda *_: None) == 0   # never applied twice
+
+    class Feed:  # the watch loop picks finals off the scoreboard
+        def scoreboard(self, date):
+            return [{"game_id": final.game_id, "status": "post"}]
+
+        def game(self, gid):
+            return final
+
+    season.watch(2026, every=0, log=lambda *_: None, feed=Feed(), rounds=1)
+    assert len(load_updates(2026)) == 2

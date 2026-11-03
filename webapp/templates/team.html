@@ -48,14 +48,23 @@
     const W = 520, H = 190, padL = 40, pad = 22;
     const pts = f.map((p) => ({ t: new Date(p.date).getTime(), v: d.rating.net + p.net, lo: d.rating.net + p.net_lo, hi: d.rating.net + p.net_hi }));
     const hp = hist.map((p) => ({ t: new Date(p.date).getTime(), v: p.net, lo: p.net_lo, hi: p.net_hi }));
-    const all = pts.concat(hp);
+    // Every game's Bayesian update: the rating before the first game, then after each one (±1.645 sd).
+    const ups = d.updates || [];
+    const gp = ups.length ? [{ t: new Date(ups[0].date).getTime() - 864e5, v: ups[0].net_before, lo: ups[0].net_before - 1.645 * ups[0].sd_before,
+      hi: ups[0].net_before + 1.645 * ups[0].sd_before, label: "start" }].concat(ups.map((u) => ({ t: new Date(u.date).getTime(), v: u.net_after,
+      lo: u.net_after - 1.645 * u.sd_after, hi: u.net_after + 1.645 * u.sd_after, label: `${u.pts > u.opp_pts ? "W" : "L"} ${u.pts}–${u.opp_pts} vs ${u.opponent}` }))) : [];
+    const all = (gp.length ? gp : pts).concat(hp);
     if (!all.length) return `<div class="muted">No history yet.</div>`;
     const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t), t0 + 864e5);
     const v0 = Math.min(...all.map((p) => p.lo)) - 1, v1 = Math.max(...all.map((p) => p.hi)) + 1;
     const x = (t) => padL + (t - t0) / (t1 - t0) * (W - padL - pad), y = (v) => H - pad - (v - v0) / (v1 - v0) * (H - 2 * pad);
     let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="team strength over time">`;
     for (const v of [v0 + 1, (v0 + v1) / 2, v1 - 1]) s += `<line x1="${padL}" x2="${W - pad}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${padL - 4}" y="${y(v) + 3}" text-anchor="end">${v.toFixed(0)}</text>`;
-    if (pts.length > 1) {
+    if (gp.length) {
+      s += `<path d="M${gp.map((p) => `${x(p.t)},${y(p.hi)}`).join("L")}L${gp.slice().reverse().map((p) => `${x(p.t)},${y(p.lo)}`).join("L")}Z" fill="var(--accent-soft)"/>`;
+      s += `<polyline points="${gp.map((p) => `${x(p.t)},${y(p.v)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+      s += gp.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.v)}" r="4" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"><title>${p.label}: ${p.v.toFixed(1)}</title></circle>`).join("");
+    } else if (pts.length > 1) {
       s += `<path d="M${pts.map((p) => `${x(p.t)},${y(p.hi)}`).join("L")}L${pts.slice().reverse().map((p) => `${x(p.t)},${y(p.lo)}`).join("L")}Z" fill="var(--accent-soft)"/>`;
       s += `<polyline points="${pts.map((p) => `${x(p.t)},${y(p.v)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
     }
@@ -63,8 +72,11 @@
       <circle cx="${x(p.t)}" cy="${y(p.v)}" r="3.5" fill="var(--ink)"/>`).join("");
     const fmt = (t) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
     s += `<text x="${padL}" y="${H - 6}">${fmt(t0)}</text><text x="${W - pad}" y="${H - 6}" text-anchor="end">${fmt(t1)}</text></svg>`;
-    return s + `<div class="muted">Blue: net rating through the season implied by the model's two-week form (shaded: approximate 90% band).
-      ${hp.length ? "Dots: the rating each nightly fit gave, with 90% intervals." : "Nightly snapshots appear here once the season is being updated."}</div>`;
+    return s + (gp.length
+      ? `<div class="muted">Blue: the net rating after each game's Bayesian update (shaded: 90% interval), starting from the season's
+          prior; hover a point for the game. ${hp.length ? "Black: the nightly snapshots." : ""}</div>`
+      : `<div class="muted">Blue: net rating through the season implied by the model's two-week form (shaded: approximate 90% band).
+          ${hp.length ? "Dots: the rating each nightly fit gave, with 90% intervals." : "Nightly snapshots appear here once the season is being updated."}</div>`);
   }
 
   function styleChart(styles) {

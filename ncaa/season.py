@@ -42,14 +42,59 @@ def load_ledger(season: int) -> pd.DataFrame:
     return pd.read_csv(path, parse_dates=["date"])
 
 
-def current_posterior(season: int) -> tuple[model.Posterior | None, str]:
-    """This season's latest fit, else a preseason posterior from last season's, else None."""
+def base_posterior(season: int) -> tuple[model.Posterior | None, str]:
+    """This season's latest full fit, else a preseason posterior from last season's, else None."""
     if (model.artifact_dir(season) / "posterior.npz").exists():
         return model.load_posterior(season), f"{season} fit"
     if (model.artifact_dir(season - 1) / "posterior.npz").exists():
         prev = model.load_posterior(season - 1)
-        return model.preseason_posterior(prev), f"{season} preseason (from {season - 1})"
+        teams = sorted(set(data.d1_teams(season)) | ({"Non-D1"} & set(prev.teams))) or None
+        return model.preseason_posterior(prev, teams), f"{season} preseason (from {season - 1})"
     return None, "none"
+
+
+def _prior_dir(season: int):
+    """The artifacts holding the population skill spread (this season's fit, else last season's)."""
+    here = model.artifact_dir(season)
+    return here if (here / "posterior.npz").exists() else model.artifact_dir(season - 1)
+
+
+def current_state(season: int, create: bool = True):
+    """The running per-team beliefs, started from the base posterior and covering every D1 team."""
+    from .updates import init_state, load_state, population_cov, save_state
+
+    st = load_state(season)
+    if st is not None or not create:
+        return st
+    base, label = base_posterior(season)
+    if base is None:
+        return None
+    st = init_state(base, label, teams=data.d1_teams(season), prior_cov=population_cov(_prior_dir(season)))
+    fitted = data.load_games(season)
+    if "fit" in label and len(fitted):         # a full fit has seen the games it was fit to (not the tournament)
+        st.applied = [int(g) for g in fitted.game_id.unique()]
+    save_state(season, st)
+    return st
+
+
+def current_posterior(season: int) -> tuple[model.Posterior | None, str]:
+    """The model as of now: the base posterior with every game since folded in by Bayesian updates."""
+    from .updates import state_posterior
+
+    base, label = base_posterior(season)
+    if base is None:
+        return None, "none"
+    ups = load_updates(season)
+    st = current_state(season, create=False)
+    if st is None or not len(ups):          # nothing folded in since the base: use it as is
+        return base, label
+    return state_posterior(st, base), f"{label}, updated after {len(ups) // 2} games"
+
+
+def load_updates(season: int):
+    from .updates import load_updates as _lu
+
+    return _lu(season)
 
 
 def _completed_games(season: int) -> pd.DataFrame:
@@ -63,6 +108,149 @@ def _completed_games(season: int) -> pd.DataFrame:
         return g
     return g[(g.home >= 0)].sort_values(["date", "game_id", "home"], ascending=[True, True, False]) \
         .drop_duplicates("game_id")
+
+
+def _pair_posterior(st, base, a: str, b: str, seed: int):
+    """Current beliefs about just two teams, as a Posterior (fast forecasts for one game)."""
+    import dataclasses
+
+    from .updates import state_posterior
+
+    ia, ib = st.index(a), st.index(b)
+    sub = dataclasses.replace(st, teams=[a, b], mean=st.mean[[ia, ib]], cov=st.cov[[ia, ib]])
+    return state_posterior(sub, base, seed=seed)
+
+
+def _canonical(team: str, st) -> str | None:
+    """The model's name for a team (non-D1 opponents share one pseudo-team)."""
+    if team in st.teams:
+        return team
+    return "Non-D1" if "Non-D1" in st.teams else None
+
+
+def process_final(season: int, games: pd.DataFrame, source: str, n: int = 2000, log=print) -> int:
+    """For each finished game not yet seen, in date order: score it in the ledger against the
+    beliefs held *before* it, then fold it into those beliefs.  Returns how many were applied."""
+    from .updates import apply_game, minutes_played, population_cov, save_state
+
+    st = current_state(season)
+    base, label = base_posterior(season)
+    if st is None or base is None or not len(games):
+        return 0
+    prior_cov = population_cov(_prior_dir(season))
+    ledger = load_ledger(season)
+    seen = set(st.applied) | set(ledger.game_id.astype(int)) if len(ledger) else set(st.applied)
+    new = games[~games.game_id.isin(st.applied)].sort_values("date")
+    d1 = set(data.d1_teams(season))
+    rows, applied = [], 0
+    for k, r in enumerate(new.itertuples()):
+        a, b = (r.team if r.team in d1 or r.team in st.teams else _canonical(r.team, st)), \
+               (r.opponent if r.opponent in d1 or r.opponent in st.teams else _canonical(r.opponent, st))
+        if a is None or b is None or a == b:
+            continue
+        for t in (a, b):
+            if t not in st.teams:
+                st.add_team(t, prior_cov)
+        home = int(r.home)
+        if int(r.game_id) not in seen:
+            pair = _pair_posterior(st, base, a, b, seed=k)
+            u = game_unusualness(pair, 0, 1, home, r, n=n, seed=k)
+            p_first = u["p_winner"] if r.pts > r.opp_pts else 1 - u["p_winner"]
+            rows.append({"game_id": int(r.game_id), "date": r.date, "home": a, "away": b, "neutral": home == 0,
+                         "kind": getattr(r, "kind", "regular season"), "home_pts": int(r.pts), "away_pts": int(r.opp_pts),
+                         "p_home": p_first, "pred_margin": np.nan, "margin_percentile": u["margin_percentile"],
+                         "unusualness": u["p_value"],
+                         "drivers": "; ".join(f"{[a, b][d['team'] == 'b']} {d['stat']}" for d in u["drivers"]
+                                              if d["share"] > 0.1),
+                         "model": f"{label} + updates"})
+        box_a = {s_: int(getattr(r, s_)) for s_ in LIVE_BOX}
+        box_b = {s_: int(getattr(r, "opp_" + s_)) for s_ in LIVE_BOX}
+        apply_game(season, st, base, int(r.game_id), r.date, a, b, home, box_a, box_b,
+                   minutes_played(getattr(r, "ot", 0)), prior_cov, source)
+        applied += 1
+    if rows:
+        ledger = pd.concat([ledger, pd.DataFrame(rows)], ignore_index=True)
+        ledger_path(season).parent.mkdir(parents=True, exist_ok=True)
+        ledger.to_csv(ledger_path(season), index=False)
+    if applied:
+        save_state(season, st)
+        record_ratings(season)
+        log(f"applied Bayesian updates for {applied} finished games ({source})")
+    return applied
+
+
+LIVE_BOX = ["pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "tov", "ast", "stl", "blk", "pf"]
+
+
+def live_final_row(season: int, state) -> pd.DataFrame:
+    """A finished game from the live feed, in the same shape as the nightly box-score rows."""
+    sched = data.load_schedule(season)
+    row = sched[sched.game_id == state.game_id]
+    date = row.date.iloc[0] if len(row) else pd.Timestamp.now(tz="UTC")
+    h, a = state.teams
+    rec = {"game_id": state.game_id, "date": date, "team": h, "opponent": a, "home": 0 if state.neutral else 1,
+           "ot": max(state.period - 2, 0), "kind": "regular season"}
+    for s_ in LIVE_BOX:
+        rec[s_], rec["opp_" + s_] = state.box[h][s_], state.box[a][s_]
+    return pd.DataFrame([rec])
+
+
+def apply_live_final(season: int, state, log=print) -> int:
+    """Fold a game into the ratings the moment the live feed reports it final."""
+    if state.status != "post" or not state.box:
+        return 0
+    return process_final(season, live_final_row(season, state), source="live feed", log=log)
+
+
+def apply_archived_finals(season: int, log=print, feed=None) -> int:
+    """Finished games the schedule knows about but the nightly box scores don't have yet:
+    take each game's final box score from the per-game ESPN archive (which updates sooner)."""
+    from .live import ReplayFeed
+
+    sched = data.load_schedule(season)
+    st = current_state(season)
+    if not len(sched) or st is None:
+        return 0
+    done = set(st.applied)
+    todo = sched[sched.completed & ~sched.game_id.isin(done)].sort_values("date")
+    feed = feed or ReplayFeed()
+    n = 0
+    for gid in todo.game_id:
+        try:
+            final = feed.game(int(gid), 999)
+        except Exception:            # not archived yet: the next run will pick it up
+            continue
+        if final.status == "post" and final.box and all(final.box[t]["fga"] for t in final.teams):
+            n += process_final(season, live_final_row(season, final), source="game archive", log=lambda *_: None)
+    if n:
+        log(f"applied {n} finished games from the game archive")
+    return n
+
+
+def watch(season: int, every: int = 120, log=print, feed=None, rounds: int | None = None) -> None:
+    """Poll the live scoreboard and apply each game's update as soon as it goes final."""
+    from .live import ESPNFeed
+
+    feed = feed or ESPNFeed()
+    done = 0
+    while rounds is None or done < rounds:
+        today = pd.Timestamp.now(tz="America/New_York")
+        for day in (today - pd.Timedelta(days=1), today):
+            try:
+                games = feed.scoreboard(day.strftime("%Y%m%d"))
+            except Exception as e:  # keep watching through feed hiccups
+                log(f"scoreboard unavailable: {e}")
+                games = []
+            st = current_state(season)
+            for g in games:
+                if g["status"] == "post" and st is not None and g["game_id"] not in st.applied:
+                    try:
+                        apply_live_final(season, feed.game(g["game_id"]), log=log)
+                    except Exception as e:
+                        log(f"could not apply game {g['game_id']}: {e}")
+        done += 1
+        if rounds is None or done < rounds:
+            time.sleep(every)
 
 
 def score_new_games(season: int, post: model.Posterior, label: str, n: int = 2000) -> pd.DataFrame:
@@ -100,16 +288,18 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         games, bracket = data.fetch(season)
         log(f"fetched {season}: {games.game_id.nunique() if len(games) else 0} games so far"
             f"{'; tournament field set' if bracket else ''}")
-    post, label = current_posterior(season)
-    if post is None:
+    base, label = base_posterior(season)
+    if base is None:
         raise RuntimeError(f"no posterior for {season} or {season - 1}: run `python -m ncaa build --season {season - 1}`")
     before = len(load_ledger(season))
-    ledger = score_new_games(season, post, label)
-    log(f"scored {len(ledger) - before} new games with the {label} posterior")
+    process_final(season, _completed_games(season), source="nightly box scores", log=log)
+    apply_archived_finals(season, log=log)
+    ledger = load_ledger(season)
+    log(f"scored {len(ledger) - before} new games out of sample")
 
     games = data.load_games(season)
     status = {"season": season, "updated": pd.Timestamp.now(tz="UTC").isoformat(), "games": int(games.game_id.nunique()) if len(games) else 0,
-              "scored": len(ledger), "posterior": label}
+              "scored": len(ledger), "posterior": current_posterior(season)[1]}
     if refit != "none" and len(games) and games.game_id.nunique() >= 25:
         prev = model.load_posterior(season - 1) if (model.artifact_dir(season - 1) / "posterior.npz").exists() else None
         model.fit(games, season, method=refit, prior=prev, progress=False)
@@ -122,6 +312,10 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         model.add_to_posterior(season, lead_beta=beta)
         status["posterior"] = f"{season} fit ({refit})"
         log(f"refit {season} with {refit}")
+        # The fit has seen every game so far: restart the running beliefs from it.
+        from .updates import state_path
+        state_path(season).unlink(missing_ok=True)
+        current_state(season)
     record_ratings(season)
     status["seconds"] = round(time.time() - t0)
     (model.artifact_dir(season)).mkdir(parents=True, exist_ok=True)
