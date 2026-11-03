@@ -177,6 +177,11 @@ def _pair_posterior(st, base, a: str, b: str, seed: int):
     return state_posterior(sub, base, seed=seed)
 
 
+def _canonical_pooled(team: str, st) -> str | None:
+    """A non-D1 school's name in the two-sided update: the pooled pseudo-team."""
+    return data.OTHER_TEAM if data.OTHER_TEAM in st.teams else (team if team in st.teams else None)
+
+
 def _canonical(team: str, st) -> str | None:
     """The model's name for a team (non-D1 opponents share one pseudo-team)."""
     if team in st.teams:
@@ -201,7 +206,7 @@ def process_final(season: int, games: pd.DataFrame, source: str, n: int = 2000, 
 
 
 def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -> int:
-    from .updates import apply_game, minutes_played, population_cov, save_state
+    from .updates import apply_game, apply_one_sided, minutes_played, population_cov, save_state
 
     st = current_state(season)
     base, label = base_posterior(season)
@@ -214,8 +219,9 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
     d1 = set(data.d1_teams(season))
     rows, applied = [], 0
     for k, r in enumerate(new.itertuples()):
-        a, b = (r.team if r.team in d1 or r.team in st.teams else _canonical(r.team, st)), \
-               (r.opponent if r.opponent in d1 or r.opponent in st.teams else _canonical(r.opponent, st))
+        # The two-sided update always uses the pooled non-D1 team (a school's own rating is updated separately).
+        name = lambda t: t if (t in d1 if d1 else t in st.teams) else _canonical_pooled(t, st)
+        a, b = name(r.team), name(r.opponent)
         if a is None or b is None or a == b:
             continue
         for t in (a, b):
@@ -223,10 +229,15 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
                 st.add_team(t, prior_cov)
         home = int(r.home)
         if int(r.game_id) not in seen:
-            pair = _pair_posterior(st, base, a, b, seed=k)
+            # Forecast with the best pre-game belief: a school's own rating once it has one.
+            fa = r.team if a == data.OTHER_TEAM and r.team in st.teams else a
+            fb = r.opponent if b == data.OTHER_TEAM and r.opponent in st.teams else b
+            pair = _pair_posterior(st, base, fa, fb, seed=k)
             u = game_unusualness(pair, 0, 1, home, r, n=n, seed=k)
             p_first = u["p_winner"] if r.pts > r.opp_pts else 1 - u["p_winner"]
-            rows.append({"game_id": int(r.game_id), "date": r.date, "home": a, "away": b, "neutral": home == 0,
+            show_a = r.team if a == data.OTHER_TEAM else a            # the school's own name, not the pool
+            show_b = r.opponent if b == data.OTHER_TEAM else b
+            rows.append({"game_id": int(r.game_id), "date": r.date, "home": show_a, "away": show_b, "neutral": home == 0,
                          "kind": getattr(r, "kind", "regular season"), "home_pts": int(r.pts), "away_pts": int(r.opp_pts),
                          "p_home": p_first, "pred_margin": np.nan, "margin_percentile": u["margin_percentile"],
                          "unusualness": u["p_value"],
@@ -235,6 +246,13 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
                          "model": f"{label} + updates"})
         box_a = {s_: int(getattr(r, s_)) for s_ in LIVE_BOX}
         box_b = {s_: int(getattr(r, "opp_" + s_)) for s_ in LIVE_BOX}
+        # A named non-D1 school also gets its own rating, updated against the D1 team's pre-game belief.
+        for school, opp, h, bs, bo in ((r.team, b, home, box_a, box_b), (r.opponent, a, -home, box_b, box_a)):
+            if school not in d1 and school != data.OTHER_TEAM and opp in d1:
+                try:
+                    apply_one_sided(st, base, school, opp, h, bs, bo, minutes_played(getattr(r, "ot", 0)), prior_cov)
+                except Exception as e:     # never block the D1 update over it
+                    log(f"could not update {school}'s own rating: {e}")
         apply_game(season, st, base, int(r.game_id), r.date, a, b, home, box_a, box_b,
                    minutes_played(getattr(r, "ot", 0)), prior_cov, source)
         applied += 1
@@ -372,10 +390,22 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         status["posterior"] = f"{season} fit ({refit})"
         log(f"refit {season} with {refit}")
         # The fit has seen every game so far: restart the running beliefs from it.
-        from .updates import state_path
+        from .updates import load_state, save_state, state_path
         with season_lock(season):
+            old = load_state(season)
             state_path(season).unlink(missing_ok=True)
-            current_state(season)
+            st = current_state(season)
+            # The fit pools non-D1 opponents into one team; keep each school's own rating from before it.
+            d1 = set(data.d1_teams(season))
+            if old is not None and st is not None:
+                kept = 0
+                for t in old.teams:
+                    if t not in st.teams and t not in d1 and t != data.OTHER_TEAM:
+                        i = st.add_team(t, old.cov[old.index(t)])
+                        st.mean[i] = old.mean[old.index(t)]
+                        kept += 1
+                if kept:
+                    save_state(season, st)
     record_ratings(season)
     status["seconds"] = round(time.time() - t0)
     (model.artifact_dir(season)).mkdir(parents=True, exist_ok=True)
@@ -395,9 +425,12 @@ def record_ratings(season: int) -> None:
     if post is None:
         return
     today = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d")
+    d1 = set(data.d1_teams(season))
+    rated = [r for r in team_ratings(post) if r["team"] != data.OTHER_TEAM and (not d1 or r["team"] in d1)]
+    rated.sort(key=lambda r: -r["net"])
     rows = pd.DataFrame([{"date": today, "team": r["team"], "net": r["net"], "net_lo": r["net_lo"], "net_hi": r["net_hi"],
-                          "ortg": r["ortg"], "drtg": r["drtg"], "rank": r["rank"], "model": label}
-                         for r in team_ratings(post)])
+                          "ortg": r["ortg"], "drtg": r["drtg"], "rank": k, "model": label}
+                         for k, r in enumerate(rated, 1)])
     path = ratings_history_path(season)
     if path.exists():
         old = pd.read_csv(path)

@@ -281,6 +281,22 @@ Either way the team gets the full spread between teams as its uncertainty,
 since nothing says where it ranks in its group. This applies to the preseason
 prior, live forecasts, win-probability histories and upcoming-game forecasts.
 
+Those priors are only starting points. Every finished game moves them:
+
+* **D1 teams** are updated after each game (the Bayesian per-game update)
+  and re-estimated by every nightly refit.
+* **Non-D1 schools** each get their own rating, starting at the pooled
+  non-D1 average and updated by their own games against D1 teams, holding
+  the D1 opponent at its pre-game belief. The D1 side of the game still
+  updates against the pool, so no game is counted twice. A school's rating
+  is kept across nightly refits, since the fit itself pools non-D1
+  opponents. Its later forecasts and ledger entries use its own rating.
+
+Which teams count as Division I comes from conference membership in the
+schedule, in the fit as well as in the rankings. Before, the fit pooled any
+team with fewer than 8 games, which early in a season is nearly every D1
+team.
+
 **Live in-game forecast** (`ncaa/ingame.py`). At each refresh the box score so
 far updates the model in three Bayesian steps:
 

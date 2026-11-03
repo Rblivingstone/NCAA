@@ -244,6 +244,25 @@ def apply_game(season: int, st: TeamState, base: Posterior, game_id: int, date, 
     return {t: {"before": before[t], "after": after[t]} for t in (a, b)}
 
 
+def apply_one_sided(st: TeamState, base: Posterior, school: str, opp: str, home: float, box_school: dict,
+                    box_opp: dict, minutes: float, prior_cov: np.ndarray, pooled: str = "Non-D1") -> None:
+    """Update a non-D1 school's own belief from a game against a D1 team, holding the D1 team at its
+    pre-game belief. (The same game updates the D1 team through the pooled non-D1 rating, so it is not
+    counted twice for the D1 team.) A school seen for the first time starts at the pooled non-D1 rating,
+    the average of the non-D1 opponents played, with the between-team spread as its uncertainty."""
+    if school not in st.teams:
+        i = st.add_team(school, prior_cov)
+        if pooled in st.teams:
+            st.mean[i] = st.mean[st.index(pooled)]
+    j = st.index(opp)
+    keep_m, keep_c = st.mean[j].copy(), st.cov[j].copy()
+    st.cov[j] = keep_c * 1e-4 + 1e-10 * np.eye(D)          # opponent effectively fixed
+    try:
+        laplace_update(st, base, school, opp, home, box_school, box_opp, minutes)
+    finally:
+        st.mean[j], st.cov[j] = keep_m, keep_c
+
+
 def updates_path(season: int):
     return model.artifact_dir(season) / "updates.csv"
 

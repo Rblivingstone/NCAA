@@ -26,7 +26,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # ESPN tournament id for the NCAA men's tournament.
 NCAA_TOURNAMENT_ID = 22
-# Teams with fewer games than this (non-D1 opponents) are pooled into one team.
+# Without conference data, teams with fewer games than this (non-D1 opponents) are pooled into one team.
 MIN_GAMES = 8
 OTHER_TEAM = "Non-D1"
 
@@ -77,6 +77,18 @@ def fetch_raw(season: int) -> tuple[pd.DataFrame, pd.DataFrame]:
         box = pd.DataFrame(columns=["game_id", "game_date_time", "team_id", "team_location", "team_home_away",
                                     "opponent_team_id"] + list(BOX_COLUMNS))
     return box, sched
+
+
+def _non_d1(df: pd.DataFrame, sched: pd.DataFrame) -> set:
+    """Teams in ``df`` that are not Division I."""
+    cols = {"home_location", "home_conference_id", "away_location", "away_conference_id"}
+    if cols <= set(sched.columns):
+        s = sched.reset_index() if "game_id" not in sched.columns else sched
+        d1 = set(s.loc[s.home_conference_id.notna(), "home_location"]) | set(s.loc[s.away_conference_id.notna(), "away_location"])
+        if len(d1) >= 100:                      # a usable conference list
+            return set(df.team.unique()) - d1
+    counts = df.team.value_counts()
+    return set(counts[counts < MIN_GAMES].index)
 
 
 def build_schedule(sched: pd.DataFrame) -> pd.DataFrame:
@@ -157,9 +169,10 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
             + ["opp_" + c for c in BOX_COLUMNS.values()]
         return df[cols].sort_values(["date", "game_id", "team"]).reset_index(drop=True)
 
-    # Pool rarely-seen (non-D1) teams into a single pseudo-team.
-    counts = df.team.value_counts()
-    rare = set(counts[counts < MIN_GAMES].index)
+    # Pool non-D1 opponents into a single pseudo-team. Membership comes from the schedule's conferences (every
+    # D1 team has one, so early in a season a D1 team with only a few games is never pooled); without
+    # conference data, fall back to pooling teams seen fewer than MIN_GAMES times.
+    rare = _non_d1(df, sched)
     df.loc[df.team.isin(rare), "team"] = OTHER_TEAM
     df.loc[df.opponent.isin(rare), "opponent"] = OTHER_TEAM
     df = df[~((df.team == OTHER_TEAM) & (df.opponent == OTHER_TEAM))]

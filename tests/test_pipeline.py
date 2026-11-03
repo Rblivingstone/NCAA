@@ -660,3 +660,52 @@ def test_espn_pregame_forecast_goes_in_the_ledger(tmp_path, monkeypatch):
     assert led.loc[401856600, "espn_checked"] and not led.loc[1, "espn_checked"]  # retried later
     season.fill_espn(2026, feed=Feed(), log=lambda *_: None)
     assert Feed.calls == 3                                                       # the recorded game isn't fetched again
+
+
+def test_non_d1_school_gets_its_own_rating_that_moves_with_its_games(tmp_path, monkeypatch):
+    """A non-D1 school starts at the pooled non-D1 rating and drifts with its own results; the D1 side of
+    the game updates exactly as before (against the pool), so nothing is counted twice."""
+    import json
+    import shutil
+    from pathlib import Path
+
+    import pandas as pd
+
+    from ncaa import season
+    from ncaa.live import parse_summary
+    from ncaa.updates import net_rating
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    final = parse_summary(json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text()))
+
+    def run(tmp, school):
+        monkeypatch.setattr(model, "ARTIFACTS", tmp)
+        (tmp / "2026").mkdir(parents=True)
+        for f in ("posterior.npz", "teams.json"):
+            shutil.copy(real / f, tmp / "2026" / f)
+        rows = []
+        for k in range(3):                        # three close losses to Michigan
+            rec = {"game_id": 900 + k, "date": pd.Timestamp("2026-04-07", tz="UTC") + pd.Timedelta(days=k),
+                   "team": "Michigan", "opponent": school, "home": 1, "ot": 0, "kind": "regular season"}
+            for s_ in season.LIVE_BOX:
+                rec[s_], rec["opp_" + s_] = final.box["Michigan"][s_], final.box["UConn"][s_]
+            rows.append(rec)
+        season.process_final(2026, pd.DataFrame(rows), source="test", log=lambda *_: None)
+        return season.current_state(2026, create=False)
+
+    st = run(tmp_path / "named", "Tiny College")
+    base, _ = season.base_posterior(2026)
+    assert "Tiny College" in st.teams
+    pooled0 = net_rating(season.current_state(2026, create=False), base, "Non-D1")
+    tiny = net_rating(st, base, "Tiny College")
+    led = season.load_ledger(2026)
+    assert list(led.away) == ["Tiny College"] * 3                       # the school's name, not the pool
+    assert led.p_home.iloc[2] < led.p_home.iloc[0]                       # later forecasts use its own rating
+
+    pooled_only = run(tmp_path / "pooled", "Non-D1")                     # the same games, played as the pool
+    i, j = st.index("Michigan"), pooled_only.index("Michigan")
+    assert np.allclose(st.mean[i], pooled_only.mean[j]) and np.allclose(st.mean[st.index("Non-D1")],
+                                                                        pooled_only.mean[pooled_only.index("Non-D1")])
+    assert tiny[0] > pooled0[0] + 10                                     # well above the pool after 3 close games
