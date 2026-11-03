@@ -392,6 +392,41 @@ Then open http://127.0.0.1:5000:
 Set `NCAA_SEASON` to serve a different season for the bracket pages and
 `NCAA_LIVE_SEASON` (default 2027) for the season and live pages.
 
+## Deploying to a VPS (Docker, HTTPS on your domain)
+
+Everything runs from `docker-compose.yml`: **web** (gunicorn serving the Flask app), **worker** (the first build, the
+live-game watcher and the nightly update) and **caddy** (reverse proxy that gets and renews a Let's Encrypt certificate
+for your domain). Models, ledgers and team ratings live in `./artifacts` and the data cache in `./data` on the host, so
+they survive rebuilds.
+
+1. Point your domain's DNS **A** record (and AAAA, if the server has IPv6) at the VPS. Ports 80 and 443 must be open.
+2. On the VPS (Ubuntu or Debian, 2+ vCPUs and 4 GB RAM recommended):
+
+   ```bash
+   git clone https://github.com/Rblivingstone/NCAA.git /opt/ncaa && cd /opt/ncaa
+   sudo ./deploy/deploy.sh ncaa.example.com you@example.com
+   ```
+
+   The script installs Docker if it is missing, opens the firewall, checks DNS, writes `.env` and starts the stack.
+3. The first start builds the models (fetch, fit, simulate: about 20–90 minutes). Until then the site shows a
+   "building" page. Follow it with `docker compose logs -f worker`.
+
+To ship new code later, run `sudo ./deploy/deploy.sh update` (git pull, rebuild, restart).
+
+Settings live in `/opt/ncaa/.env`:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `NCAA_SEASON` | 2026 | tournament season shown on the bracket pages |
+| `NCAA_LIVE_SEASON` | 2027 | season tracked live: final games, ratings, ledger |
+| `BOOTSTRAP_FIT` | vi | first-build fit: `vi` takes about 10 min; `nuts` is the exact posterior and takes 1–3 h |
+| `NIGHTLY_FIT` | vi | nightly refit method (`none` only folds in new games) |
+| `NIGHTLY_HOUR` | 10 | UTC hour of the nightly update |
+| `WATCH_EVERY` | 120 | seconds between live-score polls |
+
+After changing `.env`, run `docker compose up -d`. To put the site behind a password, uncomment `basic_auth` in
+`deploy/Caddyfile`. `/healthz` reports whether the models are built.
+
 ## Tests
 
 ```bash

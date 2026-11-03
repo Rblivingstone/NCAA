@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import contextmanager
 
 import numpy as np
 import pandas as pd
@@ -73,6 +74,7 @@ def current_state(season: int, create: bool = True):
     fitted = data.load_games(season)
     if "fit" in label and len(fitted):         # a full fit has seen the games it was fit to (not the tournament)
         st.applied = [int(g) for g in fitted.game_id.unique()]
+    st.base_count = len(st.applied)
     save_state(season, st)
     return st
 
@@ -84,11 +86,11 @@ def current_posterior(season: int) -> tuple[model.Posterior | None, str]:
     base, label = base_posterior(season)
     if base is None:
         return None, "none"
-    ups = load_updates(season)
     st = current_state(season, create=False)
-    if st is None or not len(ups):          # nothing folded in since the base: use it as is
+    n = len(st.applied) - st.base_count if st is not None else 0
+    if n <= 0:                              # nothing folded in since the base: use it as is
         return base, label
-    return state_posterior(st, base), f"{label}, updated after {len(ups) // 2} games"
+    return state_posterior(st, base), f"{label}, updated after {n} games"
 
 
 def load_updates(season: int):
@@ -128,9 +130,29 @@ def _canonical(team: str, st) -> str | None:
     return "Non-D1" if "Non-D1" in st.teams else None
 
 
+@contextmanager
+def season_lock(season: int):
+    """Serialise writes to a season's ratings across processes (web app, watcher, nightly job)."""
+    import fcntl
+
+    d = model.artifact_dir(season)
+    d.mkdir(parents=True, exist_ok=True)
+    with open(d / ".lock", "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+
 def process_final(season: int, games: pd.DataFrame, source: str, n: int = 2000, log=print) -> int:
     """For each finished game not yet seen, in date order: score it in the ledger against the
     beliefs held *before* it, then fold it into those beliefs.  Returns how many were applied."""
+    with season_lock(season):          # re-read the state inside the lock so no game is applied twice
+        return _process_final(season, games, source, n, log)
+
+
+def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -> int:
     from .updates import apply_game, minutes_played, population_cov, save_state
 
     st = current_state(season)
@@ -314,8 +336,9 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         log(f"refit {season} with {refit}")
         # The fit has seen every game so far: restart the running beliefs from it.
         from .updates import state_path
-        state_path(season).unlink(missing_ok=True)
-        current_state(season)
+        with season_lock(season):
+            state_path(season).unlink(missing_ok=True)
+            current_state(season)
     record_ratings(season)
     status["seconds"] = round(time.time() - t0)
     (model.artifact_dir(season)).mkdir(parents=True, exist_ok=True)

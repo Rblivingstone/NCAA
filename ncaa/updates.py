@@ -40,6 +40,7 @@ class TeamState:
     cov: np.ndarray                  # T x D x D
     applied: list = field(default_factory=list)   # game ids already folded in
     base: str = ""                   # which posterior the state started from
+    base_count: int = 0              # games already in that posterior (applied counts beyond this are updates)
 
     def index(self, team: str) -> int:
         return self.teams.index(team)
@@ -84,7 +85,7 @@ def save_state(season: int, st: TeamState) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, mean=st.mean, cov=st.cov)
     (path.parent / "team_state.json").write_text(json.dumps({"teams": st.teams, "applied": st.applied,
-                                                             "base": st.base}))
+                                                             "base": st.base, "base_count": st.base_count}))
 
 
 def load_state(season: int) -> TeamState | None:
@@ -93,7 +94,8 @@ def load_state(season: int) -> TeamState | None:
         return None
     meta = json.loads((path.parent / "team_state.json").read_text())
     npz = np.load(path)
-    return TeamState(meta["teams"], npz["mean"], npz["cov"], meta["applied"], meta.get("base", ""))
+    return TeamState(meta["teams"], npz["mean"], npz["cov"], meta["applied"], meta.get("base", ""),
+                     meta.get("base_count", 0))
 
 
 def state_posterior(st: TeamState, base: Posterior, draws: int = 400, seed: int = 0) -> Posterior:

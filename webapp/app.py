@@ -40,6 +40,23 @@ def actual() -> dict[str, str]:
     return actual_picks(state()[0])
 
 
+@app.route("/healthz")
+def healthz():
+    """Liveness plus whether the models are built (the worker builds them on first start)."""
+    ready = (model.artifact_dir(SEASON) / "summary.json").exists()
+    return jsonify({"ok": True, "ready": ready, "season": SEASON, "live_season": LIVE_SEASON}), (200 if ready else 503)
+
+
+@app.before_request
+def _building():
+    """Until the first build finishes, every page says so instead of erroring."""
+    if request.path.startswith(("/static", "/healthz")) or (model.artifact_dir(SEASON) / "summary.json").exists():
+        return None
+    return ("<!doctype html><meta http-equiv='refresh' content='60'><body style='font-family:system-ui;padding:40px'>"
+            "<h2>Building the models…</h2><p>The first start downloads the season's data, fits the model and simulates "
+            "the tournament. This takes 20–90 minutes depending on the server; the page refreshes itself.</p>", 503)
+
+
 @app.route("/")
 def index():
     return render_template("index.html", season=SEASON, page="bracket")

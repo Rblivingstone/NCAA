@@ -1,0 +1,51 @@
+# docker compose up -d --build   (settings come from .env; see deploy/deploy.sh)
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      NCAA_SEASON: ${NCAA_SEASON:-2026}
+      NCAA_LIVE_SEASON: ${NCAA_LIVE_SEASON:-2027}
+    volumes:
+      - artifacts:/app/artifacts
+      - data:/app/data
+    expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/static/style.css', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["deploy/worker.sh"]
+    environment:
+      NCAA_SEASON: ${NCAA_SEASON:-2026}
+      NCAA_LIVE_SEASON: ${NCAA_LIVE_SEASON:-2027}
+      BOOTSTRAP_FIT: ${BOOTSTRAP_FIT:-vi}
+      NIGHTLY_FIT: ${NIGHTLY_FIT:-vi}
+      NIGHTLY_HOUR: ${NIGHTLY_HOUR:-10}
+      WATCH_EVERY: ${WATCH_EVERY:-120}
+    volumes:
+      - artifacts:/app/artifacts
+      - data:/app/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [web]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  artifacts:
+  data:
+  caddy_data:
+  caddy_config:
