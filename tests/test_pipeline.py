@@ -390,3 +390,117 @@ def test_shift_probability_superiority():
     pre = rng.poisson(10, 5000)
     q = superiority(np.full(10, 13), pre)
     assert q == pytest.approx((pre < 13).mean() + 0.5 * (pre == 13).mean())
+
+
+def test_pick_correlation_keeps_shares_but_raises_agreement(bracket):
+    from ncaa.pool import PoolSpec, simulate_public
+
+    Wm = _random_W(len(bracket.teams), 12).mean(0)
+    mix = (("casual", 0.5), ("chalk", 0.5))
+    lo = simulate_public(bracket, Wm, 6000, PoolSpec(mix, 0.0), seed=1, climates=1)
+    hi = simulate_public(bracket, Wm, 6000, PoolSpec(mix, 0.8), seed=1, climates=6000)
+    r64 = [i for i, g in enumerate(bracket.games) if g.round == 1]
+    top = [bracket.games[i].sources[0][1] for i in r64]
+    share_lo = (lo[:, r64] == top).mean(0)
+    share_hi = (hi[:, r64] == top).mean(0)
+    assert np.abs(share_lo - share_hi).max() < 0.03                # same pick shares...
+    hi_c = simulate_public(bracket, Wm, 6000, PoolSpec(mix, 0.8), seed=1, climates=3)
+    agree = lambda P: (P[0::3][:1000] == P[3::3][:1000]).mean()  # noqa: E731  same climate pairs
+    assert agree(hi_c) > agree(lo) + 0.03                           # ...but more similar brackets
+
+
+def test_pool_finish_probabilities_match_monte_carlo(bracket, post):
+    from ncaa.pool import Pool, PoolSpec, score_brackets
+
+    sims = simulate_tournament(bracket, post, 600, seed=21)
+    s = summarize(bracket, sims)
+    Wm = _random_W(len(bracket.teams), 5).mean(0)
+    pool = Pool(bracket, sims, Wm, s, PoolSpec(rho=0.5), n_public=900, seed=3, climates=3)
+    mine = pool.leverage_bracket(0.0)
+    rows = np.arange(600)
+    ours = pool.scores(mine)
+    clim = np.arange(900) % 3
+    rng = np.random.default_rng(0)
+    N = 9
+    res = pool.finish(mine, N, rows)
+    first, top, last = [], [], []
+    for _ in range(30):
+        for t in rows:
+            riv = pool.public_picks[clim == t % 3]
+            opp = score_brackets(riv[rng.integers(len(riv), size=N)], pool.winners[t:t + 1], pool.pts)[0]
+            above, ties = (opp > ours[t]).sum(), (opp == ours[t]).sum()
+            first.append(1 / (ties + 1) if above == 0 else 0)
+            last.append(1 / (ties + 1) if (opp < ours[t]).sum() == 0 else 0)
+    assert res["p_first"] == pytest.approx(np.mean(first), abs=0.02)
+    assert res["p_last"] == pytest.approx(np.mean(last), abs=0.02)
+    assert res["p_first"] <= res["p_top10"] + 1e-9
+    w = pool.winning_score(N, rows)
+    assert w["p10"] <= w["median"] <= w["p90"]
+
+
+def test_team_analysis_is_zero_for_an_average_team(post):
+    import dataclasses
+
+    from ncaa.teams import skill_profile, style_vulnerabilities
+
+    z = post.z.copy()
+    z[:, 3] = 0.0                                              # make one team exactly average
+    p = dataclasses.replace(post, z=z)
+    team = post.teams[3]
+    assert all(abs(r["impact"]) < 1e-9 for r in skill_profile(p, team))
+    assert all(abs(s["relative"]) < 1e-9 for s in style_vulnerabilities(p, team))
+    strong = post.teams[0]                                     # synthetic best shooter
+    prof = {(r["side"], r["stat"]): r for r in skill_profile(post, strong)}
+    assert prof[("off", "p2")]["impact"] > 0 and prof[("def", "p2")]["impact"] > 0
+
+
+def test_laplace_update_moves_ratings_the_right_way(post):
+    from ncaa.updates import init_state, laplace_update, net_rating
+
+    st = init_state(post, "synthetic")
+    st.cov *= 25.0                               # the synthetic posterior is very tight; give the prior room to move
+    a, b = post.teams[30], post.teams[31]
+    before = [net_rating(st, post, t) for t in (a, b)]
+    hot = {"pts": 100, "fgm": 38, "fga": 60, "fg3m": 12, "fg3a": 25, "ftm": 12, "fta": 15, "oreb": 14,
+           "dreb": 30, "tov": 6, "ast": 24, "stl": 9, "blk": 6, "pf": 12}
+    cold = {"pts": 55, "fgm": 20, "fga": 66, "fg3m": 3, "fg3a": 24, "ftm": 12, "fta": 16, "oreb": 6,
+            "dreb": 20, "tov": 18, "ast": 8, "stl": 3, "blk": 1, "pf": 18}
+    laplace_update(st, post, a, b, 0.0, hot, cold, 40.0)
+    after = [net_rating(st, post, t) for t in (a, b)]
+    assert after[0][0] > before[0][0] + 0.5 and after[1][0] < before[1][0] - 0.5   # winner up, loser down
+    assert after[0][1] < before[0][1] and after[1][1] < before[1][1]               # both less uncertain
+
+
+def test_live_final_is_scored_then_applied_once(tmp_path, monkeypatch):
+    import json
+    import shutil
+    from pathlib import Path
+
+    from ncaa import model, season
+    from ncaa.live import parse_summary
+    from ncaa.updates import load_updates
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2026").mkdir()
+    for f in ("posterior.npz", "teams.json"):
+        shutil.copy(real / f, tmp_path / "2026" / f)
+    final = parse_summary(json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text()))
+    assert season.apply_live_final(2026, final, log=lambda *_: None) == 1
+    up = load_updates(2026)
+    assert set(up.team) == {"Michigan", "UConn"} and len(up) == 2
+    led = season.load_ledger(2026)
+    assert len(led) == 1 and 0.5 < led.p_home.iloc[0] < 0.9      # the pre-game forecast, logged before updating
+    assert season.apply_live_final(2026, final, log=lambda *_: None) == 0   # never applied twice
+
+    class Feed:  # the watch loop picks finals off the scoreboard
+        def scoreboard(self, date):
+            return [{"game_id": final.game_id, "status": "post"}]
+
+        def game(self, gid):
+            return final
+
+    season.watch(2026, every=0, log=lambda *_: None, feed=Feed(), rounds=1)
+    assert len(load_updates(2026)) == 2

@@ -159,6 +159,22 @@ passing over. `ncaa/bracket.py` searches globally.
   public picks upsets *more* freely than the model, the logic reverses and
   chalk wins, so the public model is a choice in the UI.
 
+* **Pool composition and difficulty.** Rivals are a configurable mix of
+  archetypes: *casual* (mostly seeds), *informed* (close to the model),
+  *chalk* (favourites nearly always) and *upset* (discounts seeds, picks
+  freely). Each rival draws its own strategy parameters from its archetype's
+  range. **Pick correlation** ρ uses a Gaussian copula: a rival picks team a
+  when √ρ·Z_g + √(1−ρ)·Z_ig < Φ⁻¹(p_ig), where Z_g is a pool-wide shock for
+  that game. Every pick share stays exactly the same whatever ρ is; only how
+  often rivals make the *same combinations* changes. Simulated tournaments
+  are paired with independent pool "climates", and given both, rivals are
+  independent, so these all have exact formulas: expected/median/90th-
+  percentile winning score, and P(first), P(top 10%), P(last) for any
+  bracket (checked against brute-force pools). In 2026 at 100 rivals, raising
+  ρ from 0 to 0.8 lowers the median winning score from 1,400 to 1,230. It
+  also removes the edge from contrarian picks: a herd is beatable by the
+  favourites bracket.
+
 On the *Build and score* page: objective, champion, upset toggle (count,
 definition, keep the Final Four), and a table of each candidate champion's
 best bracket with its relative likelihood. Any bracket also gets **ESPN
@@ -201,6 +217,38 @@ Division I start at average. In a backtest (fit on November 2025 games, predict 
 (log-loss 0.434 → 0.421, Brier 0.145 → 0.140, margin RMSE 14.1 → 13.9). The
 learned ρ is 0.67, also the prior's mean, so a month of games barely
 identifies it.
+
+**Ratings update the moment a game is final** (`ncaa/updates.py`). Between
+nightly refits, each team carries a Gaussian belief over its 22 skills. When a
+game goes final, its whole box score updates both teams through the model's
+own likelihood (the same beta-binomial counts, fouls and tempo the fit uses,
+with league-wide parameters at their posterior means). A Laplace
+approximation (Newton to the mode, covariance from the curvature) gives the
+new beliefs. This is assumed-density filtering: the cross-covariance between
+the two teams is dropped, and each update takes under a second.
+
+* On the 2026 final it matches exact importance-sampling updates of the full
+  posterior within Monte Carlo noise.
+* In a backtest (fit through Feb 15, 2026, then fold in each of the next
+  1,240 games after predicting it), next-game log-loss improves from 0.588
+  to 0.584. The gain grows with time since the fit (0.599 → 0.592 more than
+  two weeks out).
+
+Each game is scored in the out-of-sample ledger against the beliefs from
+*before* it, then folded in and logged (`updates.csv`: both teams' rating and
+uncertainty before and after). Updates arrive from three sources, and the
+first one wins:
+
+* `python -m ncaa watch` polls the live scoreboard;
+* any Game or Live page that sees a game go final applies it;
+* the nightly `update` reads the per-game ESPN archive (which updates sooner)
+  and the box-score files.
+
+The nightly refit then resets the beliefs. **Every Division I team is
+ranked** (365 in 2026–27, taken from conference membership in the schedule).
+Renamed programs carry over their ratings (`data.TEAM_ALIASES`). A program
+new to Division I starts at the average of last season's bottom quarter,
+shrunk like everyone else's carry-over, with wide uncertainty.
 
 **Live in-game forecast** (`ncaa/ingame.py`). At each refresh the box score so
 far updates the model in three Bayesian steps:
@@ -321,11 +369,63 @@ Then open http://127.0.0.1:5000:
   bookkeeping, while real box scores are looser (team rebounds, end-of-half
   heaves), and including them made 20% of games score below 0.05. That
   rigidity is a known limitation of the simulator.
-* **Team ratings** – offensive/defensive efficiency, net rating with 90%
-  interval, tempo and component rates.
+* **Rankings** – overall (net rating), offense or defense, for any season,
+  with 90% intervals, tempo and season trend.
+* **Team pages** – current strength and rank, and how the assessment has
+  moved (within-season form, plus nightly snapshots once a season is
+  tracked). Core strengths and weaknesses: each skill's contribution in
+  points per 100 possessions with its percentile among D1 teams.
+  Matchup vulnerabilities: how much an opponent one SD better at one thing
+  (3-point shooting or volume, interior scoring, offensive rebounding,
+  drawing fouls, ball pressure, heavy fouling, rim protection, perimeter
+  defense, defensive rebounding) hurts this team *relative to how it hurts
+  an average team*, with the probability that the difference is real.
+  These are second-order effects, since the model has no explicit matchup
+  terms. Plus a plain-language assessment, a tempo note and the team's games.
+* **Games** – any date or team: upcoming games with forecasts; finished
+  games with the logged pre-game forecast and unusualness. Each game has its
+  own page: before tip-off the prior distributions; during, the live
+  Bayesian forecast (20-second refresh); afterwards, the play-by-play update
+  history (win probability vs ESPN, the shift of every stat) against the
+  prior.
 
 Set `NCAA_SEASON` to serve a different season for the bracket pages and
 `NCAA_LIVE_SEASON` (default 2027) for the season and live pages.
+
+## Deploying to a VPS (Docker, HTTPS on your domain)
+
+Everything runs from `docker-compose.yml`: **web** (gunicorn serving the Flask app), **worker** (the first build, the
+live-game watcher and the nightly update) and **caddy** (reverse proxy that gets and renews a Let's Encrypt certificate
+for your domain). Models, ledgers and team ratings live in `./artifacts` and the data cache in `./data` on the host, so
+they survive rebuilds.
+
+1. Point your domain's DNS **A** record (and AAAA, if the server has IPv6) at the VPS. Ports 80 and 443 must be open.
+2. On the VPS (Ubuntu or Debian, 2+ vCPUs and 4 GB RAM recommended):
+
+   ```bash
+   git clone https://github.com/Rblivingstone/NCAA.git /opt/ncaa && cd /opt/ncaa
+   sudo ./deploy/deploy.sh ncaa.example.com you@example.com
+   ```
+
+   The script installs Docker if it is missing, opens the firewall, checks DNS, writes `.env` and starts the stack.
+3. The first start builds the models (fetch, fit, simulate: about 20–90 minutes). Until then the site shows a
+   "building" page. Follow it with `docker compose logs -f worker`.
+
+To ship new code later, run `sudo ./deploy/deploy.sh update` (git pull, rebuild, restart).
+
+Settings live in `/opt/ncaa/.env`:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `NCAA_SEASON` | 2026 | tournament season shown on the bracket pages |
+| `NCAA_LIVE_SEASON` | 2027 | season tracked live: final games, ratings, ledger |
+| `BOOTSTRAP_FIT` | vi | first-build fit: `vi` takes about 10 min; `nuts` is the exact posterior and takes 1–3 h |
+| `NIGHTLY_FIT` | vi | nightly refit method (`none` only folds in new games) |
+| `NIGHTLY_HOUR` | 10 | UTC hour of the nightly update |
+| `WATCH_EVERY` | 120 | seconds between live-score polls |
+
+After changing `.env`, run `docker compose up -d`. To put the site behind a password, uncomment `basic_auth` in
+`deploy/Caddyfile`. `/healthz` reports whether the models are built.
 
 ## Tests
 

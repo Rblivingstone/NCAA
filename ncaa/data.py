@@ -48,6 +48,9 @@ BOX_COLUMNS = {
     "team_score": "pts",
 }
 
+# Teams that changed their name between seasons: new name -> old name (so last season's rating carries over).
+TEAM_ALIASES = {"St. Thomas": "St. Thomas-Minnesota", "LSU New Orleans": "New Orleans"}
+
 ROUND_NAMES = ["First Four", "1st Round", "2nd Round", "Sweet 16", "Elite 8",
                "Final Four", "National Championship"]
 
@@ -82,6 +85,7 @@ def build_schedule(sched: pd.DataFrame) -> pd.DataFrame:
     out = pd.DataFrame({
         "game_id": s.game_id, "date": pd.to_datetime(s.game_date_time, utc=True),
         "home": s.home_location, "away": s.away_location, "neutral": s.neutral_site.fillna(False).astype(bool),
+        "home_conf": s.home_conference_id, "away_conf": s.away_conference_id,
         "completed": s.status_type_completed.fillna(False).astype(bool),
         "home_score": s.home_score, "away_score": s.away_score, "season_type": s.season_type,
         "tournament": s.tournament_id.eq(NCAA_TOURNAMENT_ID) & s.notes_headline.fillna("").str.contains("Men's Basketball Championship"),
@@ -249,6 +253,16 @@ def load_games(season: int) -> pd.DataFrame:
         return pd.read_csv(path, parse_dates=["date"])
     except pd.errors.EmptyDataError:
         return pd.DataFrame()
+
+
+def d1_teams(season: int) -> list[str]:
+    """Division I teams this season: every team the schedule lists with a conference."""
+    s = load_schedule(season)
+    if not len(s) or "home_conf" not in s:
+        return []
+    t = pd.concat([s[["home", "home_conf"]].set_axis(["team", "conf"], axis=1),
+                   s[["away", "away_conf"]].set_axis(["team", "conf"], axis=1)])
+    return sorted(t.dropna().team.unique())
 
 
 def load_schedule(season: int) -> pd.DataFrame:

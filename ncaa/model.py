@@ -265,28 +265,54 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
                    obs=jnp.array(md.log_pace))
 
 
-def carryover_mean(prior: "Posterior", teams: list[str]) -> np.ndarray:
-    """Last season's posterior-mean skills in this season's team order (zeros for teams it lacks)."""
+def carryover_mean(prior: "Posterior", teams: list[str], aliases: dict | None = None) -> np.ndarray:
+    """Last season's posterior-mean skills in this season's team order (zeros for teams it lacks).
+
+    ``aliases`` maps a team's new name to its old one, for programs that renamed.
+    """
+    from .data import TEAM_ALIASES
+
+    aliases = TEAM_ALIASES if aliases is None else aliases
     zbar = prior.z.mean(0)
     idx = {t: i for i, t in enumerate(prior.teams)}
     out = np.zeros((len(teams), zbar.shape[1]))
     for i, t in enumerate(teams):
-        if t in idx:
-            out[i] = zbar[idx[t]]
+        old = t if t in idx else aliases.get(t)
+        if old in idx:
+            out[i] = zbar[idx[old]]
     return out
+
+
+def newcomer_mean(prior: "Posterior") -> np.ndarray:
+    """Starting skills for a program new to Division I: the average of last season's bottom quarter
+    (first-year D1 programs are usually near the bottom, not average)."""
+    from .simulate import expected_efficiency
+
+    zbar = prior.z.mean(0).astype(float)
+    keep = np.array([t != "Non-D1" for t in prior.teams])
+    di = def_index()
+    mu = prior.mu.mean(0)
+    net = expected_efficiency(mu + zbar[:, :S]) - expected_efficiency(mu + zbar[:, np.maximum(di, 0)] * (di >= 0))
+    cut = np.quantile(net[keep], 0.25)
+    return zbar[keep & (net <= cut)].mean(0)
 
 
 def preseason_posterior(prior: "Posterior", teams: list[str] | None = None, rho: float = 0.65,
                         spread: float = 1.0) -> "Posterior":
     """Before any games: last season's skills shrunk by rho, with this season's
     uncertainty added back as fresh draws from last season's skill distribution."""
+    from .data import TEAM_ALIASES
+
     teams = teams or prior.teams
     rng = np.random.default_rng(0)
-    m = carryover_mean(prior, teams)
+    m = rho * carryover_mean(prior, teams)
+    new = [i for i, t in enumerate(teams) if t not in prior.teams and TEAM_ALIASES.get(t) not in prior.teams]
+    if new:
+        m[new] = rho * newcomer_mean(prior)    # shrunk like everyone else's carry-over
     zbar = prior.z.mean(0)
     sd = zbar.std(0) * np.sqrt(1 - rho ** 2) * spread
     K = prior.n_draws
-    z = (rho * m[None] + rng.standard_normal((K, len(teams), zbar.shape[1])) * sd).astype(np.float32)
+    z = (m[None] + rng.standard_normal((K, len(teams), zbar.shape[1])) * sd).astype(np.float32)
     return dataclasses.replace(prior, teams=list(teams), z=z, form_mean=None, form_lo=None, form_hi=None,
                                form_start=None)
 

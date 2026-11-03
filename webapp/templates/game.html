@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Game{% endblock %}
+{% block content %}
+<div class="toolbar" style="margin-bottom:4px">
+  <h1 style="margin:0" id="title">Game</h1><span class="badge" id="kind"></span>
+  <span class="muted" id="sub"></span>
+</div>
+<p class="lede" id="explain"></p>
+<div class="muted" id="note"></div>
+<div id="game"><div class="muted">Loading…</div></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='livegame.js') }}"></script>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const gid = {{ game_id }}, season = new URLSearchParams(location.search).get("season") || "{{ live_season }}";
+  const EXPLAIN = {
+    pre: "Before tip-off: the model's prior for this game — win probability, projected box score, and the distribution of every stat for each team.",
+    live: "In progress: every refresh reweights the posterior by the box score so far, updates this game's rates, and re-simulates the rest of the game. Refreshes every 20 seconds.",
+    post: "Final: the Bayesian forecast replayed play by play from tip-off, against the prior. The win-probability line and the shift charts show how the evidence moved the forecast; red edges mark stats that finished outside the prior's central 95%.",
+  };
+  let timer = null;
+  await load();
+  async function load() {
+    const r = await fetch(`/api/game?season=${season}&id=${gid}`);
+    if (!r.ok) { $("game").innerHTML = `<div class="muted">${await r.text()}</div>`; return; }
+    const d = await r.json(), m = d.meta;
+    $("title").innerHTML = `<a href="/team/${encodeURIComponent(m.away)}?season=${season}">${m.away}</a> ${m.neutral ? "vs" : "@"}
+      <a href="/team/${encodeURIComponent(m.home)}?season=${season}">${m.home}</a>`;
+    $("kind").textContent = { pre: "Upcoming", live: "Live", post: "Final" }[d.kind];
+    $("sub").textContent = `${new Date(m.date).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` +
+      `${m.tournament ? " · NCAA tournament" : ""} · model: ${d.posterior}`;
+    $("explain").textContent = EXPLAIN[d.kind];
+    const notes = [];
+    if (m.note) notes.push(m.note);
+    if (m.ledger) notes.push(`Forecast logged before the game (${m.ledger.model}): ${m.home} ${fmtPct(m.ledger.p_home)}; whole-box-score unusualness ${m.ledger.unusualness.toFixed(3)}.`);
+    else if (d.kind === "post") notes.push("This game has no pre-game ledger entry, so the prior shown comes from the current model (for regular-season games of a finished season, that model was fitted on this game too).");
+    $("note").textContent = notes.join(" ");
+    if (!d.model) { $("game").innerHTML = `<div class="muted">One of these teams is not in the model.</div>`; return; }
+    LiveGame.render($("game"), d, { mode: d.kind === "live" ? "live" : d.kind });
+    clearTimeout(timer);
+    if (d.kind === "live") timer = setTimeout(load, 20000);
+  }
+})();
+</script>
+{% endblock %}

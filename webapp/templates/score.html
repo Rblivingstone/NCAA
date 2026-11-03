@@ -13,8 +13,8 @@ how it compares with brackets the model itself generates. Or let the optimizer b
       <option value="points">Max expected points (ESPN)</option>
       <option value="pool">Win a pool</option></select></label>
     <span id="pool-opts" hidden>
-      <label>rivals <input type="number" id="pool-n" value="100" min="1" max="1000000" style="width:90px"></label>
-      <label>public <select id="pool-public"></select></label>
+      <label>preset <select id="pool-preset"></select></label>
+      <label>competitors <input type="number" id="pool-n" value="100" min="1" max="1000000" style="width:90px"></label>
     </span>
     <label>Champion <select id="champion"><option value="">Best overall</option></select></label>
     <label class="switch"><input type="checkbox" id="upsets-on"> Upsets</label>
@@ -27,7 +27,15 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     </span>
     <button class="primary" id="build">Build</button>
   </div>
+  <div id="pool-panel" class="pool-panel" hidden>
+    <div class="pool-mix"><b>Who is in the pool</b> <span class="muted">(shares are normalised)</span><div id="pool-mix"></div></div>
+    <div class="pool-mix"><b>Pick correlation</b>
+      <div><input type="range" id="pool-rho" min="0" max="0.9" step="0.05" value="0"> <span id="pool-rho-v">0.00</span></div>
+      <div class="muted" style="max-width:320px">How often rivals make the <em>same combinations</em> of picks (a shared narrative), with
+        every individual pick share held fixed. 0 = independent; higher = a herd.</div></div>
+  </div>
   <div class="muted" id="opt-note" style="margin-top:8px"></div>
+  <div id="pool-difficulty"></div>
   <div id="champ-table" style="margin-top:8px"></div>
 </div>
 <div class="panel builder" style="margin-top:12px">
@@ -111,40 +119,93 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   $("gap").onchange = async () => { $("n-upsets").value = (await upsetHint()).median; };
   upsetHint();
   $("build").onclick = () => build();
-  fetch("/api/publics").then((r) => r.json()).then((pubs) => {
-    for (const [k, label] of Object.entries(pubs)) $("pool-public").add(new Option(`${k} — ${label}`, k));
-  });
+  // ----- pool composition -----
+  const poolCfg = await (await fetch("/api/pool_presets")).json();
+  for (const [k, p] of Object.entries(poolCfg.presets)) $("pool-preset").add(new Option(p.label, k));
+  $("pool-preset").add(new Option("Custom", "custom"));
+  $("pool-preset").value = "mixed";
+  $("pool-mix").innerHTML = Object.entries(poolCfg.archetypes).map(([k, label]) =>
+    `<div class="mix-row"><span class="mix-k">${k}</span><input type="range" min="0" max="100" step="5" data-mix="${k}">
+      <input type="number" min="0" max="100" step="5" data-mixn="${k}" style="width:56px">%<span class="muted mix-l">${label}</span></div>`).join("");
+  function applyPreset() {
+    const p = poolCfg.presets[$("pool-preset").value];
+    if (!p) return;
+    for (const k of Object.keys(poolCfg.archetypes)) setMix(k, Math.round(100 * (p.mix[k] || 0)));
+    $("pool-rho").value = p.rho; $("pool-rho-v").textContent = (+p.rho).toFixed(2);
+  }
+  function setMix(k, v) {
+    document.querySelector(`[data-mix="${k}"]`).value = v;
+    document.querySelector(`[data-mixn="${k}"]`).value = v;
+  }
+  document.querySelectorAll("[data-mix],[data-mixn]").forEach((el) => (el.oninput = () => {
+    setMix(el.dataset.mix || el.dataset.mixn, el.value); $("pool-preset").value = "custom"; }));
+  $("pool-rho").oninput = () => { $("pool-rho-v").textContent = (+$("pool-rho").value).toFixed(2); $("pool-preset").value = "custom"; };
+  $("pool-preset").onchange = applyPreset;
+  applyPreset();
   $("objective").onchange = () => {
     const pool = $("objective").value === "pool";
-    $("pool-opts").hidden = !pool;
+    $("pool-opts").hidden = !pool; $("pool-panel").hidden = !pool;
+    if (!pool) $("pool-difficulty").innerHTML = "";
     for (const id of ["champion", "upsets-on"]) $(id).closest("label").hidden = pool;
     if (pool) $("upset-opts").hidden = true;
     else $("upset-opts").hidden = !$("upsets-on").checked;
   };
 
   async function buildPool() {
-    $("opt-note").textContent = "Simulating the public's brackets and searching…";
-    const r = await fetch(`/api/pool?n=${$("pool-n").value}&public=${$("pool-public").value}`);
+    $("opt-note").textContent = "Simulating the pool and searching…";
+    const mix = {};
+    for (const k of Object.keys(poolCfg.archetypes)) mix[k] = +document.querySelector(`[data-mixn="${k}"]`).value / 100;
+    const yours = view.picksByName();
+    const body = { n: +$("pool-n").value, mix, rho: +$("pool-rho").value, picks: yours };
+    const r = await fetch("/api/pool", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!r.ok) { $("opt-note").textContent = await r.text(); return; }
     const o = await r.json();
     view.setPicksByName(o.picks); schedule();
     const x = (a, b) => (a / b).toFixed(1) + "×";
     const changed = o.changed.filter((c) => c.round >= 3).map((c) => `${s.bracket.rounds[c.round]}: ${c.to} instead of ${c.from}`);
-    $("opt-note").innerHTML = `<b>P(finishing first) against ${o.n.toLocaleString()} rivals: ${(100 * o.p_win).toFixed(2)}%</b> ` +
-      `— ${x(o.p_win, o.p_win_max_points)} the max-expected-points bracket (${(100 * o.p_win_max_points).toFixed(2)}%), ` +
-      `${x(o.p_win, o.baseline)} a random entry (${(100 * o.baseline).toFixed(2)}%). Champion <b>${o.champion}</b>; ` +
-      `Final Four ${o.final_four.join(", ")}. ` +
+    $("opt-note").innerHTML = `<b>Recommended bracket:</b> champion <b>${o.champion}</b>; Final Four ${o.final_four.join(", ")}. ` +
       (o.changed.length ? `${o.changed.length} picks differ from the max-points bracket` +
-        (changed.length ? ` (Sweet 16 on: ${changed.join("; ")})` : "") + ". " : "Same as the max-points bracket: in a pool this size, chalk is best. ") +
-      `ESPN points: predicted ${o.espn.expected.toFixed(1)}, realized ${o.espn.realized.toFixed(0)}. ` +
-      `<span class="muted">Public model: ${o.public_label}. Chances are measured on simulated tournaments not used to choose the bracket.</span>`;
-    $("champ-table").innerHTML = `<div class="muted" style="margin-bottom:4px">Title odds vs how often the simulated public picks each
+        (changed.length ? ` (${changed.join("; ")})` : "") + ". " : "Same as the max-points bracket: in this pool, chalk is best. ") +
+      `<span class="muted">Chances are measured on simulated tournaments not used to choose the bracket.</span>`;
+    $("pool-difficulty").innerHTML = difficulty(o, Object.keys(yours).length === s.bracket.games.length);
+    $("champ-table").innerHTML = `<div class="muted" style="margin-bottom:4px">Title odds vs how often this pool picks each
       champion. A ratio above 1 means under-picked relative to its chances, which is where a pool is won.</div>
       <table class="data"><tr><th>Team</th><th class="num">Seed</th><th class="num">Model title odds</th>
-      <th class="num">Public picks</th><th class="num">Ratio</th></tr>` +
+      <th class="num">Pool picks</th><th class="num">Ratio</th></tr>` +
       o.champions.map((c) => `<tr${c.team === o.champion ? ' style="font-weight:600"' : ""}><td>${c.team}</td><td class="num">${c.seed}</td>
         <td class="num">${(100 * c.p_model).toFixed(1)}%</td><td class="num">${(100 * c.p_public).toFixed(1)}%</td>
         <td class="num" style="color:${c.ratio > 1 ? "var(--win)" : "inherit"}">${c.ratio.toFixed(2)}</td></tr>`).join("") + "</table>";
+  }
+
+  function difficulty(o, hadPicks) {
+    const w = o.winning_score, N = o.n;
+    const pct = (p) => (p < 0.0001 && p > 0 ? "<0.01%" : (100 * p).toFixed(p < 0.1 ? 2 : 1) + "%");
+    const row = (name, f, note = "") => `<tr><td>${name}${note}</td><td class="num"><b>${pct(f.p_first)}</b></td>
+      <td class="num">${pct(f.p_top10)}</td><td class="num">${pct(f.p_last)}</td><td class="num">${fmtPct(f.beat_share)}</td></tr>`;
+    const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+    // Winning-score distribution
+    const W = 460, H = 120, pad = 20, hist = w.hist, u = w.unit;
+    const nz = hist.map((v, i) => [i, v]).filter(([, v]) => v > 1e-4);
+    const lo = nz.length ? nz[0][0] : 0, hi = nz.length ? nz[nz.length - 1][0] : hist.length - 1, max = Math.max(...hist);
+    const x = (i) => pad + (i - lo) / Math.max(hi - lo, 1) * (W - 2 * pad);
+    let svg = `<svg viewBox="0 0 ${W} ${H + 18}" width="100%" style="max-height:170px" role="img" aria-label="distribution of the winning score">`;
+    for (let i = lo; i <= hi; i++) { const h = hist[i] / max * H;
+      svg += `<rect x="${x(i)}" y="${H - h}" width="${Math.max(1, x(i + 1) - x(i) - 1)}" height="${h}" rx="1" fill="var(--accent)" opacity=".6"/>`; }
+    const mark = (v, label, col, dy) => { const i = v / u; if (i < lo || i > hi) return "";
+      return `<line x1="${x(i)}" x2="${x(i)}" y1="0" y2="${H}" stroke="${col}" stroke-width="2"/><text x="${x(i) + 3}" y="${dy}" style="fill:${col}">${label}</text>`; };
+    svg += mark(w.median, "median", "var(--ink)", 10) + mark(o.espn.expected, "our expected score", "var(--upset)", 22);
+    svg += `<text x="${pad}" y="${H + 14}">${lo * u}</text><text x="${W - pad}" y="${H + 14}" text-anchor="end">${hi * u}</text></svg>`;
+    return `<div class="cols2" style="margin-top:10px"><div><b>How hard is this pool?</b>
+        <div class="stats" style="margin-top:6px">${stat(w.mean.toFixed(0), "expected winning score")}${stat(w.median.toFixed(0), "median winning score")}
+        ${stat(w.p90.toFixed(0), "90th percentile winning score")}</div>
+        <div class="muted" style="margin:6px 0 2px">Distribution of the best score among ${N.toLocaleString()} rivals (ESPN points):</div>${svg}</div>
+      <div><b>Your chances against ${N.toLocaleString()} rivals</b>
+        <table class="data" style="margin-top:6px"><tr><th>Bracket</th><th class="num">1st</th><th class="num">Top 10%</th><th class="num">Last</th><th class="num">Avg. rivals beaten</th></tr>
+        ${row("Recommended for this pool", o.finish)}${row("Max expected points", o.finish_max_points)}
+        ${o.finish_yours ? row("The bracket you had loaded", o.finish_yours) : hadPicks ? "" : ""}
+        <tr><td class="muted">A random entry</td><td class="num muted">${pct(1 / (N + 1))}</td><td class="num muted">~10%</td><td class="num muted">${pct(1 / (N + 1))}</td><td class="num muted">50%</td></tr></table>
+        <div class="muted" style="margin-top:6px">Ties split evenly. To win, a bracket typically needs about ${w.median.toFixed(0)} points
+          (90% of the time ${w.p10.toFixed(0)}–${w.p90.toFixed(0)} would have won).</div></div></div>`;
   }
 
   $("sim-one").onclick = async () => {

@@ -17,7 +17,7 @@ from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likeli
                           favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
                           resolve_picks, score_bracket, simulate_tournament, upset_distribution)
 from ncaa.evaluate import game_unusualness, kde, tournament_unusualness
-from ncaa.pool import Pool, PublicModel, best_pool_bracket
+from ncaa.pool import ARCHETYPES, Pool, PoolSpec, best_pool_bracket
 from ncaa.simulate import BOX_STATS, simulate_games
 
 SEASON = int(os.environ.get("NCAA_SEASON", 2026))
@@ -38,6 +38,23 @@ def state():
 def actual() -> dict[str, str]:
     """The real tournament results as {game id: winner}."""
     return actual_picks(state()[0])
+
+
+@app.route("/healthz")
+def healthz():
+    """Liveness plus whether the models are built (the worker builds them on first start)."""
+    ready = (model.artifact_dir(SEASON) / "summary.json").exists()
+    return jsonify({"ok": True, "ready": ready, "season": SEASON, "live_season": LIVE_SEASON}), (200 if ready else 503)
+
+
+@app.before_request
+def _building():
+    """Until the first build finishes, every page says so instead of erroring."""
+    if request.path.startswith(("/static", "/healthz")) or (model.artifact_dir(SEASON) / "summary.json").exists():
+        return None
+    return ("<!doctype html><meta http-equiv='refresh' content='60'><body style='font-family:system-ui;padding:40px'>"
+            "<h2>Building the models…</h2><p>The first start downloads the season's data, fits the model and simulates "
+            "the tournament. This takes 20–90 minutes depending on the server; the page refreshes itself.</p>", 503)
 
 
 @app.route("/")
@@ -192,26 +209,36 @@ def api_optimize():
         abort(422, str(e))
 
 
-# How the public might pick, a priori: weight on team quality vs seed line,
-# and chalkiness (>1 = favourites advanced more often than they really win).
-PUBLICS = {
-    "mixed": ("A mix of seed-driven and informed entrants, somewhat chalky", PublicModel((0.3, 0.8), (1.0, 2.0))),
-    "chalky": ("Mostly follows seeds, very chalky", PublicModel((0.0, 0.3), (1.5, 2.5))),
-    "informed": ("Picks close to the model's view", PublicModel((0.8, 1.0), (0.9, 1.3))),
-    "random": ("Picks upsets more freely than the model expects", PublicModel((0.3, 0.8), (0.4, 0.8))),
+# Pool presets: archetype mixes (shares of casual / informed / chalk / upset entrants) and pick correlation.
+POOL_PRESETS = {
+    "office": ("Office pool: mostly casual fans", {"casual": 0.6, "informed": 0.1, "chalk": 0.2, "upset": 0.1}, 0.3),
+    "mixed": ("A mix of seed-driven and informed entrants", {"casual": 0.45, "informed": 0.2, "chalk": 0.25, "upset": 0.1}, 0.0),
+    "chalky": ("Mostly favourites", {"casual": 0.3, "informed": 0.1, "chalk": 0.6, "upset": 0.0}, 0.2),
+    "sharp": ("Analytics crowd: close to the model", {"casual": 0.1, "informed": 0.7, "chalk": 0.15, "upset": 0.05}, 0.4),
+    "chaos": ("Upset hunters", {"casual": 0.3, "informed": 0.1, "chalk": 0.1, "upset": 0.5}, 0.0),
 }
 
 
-@lru_cache(maxsize=len(PUBLICS))
-def pool_for(public: str) -> Pool:
+@lru_cache(maxsize=8)
+def pool_for(mix: tuple, rho: float) -> Pool:
     br, sims, summary, W, _ = state()
-    return Pool(br, sims, W.mean(0), summary, PUBLICS[public][1])
+    return Pool(br, sims, W.mean(0), summary, PoolSpec(mix=mix, rho=rho))
+
+
+def _pool_spec_from(req: dict) -> tuple[int, tuple, float]:
+    n = int(req.get("n", 100))
+    mix = req.get("mix") or POOL_PRESETS["mixed"][1]
+    mix = tuple(sorted((k, round(float(v), 3)) for k, v in mix.items() if k in ARCHETYPES and float(v) > 0))
+    rho = round(min(max(float(req.get("rho", 0.0)), 0.0), 0.95), 2)
+    if not mix or not 1 <= n <= 1_000_000:
+        abort(400, "bad pool size or mix")
+    return n, mix, rho
 
 
 @lru_cache(maxsize=64)
-def pool_result(n: int, public: str) -> dict:
-    br, _, summary, W, _ = state()
-    pool = pool_for(public)
+def pool_result(n: int, mix: tuple, rho: float) -> dict:
+    br, sims, summary, W, _ = state()
+    pool = pool_for(mix, rho)
     res = best_pool_bracket(pool, n, summary)
     named = {g: br.teams[t] for g, t in res["picks"].items()}
     mp = {g: br.teams[t] for g, t in res["max_points_picks"].items()}
@@ -219,33 +246,47 @@ def pool_result(n: int, public: str) -> dict:
     q_title = pool.q[br.gidx["R6"]]
     ff = [g.id for g in br.games if g.round == 4]
     return {
-        "n": n, "public": public, "public_label": PUBLICS[public][0],
+        "n": n, "mix": dict(mix), "rho": rho,
         "picks": named, "champion": named["R6"], "lambda": res["lambda"],
         "p_win": res["p_win"], "p_win_max_points": res["p_win_max_points"], "baseline": res["baseline"],
+        "finish": pool.finish(res["picks"], n), "finish_max_points": pool.finish(res["max_points_picks"], n),
+        "winning_score": pool.winning_score(n),
         "final_four": [named[g] for g in ff], "max_points_final_four": [mp[g] for g in ff],
         "changed": [{"id": g, "round": br.games[br.gidx[g]].round, "from": mp[g], "to": named[g]}
                     for g in named if named[g] != mp[g]],
         "log_likelihood": bracket_log_likelihood(br, res["picks"], W),
-        "espn": espn_points(br, named, state()[1], actual()),
+        "espn": espn_points(br, named, sims, actual()),
         "champions": [{"team": br.teams[t], "seed": br.seed[br.teams[t]], "p_model": float(title[t]),
                        "p_public": float(q_title[t]), "ratio": float(title[t] / max(q_title[t], 1e-4))}
                       for t in np.argsort(-title)[:12]],
     }
 
 
-@app.route("/api/pool")
+@app.route("/api/pool", methods=["GET", "POST"])
 def api_pool():
-    """Bracket maximising P(finishing first) against n rivals: ?n=100&public=mixed"""
-    n = int(request.args.get("n", 100))
-    public = request.args.get("public", "mixed")
-    if public not in PUBLICS or not 1 <= n <= 1_000_000:
-        abort(400, "bad pool size or public model")
-    return jsonify(pool_result(n, public))
+    """Bracket maximising P(finishing first), with pool-difficulty analysis.
+
+    POST {"n": 100, "mix": {"casual": .45, "informed": .2, "chalk": .25, "upset": .1}, "rho": 0.3,
+          "picks": {game id: team}}  (picks optional: also analyse your own bracket)
+    """
+    req = request.get_json(silent=True) or {k: request.args.get(k) for k in ("n", "rho") if request.args.get(k)}
+    if request.args.get("preset") in POOL_PRESETS:
+        _, mix_, rho_ = POOL_PRESETS[request.args["preset"]]
+        req = {"n": req.get("n", 100), "mix": mix_, "rho": rho_}
+    n, mix, rho = _pool_spec_from(req)
+    out = dict(pool_result(n, mix, rho))
+    picks = req.get("picks") if isinstance(req, dict) else None
+    br = state()[0]
+    if picks and len(resolve_picks(br, picks)) == len(br.games):
+        idx = {g: br.tidx[t] for g, t in picks.items()}
+        out["finish_yours"] = pool_for(mix, rho).finish(idx, n)
+    return jsonify(out)
 
 
-@app.route("/api/publics")
-def api_publics():
-    return jsonify({k: v[0] for k, v in PUBLICS.items()})
+@app.route("/api/pool_presets")
+def api_pool_presets():
+    return jsonify({"archetypes": {k: v[0] for k, v in ARCHETYPES.items()},
+                    "presets": {k: {"label": v[0], "mix": v[1], "rho": v[2]} for k, v in POOL_PRESETS.items()}})
 
 
 @app.route("/api/simulate_one")
@@ -435,10 +476,25 @@ def _season_post(season: int, stamp: float):
     return season_mod.current_posterior(season)
 
 
+def _stamp(season: int) -> float:
+    """Changes whenever the season's model does: a refit, or a game folded into the ratings."""
+    d = model.artifact_dir(season)
+    return max([p.stat().st_mtime for p in (d / "posterior.npz", d / "team_state.npz") if p.exists()] or [0.0])
+
+
 def season_post(season: int):
-    """Latest posterior for a season (re-read when the nightly update rewrites it)."""
-    path = model.artifact_dir(season) / "posterior.npz"
-    return _season_post(season, path.stat().st_mtime if path.exists() else 0.0)
+    """The season's model as of now (re-read after a refit or a game update)."""
+    return _season_post(season, _stamp(season))
+
+
+def _maybe_apply_final(season: int, state) -> None:
+    """A game the live feed shows as final updates the ratings straight away."""
+    if season == LIVE_SEASON and state.status == "post":
+        try:
+            with _lock:
+                season_mod.apply_live_final(season, state, log=lambda *_: None)
+        except Exception as e:  # never let a rating update break the page
+            app.logger.warning("could not apply final for %s: %s", state.game_id, e)
 
 
 @app.route("/season")
@@ -577,6 +633,7 @@ def api_live_game():
         else:
             season = int(request.args.get("season", LIVE_SEASON))
             state = _espn.game(gid)
+            _maybe_apply_final(season, state)
             timeline = None
     except Exception as e:
         return jsonify({"error": f"could not load game {gid}: {e}"}), 502
@@ -632,6 +689,227 @@ def api_tournament_days():
     days = sorted({pd.Timestamp(r["date"]).tz_convert("America/New_York").strftime("%Y-%m-%d")
                    for r in br.spec.get("results", []) if "date" in r})
     return jsonify(days)
+
+
+# ---------------------------------------------------------------------------
+# Rankings, team pages, games
+# ---------------------------------------------------------------------------
+from ncaa import teams as teams_mod
+from ncaa.live import LiveState, STATS as LIVE_STATS
+from ncaa.ratings import team_ratings
+
+SEASONS = sorted({SEASON, LIVE_SEASON})
+
+
+@lru_cache(maxsize=4)
+def _ratings(season: int, stamp: float):
+    post, label = season_post(season)
+    br = state()[0] if season == SEASON else None
+    return team_ratings(post, br), label
+
+
+def ratings_for(season: int):
+    return _ratings(season, _stamp(season))
+
+
+@app.route("/rankings")
+def rankings_page():
+    return render_template("rankings.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="rankings",
+                           default_season=int(request.args.get("season", LIVE_SEASON)))
+
+
+@app.route("/teams")
+def teams_redirect():
+    from flask import redirect
+    return redirect("/rankings")
+
+
+@app.route("/api/rankings")
+def api_rankings():
+    """Teams ranked by overall (net), offense (ORtg) or defense (DRtg)."""
+    season = int(request.args.get("season", SEASON))
+    rows, label = ratings_for(season)
+    d1 = set(data.d1_teams(season))
+    rows = [r for r in rows if r["team"] != "Non-D1" and (not d1 or r["team"] in d1)]
+    # How far each team has moved through this season's game-by-game updates.
+    up = season_mod.load_updates(season)
+    moved = {}
+    if len(up):
+        for t, g in up.groupby("team"):
+            g = g.sort_values("date")
+            moved[t] = {"games": len(g), "moved": float(g.net_after.iloc[-1] - g.net_before.iloc[0]),
+                        "last": float(g.net_after.iloc[-1] - g.net_before.iloc[-1]), "last_date": g.date.iloc[-1]}
+    rows = [dict(r, **moved.get(r["team"], {"games": 0, "moved": 0.0, "last": 0.0, "last_date": None})) for r in rows]
+    rank = {}
+    for key, rev in (("net", True), ("ortg", True), ("drtg", False)):
+        for i, r in enumerate(sorted(rows, key=lambda r: r[key], reverse=rev), 1):
+            rank.setdefault(r["team"], {})[key] = i
+    out = [dict(r, rank_overall=rank[r["team"]]["net"], rank_offense=rank[r["team"]]["ortg"],
+                rank_defense=rank[r["team"]]["drtg"]) for r in rows]
+    st_path = model.artifact_dir(season) / "status.json"
+    status = json.loads(st_path.read_text()) if st_path.exists() else {}
+    return jsonify({"season": season, "posterior": label, "teams": out, "games_folded_in": len(up) // 2 if len(up) else 0,
+                    "last_update": max(moved[t]["last_date"] for t in moved) if moved else status.get("updated")})
+
+
+@app.route("/team/<path:name>")
+def team_page(name):
+    return render_template("team.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, team=name, page="rankings")
+
+
+def _end_of_data(season: int):
+    g = data.load_games(season)
+    return g.date.max() if len(g) else pd.Timestamp.now(tz="UTC")
+
+
+@app.route("/api/team")
+def api_team():
+    season = int(request.args.get("season", SEASON))
+    name = request.args.get("name", "")
+    post, label = season_post(season)
+    if post is None or name not in post.teams:
+        abort(404, "team not in the model for this season")
+    rows, _ = ratings_for(season)
+    rating = next(r for r in rows if r["team"] == name)
+    profile = teams_mod.skill_profile(post, name)
+    styles = teams_mod.style_vulnerabilities(post, name)
+    tempo = teams_mod.tempo_note(post, name)
+    hist = season_mod.load_ratings_history(season)
+    hist = hist[hist.team == name].to_dict("records") if len(hist) else []
+    up = season_mod.load_updates(season)
+    per_game = up[up.team == name].sort_values("date").to_dict("records") if len(up) else []
+    # Games: results (with the out-of-sample pre-game forecast when the ledger has it) and upcoming.
+    sched = data.load_schedule(season)
+    games = []
+    if len(sched):
+        led = season_mod.load_ledger(season).set_index("game_id") if len(season_mod.load_ledger(season)) else None
+        mine = sched[(sched.home == name) | (sched.away == name)].sort_values("date")
+        for r in mine.itertuples():
+            row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
+                   "neutral": bool(r.neutral), "completed": bool(r.completed),
+                   "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
+            if led is not None and r.game_id in led.index:
+                lr = led.loc[r.game_id]
+                p_home = float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home)
+                row |= {"p_home_pregame": p_home, "unusualness": float(lr.unusualness)}
+            games.append(row)
+    return jsonify({"season": season, "posterior": label, "team": name, "rating": rating,
+                    "assessment": teams_mod.assessment(profile, styles, rating, tempo),
+                    "profile": profile, "styles": styles, "tempo": tempo,
+                    "form": teams_mod.form_history(post, name, _end_of_data(season)),
+                    "history": hist, "updates": per_game, "games": games})
+
+
+@app.route("/games")
+def games_page():
+    return render_template("games.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="games")
+
+
+@app.route("/api/games")
+def api_games():
+    """Games for a date (or all of a team's games), with forecasts for the ones not yet played."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    sched = data.load_schedule(season)
+    if not len(sched):
+        return jsonify({"games": [], "dates": []})
+    team = request.args.get("team", "")
+    if team:
+        rows = sched[(sched.home == team) | (sched.away == team)]
+    else:
+        day = pd.Timestamp(request.args.get("date") or pd.Timestamp.now(tz="America/New_York").strftime("%Y-%m-%d"))
+        local = sched.date.dt.tz_convert("America/New_York").dt.tz_localize(None).dt.normalize()
+        rows = sched[local == day]
+    rows = rows.sort_values("date")
+    post, label = season_post(season)
+    led = season_mod.load_ledger(season)
+    led = led.set_index("game_id") if len(led) else None
+    upcoming_ids = {u["game_id"]: u for u in
+                    (season_mod.upcoming(season, post, start=rows.date.min().strftime("%Y-%m-%d"),
+                                         days=(rows.date.max() - rows.date.min()).days + 2)
+                     if post is not None and len(rows) and (~rows.completed).any() and len(rows) <= 120 else [])}
+    out = []
+    for r in rows.itertuples():
+        row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
+               "neutral": bool(r.neutral), "completed": bool(r.completed), "tournament": bool(r.tournament),
+               "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
+        if r.game_id in upcoming_ids and "p_home" in upcoming_ids[r.game_id]:
+            u = upcoming_ids[r.game_id]
+            row |= {"p_home": u["p_home"], "pred_score": u["pred_score"]}
+        if led is not None and r.game_id in led.index:
+            lr = led.loc[r.game_id]
+            row |= {"p_home_pregame": float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home),
+                    "unusualness": float(lr.unusualness)}
+        out.append(row)
+    local_dates = sorted(sched.date.dt.tz_convert("America/New_York").dt.strftime("%Y-%m-%d").unique())
+    return jsonify({"season": season, "posterior": label, "games": out, "dates": local_dates})
+
+
+@app.route("/game/<int:game_id>")
+def game_page(game_id):
+    return render_template("game.html", season=SEASON, live_season=LIVE_SEASON, game_id=game_id, page="games")
+
+
+def _final_state_from_box(season: int, game_id: int, row) -> LiveState | None:
+    g = real_games()
+    rows = g[g.game_id == game_id]
+    if not len(rows):
+        return None
+    box = {}
+    for t, prefix in ((row.home, ""), (row.away, "")):
+        r = rows[rows.team == t]
+        if not len(r):
+            return None
+        r = r.iloc[0]
+        box[t] = {k: int(r[k]) for k in LIVE_STATS}
+    return LiveState(game_id, [row.home, row.away], ["", ""], bool(row.neutral), "post", 2, 0.0, box, detail="Final")
+
+
+@app.route("/api/game")
+def api_game():
+    """One game, whatever its state: prior before tip-off, live during, update history after."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    gid = int(request.args["id"])
+    sched = data.load_schedule(season)
+    row = sched[sched.game_id == gid]
+    if not len(row):
+        abort(404, "game not found in this season's schedule")
+    row = next(row.itertuples())
+    post, label = season_post(season)
+    meta = {"season": season, "date": row.date.isoformat(), "home": row.home, "away": row.away,
+            "neutral": bool(row.neutral), "tournament": bool(row.tournament)}
+    led = season_mod.load_ledger(season)
+    if len(led) and gid in set(led.game_id):
+        lr = led[led.game_id == gid].iloc[0]
+        meta["ledger"] = {"p_home": float(lr.p_home) if lr.home == row.home else 1 - float(lr.p_home),
+                          "unusualness": float(lr.unusualness), "model": lr.model}
+    timeline, kind, state_ = None, "pre", None
+    if row.completed:
+        kind = "post"
+        try:
+            state_ = _replay.game(gid, 999)
+            timeline = _replay_timeline(season, gid)
+        except Exception as e:
+            meta["note"] = f"play-by-play not available ({e}); showing the final box score against the prior"
+            state_ = _final_state_from_box(season, gid, row)
+    else:
+        now = pd.Timestamp.now(tz="UTC")
+        if row.date - pd.Timedelta(hours=1) <= now <= row.date + pd.Timedelta(hours=4):
+            try:
+                live = _espn.game(gid)
+                _maybe_apply_final(season, live)
+                if live.status == "in":
+                    kind, state_ = "live", live
+            except Exception as e:
+                meta["note"] = f"live feed unavailable ({e})"
+    if state_ is None:
+        state_ = LiveState(gid, [row.home, row.away], ["", ""], bool(row.neutral), "pre" if kind == "pre" else "post",
+                           1, 20.0, {}, detail="Scheduled" if kind == "pre" else "Final")
+    view = _model_view(post, state_) if post is not None else None
+    if kind == "live":
+        with _lock:
+            timeline = list(_history.get(gid, []))
+    return jsonify({"kind": kind, "meta": meta, "state": state_.to_json(), "model": view, "posterior": label,
+                    "timeline": timeline})
 
 
 if __name__ == "__main__":
