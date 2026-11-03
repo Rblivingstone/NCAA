@@ -249,30 +249,13 @@ def apply_archived_finals(season: int, log=print, feed=None) -> int:
     return n
 
 
-def watch(season: int, every: int = 120, log=print, feed=None, rounds: int | None = None) -> None:
-    """Poll the live scoreboard and apply each game's update as soon as it goes final."""
+def watch(season: int, every: int = 60, log=print, feed=None, rounds: int | None = None) -> None:
+    """Follow every game from its scheduled tip-off: keep its win-probability history on disk and fold it
+    into the ratings the moment it goes final (see ``ncaa.tracker``)."""
     from .live import ESPNFeed
+    from .tracker import run
 
-    feed = feed or ESPNFeed()
-    done = 0
-    while rounds is None or done < rounds:
-        today = pd.Timestamp.now(tz="America/New_York")
-        for day in (today - pd.Timedelta(days=1), today):
-            try:
-                games = feed.scoreboard(day.strftime("%Y%m%d"))
-            except Exception as e:  # keep watching through feed hiccups
-                log(f"scoreboard unavailable: {e}")
-                games = []
-            st = current_state(season)
-            for g in games:
-                if g["status"] == "post" and st is not None and g["game_id"] not in st.applied:
-                    try:
-                        apply_live_final(season, feed.game(g["game_id"]), log=log)
-                    except Exception as e:
-                        log(f"could not apply game {g['game_id']}: {e}")
-        done += 1
-        if rounds is None or done < rounds:
-            time.sleep(every)
+    run(season, feed or ESPNFeed(), every=every, log=log, rounds=rounds)
 
 
 def score_new_games(season: int, post: model.Posterior, label: str, n: int = 2000) -> pd.DataFrame:

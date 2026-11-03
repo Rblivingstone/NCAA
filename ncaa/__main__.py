@@ -5,7 +5,7 @@
     python -m ncaa simulate --season 2026   # Monte Carlo tournaments + win matrix
     python -m ncaa build    --season 2026   # all three
     python -m ncaa update   --season 2027   # nightly during a season: fetch, score new games, refit
-    python -m ncaa watch    --season 2027   # all day: update team ratings the moment each game goes final
+    python -m ncaa watch    --season 2027   # all day: track every game from tip-off (win-prob history), update ratings at the final
 """
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def cmd_update(a):
 def cmd_watch(a):
     from . import season
 
-    print(f"watching {a.season}: checking the scoreboard every {a.every}s (Ctrl-C to stop)")
+    print(f"watching {a.season}: polling games from their scheduled tip-off every {a.every}s (Ctrl-C to stop)", flush=True)
     season.watch(a.season, every=a.every)
 
 
@@ -84,7 +84,7 @@ def main(argv=None):
     p.add_argument("--win-sims", type=int, default=100, help="games per pair per draw for the win matrix")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--refit", choices=["vi", "nuts", "none"], default="vi", help="update: how to refit after scoring")
-    p.add_argument("--every", type=int, default=120, help="watch: seconds between scoreboard checks")
+    p.add_argument("--every", type=int, default=60, help="watch: seconds between polls of live games")
     a = p.parse_args(argv)
     steps = {"fetch": [cmd_fetch], "fit": [cmd_fit], "simulate": [cmd_simulate],
              "build": [cmd_fetch, cmd_fit, cmd_simulate], "update": [cmd_update], "watch": [cmd_watch]}[a.command]

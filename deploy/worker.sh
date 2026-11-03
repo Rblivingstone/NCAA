@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Background jobs: build the models on first start, then keep the season current.
 #   * once:     fetch + fit + simulate the bracket season ($NCAA_SEASON) if not built yet
-#   * always:   `ncaa watch` - update team ratings the moment each game goes final
+#   * always:   `ncaa watch` - follow every game from its scheduled tip-off (win-probability history on
+#               disk, whether or not anyone is watching) and update team ratings the moment it goes final
 #   * nightly:  `ncaa update` at $NIGHTLY_HOUR (UTC) - new box scores, ledger, refit
 set -uo pipefail
 cd /app
@@ -10,7 +11,7 @@ LIVE="${NCAA_LIVE_SEASON:-2027}"
 FIT="${BOOTSTRAP_FIT:-vi}"          # vi: ~10 min; nuts: ~1-3 h (exact MCMC)
 NIGHTLY_FIT="${NIGHTLY_FIT:-vi}"
 HOUR="${NIGHTLY_HOUR:-10}"
-WATCH_EVERY="${WATCH_EVERY:-120}"
+WATCH_EVERY="${WATCH_EVERY:-60}"
 
 log() { echo "[$(date -u +%FT%TZ)] $*"; }
 

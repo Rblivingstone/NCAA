@@ -246,6 +246,27 @@ def _espn_wp_at(d: dict, flat: list[dict], until: float):
     return best
 
 
+def last_play_elapsed(d: dict) -> float:
+    """Minutes into the game of the latest play in a summary (0 before tip-off)."""
+    return max((play_elapsed(flatten(p)) for p in d.get("plays") or []), default=0.0)
+
+
+def summary_at(d: dict, minute: float) -> dict:
+    """A finished game's summary cut off ``minute`` into the game, shaped like the live feed's summary then:
+    plays and win probabilities so far, status in progress, no final box score."""
+    plays = [p for p in d.get("plays") or [] if play_elapsed(flatten(p)) <= minute + 1e-9]
+    ids = {str(flatten(p).get("id")) for p in plays}
+    period = 1 if minute <= HALF else 2 if minute <= 2 * HALF else 3 + int((minute - 2 * HALF - 1e-9) // OT)
+    clock = HALF * period - minute if period <= 2 else OT - (minute - 2 * HALF - (period - 3) * OT)
+    header = json.loads(json.dumps(d["header"]))
+    comp = header["competitions"][0]
+    comp["status"] = {"period": period, "displayClock": f"{int(clock)}:{int(round(clock % 1 * 60)):02d}",
+                      "type": {"state": "in", "completed": False, "shortDetail": _detail("in", period, clock)}}
+    return {**{k: v for k, v in d.items() if k not in ("plays", "boxscore", "winprobability", "header")},
+            "header": header, "plays": plays,
+            "winprobability": [w for w in d.get("winprobability") or [] if str(w.get("playId")) in ids]}
+
+
 def _get_json(url: str, timeout: float = 20) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ncaa-bayes)"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -271,8 +292,12 @@ class ESPNFeed:
                         "start": ev.get("date")})
         return out
 
+    def summary(self, game_id: int) -> dict:
+        """The raw game summary: header, box score, play-by-play so far, ESPN win probabilities."""
+        return _get_json(f"{self.base}/summary?event={game_id}")
+
     def game(self, game_id: int) -> LiveState:
-        return parse_summary(_get_json(f"{self.base}/summary?event={game_id}"))
+        return parse_summary(self.summary(game_id))
 
 
 class ReplayFeed:

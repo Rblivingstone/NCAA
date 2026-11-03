@@ -239,10 +239,22 @@ Each game is scored in the out-of-sample ledger against the beliefs from
 uncertainty before and after). Updates arrive from three sources, and the
 first one wins:
 
-* `python -m ncaa watch` polls the live scoreboard;
-* any Game or Live page that sees a game go final applies it;
+* `python -m ncaa watch` (the worker) follows every game from its scheduled
+  tip-off, whether or not anyone has the page open (see below);
+* a Game or Live page applies the final itself if the worker is behind;
 * the nightly `update` reads the per-game ESPN archive (which updates sooner)
   and the box-score files.
+
+**Live tracking** (`ncaa/tracker.py`): each game is picked up 10 minutes before
+its scheduled start, cross-checked against ESPN's scoreboard for delays, and polled
+every `WATCH_EVERY` seconds (60 by default) until it is final. Every poll adds a
+point to the game's win-probability history, stored in `artifacts/<season>/live/`.
+Any gap (the first poll after tip-off, a worker restart, a feed outage) is rebuilt
+minute by minute from the play-by-play. Open a game mid-way and you see its whole
+history since tip-off; after the final the history stays on the game page.
+Finished games are recorded with the beliefs from before the game, and then folded
+into the ratings. If the worker's record is more than 2½ minutes old, the page polls
+ESPN itself.
 
 The nightly refit then resets the beliefs. **Every Division I team is
 ranked** (365 in 2026–27, taken from conference membership in the schedule).
@@ -436,7 +448,7 @@ Settings live in `/opt/ncaa/.env`:
 | `BOOTSTRAP_FIT` | vi | first-build fit: `vi` takes about 10 min; `nuts` is the exact posterior and takes 1–3 h |
 | `NIGHTLY_FIT` | vi | nightly refit method (`none` only folds in new games) |
 | `NIGHTLY_HOUR` | 10 | UTC hour of the nightly update |
-| `WATCH_EVERY` | 120 | seconds between live-score polls |
+| `WATCH_EVERY` | 60 | seconds between polls of games in progress |
 | `WEB_PORT` | 8000, or the first free port after it | local port the app listens on |
 | `COMPOSE_PROFILES` | `caddy` or empty | set by the script: whether the bundled Caddy runs |
 

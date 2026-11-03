@@ -495,12 +495,78 @@ def test_live_final_is_scored_then_applied_once(tmp_path, monkeypatch):
     assert len(led) == 1 and 0.5 < led.p_home.iloc[0] < 0.9      # the pre-game forecast, logged before updating
     assert season.apply_live_final(2026, final, log=lambda *_: None) == 0   # never applied twice
 
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+
     class Feed:  # the watch loop picks finals off the scoreboard
         def scoreboard(self, date):
             return [{"game_id": final.game_id, "status": "post"}]
 
-        def game(self, gid):
-            return final
+        def summary(self, gid):
+            return raw
 
     season.watch(2026, every=0, log=lambda *_: None, feed=Feed(), rounds=1)
     assert len(load_updates(2026)) == 2
+
+
+def test_tracker_follows_a_game_from_tipoff(tmp_path, monkeypatch):
+    """The worker tracks a game from its scheduled start, with no one watching: the first poll mid-game
+    reconstructs the history so far from the plays, later polls add points, and the final finishes the
+    history and updates the ratings once."""
+    import json
+    import shutil
+    from pathlib import Path
+
+    import pandas as pd
+
+    from ncaa import tracker
+    from ncaa.live import summary_at
+    from ncaa.updates import load_updates
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2026").mkdir()
+    for f in ("posterior.npz", "teams.json"):
+        shutil.copy(real / f, tmp_path / "2026" / f)
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+    gid = 401856600
+    tip = pd.Timestamp("2026-04-07 01:20", tz="UTC")
+    sched = pd.DataFrame({"game_id": [gid], "date": [tip], "home": ["Michigan"], "away": ["UConn"],
+                          "neutral": [True], "completed": [False]})
+    monkeypatch.setattr(tracker.data, "load_schedule", lambda season: sched)
+
+    class Feed:  # ESPN as the game goes on; the scoreboard is down, so only the schedule says it's on
+        minute = 0.0
+
+        def scoreboard(self, date):
+            raise OSError("scoreboard down")
+
+        def summary(self, g):
+            return raw if self.minute >= 41 else summary_at(raw, self.minute)
+
+    feed = Feed()
+    assert tracker.games_to_poll(2026, [], now=tip - pd.Timedelta(hours=1)) == ([], [])   # before tip-off
+    assert tracker.games_to_poll(2026, [], now=tip + pd.Timedelta(minutes=30)) == ([gid], [])
+
+    feed.minute = 12.5                 # first look 12.5 minutes in: minutes 0-12 rebuilt from the plays
+    fc = tracker.Forecaster(2026)
+    tr = tracker.track_game(2026, gid, feed, fc)
+    el = [p["elapsed"] for p in tr["points"]]
+    assert tr["status"] == "in" and el[0] == 0 and el[-1] == 12.5 and len(el) == 14
+    assert all(0 < p["ours"] < 1 and set(p["q"]) for p in tr["points"])
+
+    feed.minute = 13.2                 # the next poll adds its point (and the minute-13 grid point it skipped)
+    tr = tracker.track_game(2026, gid, feed, fc)
+    assert [p["elapsed"] for p in tr["points"]][-3:] == [12.5, 13.0, 13.2]
+
+    feed.minute = 99                   # final: the rest of the game is filled in and the ratings update
+    tr = tracker.track_game(2026, gid, feed, fc, log=lambda *_: None)
+    el = [p["elapsed"] for p in tr["points"]]
+    assert tr["status"] == "post" and tr["applied"] and el[-1] == 40 and len(el) == 43   # minutes 0-39, the two polls, the final
+    assert tr["points"][-1]["ours"] in (0.0, 1.0) and tr["points"][-1]["score"] == [69, 63]
+    assert len(load_updates(2026)) == 2
+    assert tracker.load_track(2026, gid)["points"] == tr["points"]          # stored for the game page
+    assert tracker.games_to_poll(2026, [], now=tip + pd.Timedelta(hours=3)) == ([], [])   # done
+    tracker.run(2026, feed, every=0, log=lambda *_: None, rounds=1)
+    assert len(load_updates(2026)) == 2                                     # never applied twice
