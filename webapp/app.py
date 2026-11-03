@@ -486,7 +486,7 @@ def _tracked(season: int, gid: int):
                 fc = _forecasters.setdefault(season, tracker.Forecaster(season))
                 track = tracker.track_game(season, gid, _espn, fc, log=lambda *_: None)
         except Exception as e:
-            app.logger.warning("could not refresh game %s: %s", gid, e)
+            app.logger.warning("could not refresh game %s: %r", gid, e)
             if track is None:
                 raise
     raw = tracker.load_summary(season, gid)
@@ -583,7 +583,7 @@ def _schedule_board(date: str) -> list[dict]:
         score = pts or ([int(r.home_score), int(r.away_score)] if r.completed else [0, 0])
         out.append({"game_id": int(r.game_id), "teams": [r.home, r.away], "score": score, "neutral": bool(r.neutral),
                     "status": status, "detail": tr.get("detail") or ("Final" if r.completed else
-                                                                      r.date.tz_convert("America/New_York").strftime("%-I:%M %p ET")),
+                                                                      r.date.tz_convert("America/New_York").strftime("%I:%M %p ET").lstrip("0")),
                     "start": r.date.isoformat()})
     return out
 
@@ -673,7 +673,8 @@ def api_live_game():
                 raise ValueError("no data from the live feed yet")
             timeline = track.get("points", [])
     except Exception as e:
-        return jsonify({"error": f"could not load game {gid}: {e}"}), 502
+        app.logger.exception("could not load game %s", gid)      # full traceback in the server log
+        return jsonify({"error": f"could not load game {gid}: {type(e).__name__}: {e}"}), 502
     post, label = season_post(season)
     view = _model_view(post, state) if post is not None else None
     return jsonify({"state": state.to_json(), "model": view, "posterior": label, "timeline": timeline})

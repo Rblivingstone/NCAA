@@ -17,7 +17,6 @@ Each history point is {"elapsed", "ours" (model P(home wins)), "espn" (ESPN's P(
 """
 from __future__ import annotations
 
-import fcntl
 import gzip
 import json
 import os
@@ -78,14 +77,11 @@ def is_stale(track: dict | None, now: float | None = None) -> bool:
 @contextmanager
 def _game_lock(season: int, game_id: int):
     """One writer per game at a time (the worker and a web request may both refresh it)."""
+    from .locks import file_lock
+
     path, _ = _paths(season, game_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path.with_name(f".{int(game_id)}.lock"), "w") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+    with file_lock(path.with_name(f".{int(game_id)}.lock")):
+        yield
 
 
 # --- forecasting at one moment --------------------------------------------------

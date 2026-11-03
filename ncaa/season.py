@@ -133,16 +133,10 @@ def _canonical(team: str, st) -> str | None:
 @contextmanager
 def season_lock(season: int):
     """Serialise writes to a season's ratings across processes (web app, watcher, nightly job)."""
-    import fcntl
+    from .locks import file_lock
 
-    d = model.artifact_dir(season)
-    d.mkdir(parents=True, exist_ok=True)
-    with open(d / ".lock", "w") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    with file_lock(model.artifact_dir(season) / ".lock"):
+        yield
 
 
 def process_final(season: int, games: pd.DataFrame, source: str, n: int = 2000, log=print) -> int:
