@@ -29,7 +29,8 @@ from .evaluate import game_unusualness
 from .simulate import estimate_lead_beta
 
 LEDGER_COLUMNS = ["game_id", "date", "home", "away", "neutral", "kind", "home_pts", "away_pts",
-                  "p_home", "pred_margin", "margin_percentile", "unusualness", "drivers", "model"]
+                  "p_home", "pred_margin", "margin_percentile", "unusualness", "drivers", "model",
+                  "espn_p_home", "espn_checked"]
 
 
 def ledger_path(season: int):
@@ -40,7 +41,60 @@ def load_ledger(season: int) -> pd.DataFrame:
     path = ledger_path(season)
     if not path.exists():
         return pd.DataFrame(columns=LEDGER_COLUMNS)
-    return pd.read_csv(path, parse_dates=["date"])
+    led = pd.read_csv(path, parse_dates=["date"])
+    if "espn_p_home" not in led:                 # ledgers written before ESPN's forecast was recorded
+        led["espn_p_home"] = np.nan
+    if "espn_checked" not in led:
+        led["espn_checked"] = False
+    led["espn_checked"] = led.espn_checked.fillna(False).astype(bool)
+    return led
+
+
+def _espn_for_row(row, raw: dict) -> float:
+    """ESPN's pre-game P(first-listed ledger team wins), or NaN."""
+    from .live import espn_pregame
+
+    e = espn_pregame(raw)
+    if e is None:
+        return np.nan
+    if row.home == e["home"] or row.away == e["away"]:
+        return e["p_home"]
+    if row.home == e["away"] or row.away == e["home"]:
+        return 1 - e["p_home"]
+    return np.nan                                  # names don't line up (e.g. a pooled non-D1 opponent)
+
+
+def fill_espn(season: int, feed=None, raws: dict | None = None, log=print) -> int:
+    """Record ESPN's pre-game win probability next to ours for every ledger game that doesn't have it.
+
+    Summaries come from ``raws`` (already in hand), the tracker's stored copies, or, with a ``feed``, a
+    fetch (the archive has every finished game). Each game is looked up once; games ESPN published no
+    forecast for stay blank."""
+    from .tracker import load_summary
+
+    with season_lock(season):
+        led = load_ledger(season)
+        todo = led.index[~led.espn_checked]
+        filled = 0
+        for i in todo:
+            row = led.loc[i]
+            gid = int(row.game_id)
+            raw = (raws or {}).get(gid) or load_summary(season, gid)
+            if raw is None and feed is not None:
+                try:
+                    raw = feed.summary(gid)
+                except Exception:
+                    continue                       # try again next time
+            if raw is None:
+                continue
+            led.loc[i, "espn_p_home"] = _espn_for_row(row, raw)
+            led.loc[i, "espn_checked"] = True
+            filled += int(not np.isnan(led.loc[i, "espn_p_home"]))
+        if len(todo):
+            led.to_csv(ledger_path(season), index=False)
+    if filled:
+        log(f"recorded ESPN's pre-game forecast for {filled} games")
+    return filled
 
 
 def base_posterior(season: int) -> tuple[model.Posterior | None, str]:
@@ -293,6 +347,12 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
     before = len(load_ledger(season))
     process_final(season, _completed_games(season), source="nightly box scores", log=log)
     apply_archived_finals(season, log=log)
+    try:
+        from .live import FallbackFeed
+
+        fill_espn(season, feed=FallbackFeed(), log=log)
+    except Exception as e:                         # never fail the nightly update over the comparison
+        log(f"could not record ESPN forecasts: {e}")
     ledger = load_ledger(season)
     log(f"scored {len(ledger) - before} new games out of sample")
 

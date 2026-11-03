@@ -245,6 +245,15 @@ first one wins:
 * the nightly `update` reads the per-game ESPN archive (which updates sooner)
   and the box-score files.
 
+**Head-to-head with ESPN.** Every game in the ledger also records ESPN's pre-game win
+probability: its pre-game projection when the summary has one, otherwise its win
+probability at the opening tip. A tip-off value of exactly 50% is ESPN's placeholder
+when it has no pre-game view, so it counts as no forecast. The Season page scores both
+models on the same games (log-loss, Brier score, how often the favorite won). It also
+shows the per-game difference with a 95% interval, and each model's running log-loss
+through the season. ESPN's number is filled in when the tracker records a final, and
+the nightly update backfills the rest from the stored summaries or the game archive.
+
 **Live tracking** (`ncaa/tracker.py`): each game is picked up 10 minutes before
 its scheduled start, cross-checked against ESPN's scoreboard for delays, and polled
 every `WATCH_EVERY` seconds (60 by default) until it is final. Every poll adds a

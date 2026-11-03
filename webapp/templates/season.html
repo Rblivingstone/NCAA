@@ -11,6 +11,12 @@ shrunk toward average. Upcoming games are forecast from the latest posterior.</p
   <span class="muted" id="status"></span>
 </div>
 <div class="stats" id="summary"></div>
+<div class="panel" style="margin-top:12px" id="espn-panel" hidden>
+  <b>This model vs ESPN</b>
+  <div class="muted" style="margin:4px 0 8px">Both forecasts made before tip-off, scored on the same finished games (ESPN's
+    pre-game projection, or its win probability at the opening tip). Lower log-loss is better; a coin flip scores 0.693.</div>
+  <div class="cols2"><div id="espn-stats"></div><div id="espn-chart"></div></div>
+</div>
 <div class="panel" style="margin-top:12px">
   <div class="toolbar" style="margin:0"><b>Upcoming games</b>
     <input type="date" id="date"> <select id="days"><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option></select>
@@ -41,14 +47,41 @@ shrunk toward average. Upcoming games are forecast from the latest posterior.</p
     $("summary").innerHTML = stat(s.games, "games scored out of sample") + (s.games ? stat(s.log_loss.toFixed(3), "log-loss (coin flip 0.693)") +
       stat(s.brier.toFixed(3), "Brier score") + stat(fmtPct(s.accuracy), "favorite won") +
       stat(fmtPct(s.share_unusual_05), "of games 'very unusual' (p<0.05; 5% if calibrated)") : "");
-    $("ledger").innerHTML = r.games.length ? `<tr><th>Date</th><th>Game</th><th class="num">Pre-game P(first team)</th><th class="num">Result</th>
+    drawEspn(s.vs_espn);
+    $("ledger").innerHTML = r.games.length ? `<tr><th>Date</th><th>Game</th><th class="num">Pre-game P(first team)</th><th class="num">ESPN</th><th class="num">Result</th>
       <th class="num">Unusualness</th><th>Driven by</th></tr>` + r.games.map((g) => {
         const won = g.home_pts > g.away_pts, p = g.p_home, upset = (p > 0.5) !== won;
         return `<tr><td>${g.date.slice(0, 10)}</td><td><a href="/matchup?a=${encodeURIComponent(g.home)}&b=${encodeURIComponent(g.away)}">${g.neutral ? `${g.home} vs ${g.away}` : `${g.away} @ ${g.home}`}</a></td>
-          <td class="num">${fmtPct(p)}</td><td class="num" style="color:${upset ? "var(--upset)" : "inherit"}">${g.home_pts}–${g.away_pts}</td>
+          <td class="num">${fmtPct(p)}</td><td class="num muted">${g.espn_p_home != null ? fmtPct(g.espn_p_home) : ""}</td>
+          <td class="num" style="color:${upset ? "var(--upset)" : "inherit"}">${g.home_pts}–${g.away_pts}</td>
           <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness.toFixed(3)}</td>
           <td class="muted">${g.drivers || ""}</td></tr>`; }).join("")
       : `<tr><td class="muted">No finished games scored yet — they appear here after the first nightly update with box scores.</td></tr>`;
+  }
+
+  function drawEspn(v) {
+    $("espn-panel").hidden = !v;
+    if (!v) return;
+    if (!v.games) { $("espn-stats").innerHTML = `<div class="muted">No games with an ESPN forecast yet (${v.checked} checked).</div>`; $("espn-chart").innerHTML = ""; return; }
+    const row = (k, a, b, f) => `<tr><td>${k}</td><td class="num">${f(a)}</td><td class="num">${f(b)}</td></tr>`;
+    const f3 = (x) => x.toFixed(3);
+    const better = v.diff > 0 ? "ESPN" : "this model";
+    const sig = v.diff_se ? ` (±${(1.96 * v.diff_se).toFixed(3)} at 95%${Math.abs(v.diff) > 1.96 * v.diff_se ? "" : ": not yet a clear difference"})` : "";
+    $("espn-stats").innerHTML = `<table class="data"><tr><th>${v.games} games</th><th class="num">this model</th><th class="num">ESPN</th></tr>
+      ${row("Log-loss", v.ours.log_loss, v.espn.log_loss, f3)}${row("Brier score", v.ours.brier, v.espn.brier, f3)}
+      ${row("Favorite won", v.ours.accuracy, v.espn.accuracy, fmtPct)}</table>
+      <div class="muted" style="margin-top:6px">${better} is ahead by ${Math.abs(v.diff).toFixed(3)} log-loss per game${sig}.</div>`;
+    const pts = v.running, W = 460, H = 180, L = 40, P = 18;
+    if (pts.length < 2) { $("espn-chart").innerHTML = `<div class="muted">The running log-loss chart starts after a second day of games.</div>`; return; }
+    const ys = pts.flatMap((p) => [p.ours, p.espn]), y0 = Math.max(0, Math.min(...ys) - 0.03), y1 = Math.max(...ys) + 0.03;
+    const x = (i) => L + i / (pts.length - 1) * (W - L - P), y = (v_) => H - P - (v_ - y0) / (y1 - y0) * (H - 2 * P);
+    const line = (k, dash) => `<polyline points="${pts.map((p, i) => `${x(i)},${y(p[k])}`).join(" ")}" fill="none" stroke="${k === "ours" ? "var(--accent)" : "var(--muted)"}" stroke-width="2" ${dash ? 'stroke-dasharray="5 4"' : ""}/>`;
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="running log-loss">`;
+    for (const t of [y0, (y0 + y1) / 2, y1]) s += `<line x1="${L}" x2="${W - P}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${t.toFixed(2)}</text>`;
+    s += line("espn", true) + line("ours", false);
+    s += pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.ours)}" r="6" fill="transparent"><title>${p.date}: ${p.games} games · this model ${p.ours.toFixed(3)} · ESPN ${p.espn.toFixed(3)}</title></circle>`).join("");
+    s += `<text x="${L}" y="${H - 3}">${pts[0].date.slice(5)}</text><text x="${W - P}" y="${H - 3}" text-anchor="end">${pts[pts.length - 1].date.slice(5)}</text></svg>`;
+    $("espn-chart").innerHTML = s + `<div class="muted"><span style="color:var(--accent)">━</span> this model &nbsp; <span>╍</span> ESPN — running log-loss through the season (hover for the day)</div>`;
   }
 
   async function loadUpcoming() {

@@ -251,6 +251,37 @@ def last_play_elapsed(d: dict) -> float:
     return max((play_elapsed(flatten(p)) for p in d.get("plays") or []), default=0.0)
 
 
+def espn_pregame(d: dict) -> dict | None:
+    """ESPN's pre-game win probability for the home team, from a game summary: its pre-game projection when
+    the summary has one, otherwise its win probability at the opening tip (score 0-0, first minute).
+    Returns {"p_home", "home", "away", "source"}, or None when ESPN published neither. A tip-off value of
+    exactly 50% is ESPN's placeholder when it has no pre-game view (its chart then follows only the score),
+    so it counts as no forecast."""
+    comp = d["header"]["competitions"][0]
+    order = sorted(comp["competitors"], key=lambda c: c["homeAway"] != "home")
+    home, away = (c["team"]["location"] for c in order)
+    pred = d.get("predictor") or {}
+    try:
+        proj = float((pred.get("homeTeam") or {}).get("gameProjection"))
+        if 0 <= proj <= 100:
+            return {"p_home": proj / 100, "home": home, "away": away, "source": "ESPN pre-game projection"}
+    except (TypeError, ValueError):
+        pass
+    wps = d.get("winprobability") or []
+    plays = {str(flatten(p).get("id")): flatten(p) for p in (d.get("plays") or [])[:20]}
+    for w in wps[:5]:
+        p = plays.get(str(w.get("playId")))
+        if p is None or w.get("homeWinPercentage") is None:
+            continue
+        if play_elapsed(p) <= 1.0 and not (p.get("homeScore") or p.get("awayScore")):
+            p0 = float(w["homeWinPercentage"])
+            if abs(p0 - 0.5) < 1e-9:       # ESPN had no pre-game view: its chart starts at a coin flip
+                return None
+            return {"p_home": p0, "home": home, "away": away, "source": "ESPN win probability at tip-off"}
+        break
+    return None
+
+
 def summary_at(d: dict, minute: float) -> dict:
     """A finished game's summary cut off ``minute`` into the game, shaped like the live feed's summary then:
     plays and win probabilities so far, status in progress, no final box score."""

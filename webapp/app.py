@@ -538,12 +538,42 @@ def api_season_status():
         summ |= {"log_loss": float(-np.mean(np.where(won, np.log(p), np.log(1 - p)))),
                  "brier": float(np.mean((p - won) ** 2)), "accuracy": float(np.mean((p > 0.5) == won)),
                  "unusual_hist": np.histogram(u, bins=10, range=(0, 1))[0].tolist(),
-                 "share_unusual_05": float(np.mean(u < 0.05))}
+                 "share_unusual_05": float(np.mean(u < 0.05)),
+                 "vs_espn": _vs_espn(led)}
     rows = led[(led.home == team) | (led.away == team)] if team else led
     rows = rows.sort_values("date", ascending=False).head(300)
     return jsonify({"season": season, "posterior": label, "status": status, "summary": summ,
                     "teams": sorted(post.teams) if post is not None else [],
                     "games": json.loads(rows.to_json(orient="records", date_format="iso"))})
+
+
+def _vs_espn(led: pd.DataFrame) -> dict | None:
+    """This model vs ESPN, on the games both forecast before tip-off: log-loss, Brier, and the running
+    (cumulative) log-loss of each through the season."""
+    if "espn_p_home" not in led:
+        return None
+    both = led[led.espn_p_home.notna()].sort_values("date")
+    if not len(both):
+        return {"games": 0, "checked": int(led.espn_checked.sum()) if "espn_checked" in led else 0}
+    won = (both.home_pts > both.away_pts).to_numpy()
+    out = {"games": int(len(both)), "checked": int(led.espn_checked.sum())}
+    losses = {}
+    for name, col in (("ours", "p_home"), ("espn", "espn_p_home")):
+        p = both[col].astype(float).clip(1e-3, 1 - 1e-3).to_numpy()
+        ll = -np.where(won, np.log(p), np.log(1 - p))
+        losses[name] = ll
+        out[name] = {"log_loss": float(ll.mean()), "brier": float(np.mean((p - won) ** 2)),
+                     "accuracy": float(np.mean((p > 0.5) == won))}
+    d = losses["ours"] - losses["espn"]          # per game: > 0 when ESPN did better
+    out["diff"] = float(d.mean())
+    out["diff_se"] = float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else None
+    days = both.date.dt.strftime("%Y-%m-%d").to_numpy()
+    n = np.arange(1, len(both) + 1)
+    cum = {k: np.cumsum(v) / n for k, v in losses.items()}
+    last = np.r_[days[1:] != days[:-1], True]   # one point per day: the running mean after that day's games
+    out["running"] = [{"date": days[i], "games": int(n[i]), "ours": float(cum["ours"][i]), "espn": float(cum["espn"][i])}
+                      for i in np.flatnonzero(last)]
+    return out
 
 
 @app.route("/api/season/upcoming")

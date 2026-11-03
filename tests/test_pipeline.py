@@ -617,3 +617,46 @@ def test_unseen_teams_start_at_their_groups_average():
     assert np.all(np.abs(tiny.mean(0) - nd1.mean(0)) < 0.25 * sd)                     # the average non-D1 opponent
     assert np.allclose(new_d1.std(0), np.sqrt(sd ** 2 + post.z[:, ~np.isin(post.teams, ["Non-D1"])].mean(1).std(0) ** 2), rtol=0.2)
     assert model.with_teams(post, ["Michigan"]) is post                               # nothing to add
+
+
+def test_espn_pregame_forecast_goes_in_the_ledger(tmp_path, monkeypatch):
+    """ESPN's pre-game probability is read at tip-off, oriented to the ledger's first team, recorded once,
+    and a 50% placeholder (ESPN had no view) counts as no forecast."""
+    import copy
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from ncaa import season
+    from ncaa.live import espn_pregame
+
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+    e = espn_pregame(raw)
+    assert e["home"] == "Michigan" and abs(e["p_home"] - 0.697) < 1e-9
+    flat = copy.deepcopy(raw)
+    flat["winprobability"][0]["homeWinPercentage"] = 0.5
+    assert espn_pregame(flat) is None
+
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2026").mkdir()
+    pd.DataFrame([{"game_id": 401856600, "date": "2026-04-07", "home": "UConn", "away": "Michigan",
+                   "home_pts": 63, "away_pts": 69, "p_home": 0.4},
+                  {"game_id": 1, "date": "2026-04-06", "home": "A", "away": "B", "home_pts": 1, "away_pts": 0,
+                   "p_home": 0.5}]).to_csv(season.ledger_path(2026), index=False)
+
+    class Feed:
+        calls = 0
+
+        def summary(self, gid):
+            Feed.calls += 1
+            if gid == 1:
+                raise OSError("no such game")
+            return raw
+
+    assert season.fill_espn(2026, feed=Feed(), log=lambda *_: None) == 1
+    led = season.load_ledger(2026).set_index("game_id")
+    assert abs(led.loc[401856600, "espn_p_home"] - (1 - 0.697)) < 1e-9          # P(UConn), the first team
+    assert led.loc[401856600, "espn_checked"] and not led.loc[1, "espn_checked"]  # retried later
+    season.fill_espn(2026, feed=Feed(), log=lambda *_: None)
+    assert Feed.calls == 3                                                       # the recorded game isn't fetched again

@@ -171,6 +171,9 @@ def track_game(season: int, game_id: int, feed, fc: Forecaster | None = None, lo
     if track["status"] == "post" and not track.get("applied"):
         try:
             apply_live_final(season, parse_summary(raw), log=log)
+            from .season import fill_espn
+
+            fill_espn(season, raws={int(game_id): raw}, log=log)    # ESPN's pre-game forecast, for the ledger
         except Exception as e:           # the nightly update retries; never lose the history over it
             log(f"could not update ratings for {game_id}: {e}")
         finally:
