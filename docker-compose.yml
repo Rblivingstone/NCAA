@@ -9,7 +9,8 @@ services:
     volumes:
       - artifacts:/app/artifacts
       - data:/app/data
-    expose: ["8000"]
+    # Reachable only from this machine; Caddy below, or the host's own nginx/Apache/Caddy, proxies to it.
+    ports: ["127.0.0.1:${WEB_PORT:-8000}:8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/static/style.css', timeout=5)"]
       interval: 30s
@@ -31,14 +32,16 @@ services:
       - artifacts:/app/artifacts
       - data:/app/data
 
+  # Bundled HTTPS proxy, only for servers where nothing else uses ports 80/443 (COMPOSE_PROFILES=caddy in .env).
   caddy:
     image: caddy:2
+    profiles: ["caddy"]
     restart: unless-stopped
     depends_on: [web]
     ports: ["80:80", "443:443", "443:443/udp"]
     environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
-      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+      DOMAIN: ${DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

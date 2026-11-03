@@ -394,12 +394,25 @@ Set `NCAA_SEASON` to serve a different season for the bracket pages and
 
 ## Deploying to a VPS (Docker, HTTPS on your domain)
 
-Everything runs from `docker-compose.yml`: **web** (gunicorn serving the Flask app), **worker** (the first build, the
-live-game watcher and the nightly update) and **caddy** (reverse proxy that gets and renews a Let's Encrypt certificate
-for your domain). Models, ledgers and team ratings live in `./artifacts` and the data cache in `./data` on the host, so
-they survive rebuilds.
+Everything runs from `docker-compose.yml`:
 
-1. Point your domain's DNS **A** record (and AAAA, if the server has IPv6) at the VPS. Ports 80 and 443 must be open.
+- **web**: gunicorn serving the Flask app on `127.0.0.1:$WEB_PORT`, reachable from the server only.
+- **worker**: the first build, the live-game watcher and the nightly update.
+- **caddy** (optional): a reverse proxy that gets and renews a Let's Encrypt certificate for your domain.
+
+Models, ledgers and team ratings live in Docker volumes (`ncaa_artifacts`, `ncaa_data`), so they survive rebuilds.
+
+The script picks the HTTPS setup from what it finds on the server:
+
+- **Nothing on ports 80/443** (a fresh server): the bundled Caddy takes them and handles HTTPS.
+- **Another web server already on 80/443** (a server hosting other sites): the app stays on localhost behind it.
+  - **nginx**: the script adds a site for your domain (it leaves your other sites alone and backs out if
+    `nginx -t` fails), then gets the certificate with certbot.
+  - **Apache or a host Caddy**: it prints the few lines to add.
+
+Force a mode with `PROXY=caddy` or `PROXY=host`.
+
+1. Point your domain's DNS **A** record (and AAAA, if the server has IPv6) at the VPS.
 2. On the VPS (Ubuntu or Debian, 2+ vCPUs and 4 GB RAM recommended):
 
    ```bash
@@ -407,7 +420,8 @@ they survive rebuilds.
    sudo ./deploy/deploy.sh ncaa.example.com you@example.com
    ```
 
-   The script installs Docker if it is missing, opens the firewall, checks DNS, writes `.env` and starts the stack.
+   The script installs Docker if it is missing, checks DNS, writes `.env`, starts the stack and sets up HTTPS.
+   Re-running it is safe.
 3. The first start builds the models (fetch, fit, simulate: about 20–90 minutes). Until then the site shows a
    "building" page. Follow it with `docker compose logs -f worker`.
 
@@ -423,9 +437,11 @@ Settings live in `/opt/ncaa/.env`:
 | `NIGHTLY_FIT` | vi | nightly refit method (`none` only folds in new games) |
 | `NIGHTLY_HOUR` | 10 | UTC hour of the nightly update |
 | `WATCH_EVERY` | 120 | seconds between live-score polls |
+| `WEB_PORT` | 8000, or the first free port after it | local port the app listens on |
+| `COMPOSE_PROFILES` | `caddy` or empty | set by the script: whether the bundled Caddy runs |
 
-After changing `.env`, run `docker compose up -d`. To put the site behind a password, uncomment `basic_auth` in
-`deploy/Caddyfile`. `/healthz` reports whether the models are built.
+After changing `.env`, run `docker compose up -d`. With the bundled Caddy, you can add a password by uncommenting
+`basic_auth` in `deploy/Caddyfile`. `/healthz` reports whether the models are built.
 
 ## Tests
 
