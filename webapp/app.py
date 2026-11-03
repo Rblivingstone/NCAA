@@ -463,10 +463,10 @@ import pandas as pd
 
 from ncaa import season as season_mod
 from ncaa.ingame import SHIFT_LEVEL, forecast as live_forecast, live_unusualness, pregame, shifts, stat_densities
-from ncaa.live import ESPNFeed, ReplayFeed, parse_summary
+from ncaa.live import FallbackFeed, ReplayFeed, parse_summary
 
 LIVE_SEASON = int(os.environ.get("NCAA_LIVE_SEASON", 2027))
-_espn, _replay = ESPNFeed(), ReplayFeed()
+_espn, _replay = FallbackFeed(), ReplayFeed()   # ESPN, or the game archive once a game is final
 _lock = threading.Lock()
 _forecasters: dict = {}
 _track_lock = threading.Lock()
@@ -562,8 +562,30 @@ def api_live_scoreboard():
     date = request.args.get("date") or pd.Timestamp.now(tz="America/New_York").strftime("%Y%m%d")
     try:
         return jsonify({"date": date, "games": _espn.scoreboard(date.replace("-", ""))})
-    except Exception as e:  # network or feed trouble: say so instead of failing the page
-        return jsonify({"date": date, "games": [], "error": f"ESPN scoreboard unavailable: {e}"})
+    except Exception as e:  # ESPN unreachable: list the day from the schedule and what the tracker has seen
+        return jsonify({"date": date, "games": _schedule_board(date.replace("-", "")),
+                        "error": f"ESPN scoreboard unavailable ({e}); showing the schedule"})
+
+
+def _schedule_board(date: str) -> list[dict]:
+    from ncaa import tracker
+
+    try:
+        sched = data.load_schedule(LIVE_SEASON)
+    except Exception:
+        return []
+    day = sched[sched.date.dt.tz_convert("America/New_York").dt.strftime("%Y%m%d") == date]
+    out = []
+    for r in day.sort_values("date").itertuples():
+        tr = tracker.load_track(LIVE_SEASON, r.game_id) or {}
+        pts = (tr.get("points") or [{}])[-1].get("score")
+        status = tr.get("status") or ("post" if r.completed else "pre")
+        score = pts or ([int(r.home_score), int(r.away_score)] if r.completed else [0, 0])
+        out.append({"game_id": int(r.game_id), "teams": [r.home, r.away], "score": score, "neutral": bool(r.neutral),
+                    "status": status, "detail": tr.get("detail") or ("Final" if r.completed else
+                                                                      r.date.tz_convert("America/New_York").strftime("%-I:%M %p ET")),
+                    "start": r.date.isoformat()})
+    return out
 
 
 @app.route("/api/live/replay_games")
@@ -894,9 +916,9 @@ def api_game():
     from ncaa import tracker
 
     track = tracker.load_track(season, gid)
-    if track is None and not row.completed and row.date - tracker.POLL_BEFORE <= now <= row.date + tracker.GIVE_UP:
+    if track is None and not row.completed and row.date - tracker.POLL_BEFORE <= now:
         try:
-            track, _ = _tracked(season, gid)        # the worker hasn't got to it yet
+            track, _ = _tracked(season, gid)        # the worker hasn't got to it (yet): live feed or archive
         except Exception as e:
             meta["note"] = f"live feed unavailable ({e})"
     if track is not None and track.get("status") in ("in", "post"):

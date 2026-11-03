@@ -570,3 +570,29 @@ def test_tracker_follows_a_game_from_tipoff(tmp_path, monkeypatch):
     assert tracker.games_to_poll(2026, [], now=tip + pd.Timedelta(hours=3)) == ([], [])   # done
     tracker.run(2026, feed, every=0, log=lambda *_: None, rounds=1)
     assert len(load_updates(2026)) == 2                                     # never applied twice
+
+
+def test_fallback_feed_uses_the_archive_when_espn_fails(monkeypatch):
+    """A server ESPN won't answer still gets finished games, from the per-game archive."""
+    import json
+    from pathlib import Path
+
+    from ncaa import live
+
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+
+    class Blocked:
+        def summary(self, gid):
+            raise OSError("403 Forbidden")
+
+    urls = []
+    monkeypatch.setattr(live, "_get_json", lambda url, timeout=20: urls.append(url) or raw)
+    feed = live.FallbackFeed(Blocked())
+    assert feed.game(401856600).status == "post" and urls == [live.RAW_GAME_JSON.format(game_id=401856600)]
+
+    def missing(url, timeout=20):
+        raise OSError("404")
+
+    monkeypatch.setattr(live, "_get_json", missing)       # not archived yet (game still going): ESPN's error
+    with pytest.raises(RuntimeError, match="403 Forbidden"):
+        feed.summary(401856600)

@@ -177,6 +177,8 @@ def track_game(season: int, game_id: int, feed, fc: Forecaster | None = None, lo
     if track["status"] == "post" and not track.get("applied"):
         try:
             apply_live_final(season, parse_summary(raw), log=log)
+        except Exception as e:           # the nightly update retries; never lose the history over it
+            log(f"could not update ratings for {game_id}: {e}")
         finally:
             track["applied"] = True
             with _game_lock(season, game_id):

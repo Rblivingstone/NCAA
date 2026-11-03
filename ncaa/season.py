@@ -252,10 +252,10 @@ def apply_archived_finals(season: int, log=print, feed=None) -> int:
 def watch(season: int, every: int = 60, log=print, feed=None, rounds: int | None = None) -> None:
     """Follow every game from its scheduled tip-off: keep its win-probability history on disk and fold it
     into the ratings the moment it goes final (see ``ncaa.tracker``)."""
-    from .live import ESPNFeed
+    from .live import FallbackFeed
     from .tracker import run
 
-    run(season, feed or ESPNFeed(), every=every, log=log, rounds=rounds)
+    run(season, feed or FallbackFeed(), every=every, log=log, rounds=rounds)
 
 
 def score_new_games(season: int, post: model.Posterior, label: str, n: int = 2000) -> pd.DataFrame:

@@ -300,6 +300,32 @@ class ESPNFeed:
         return parse_summary(self.summary(game_id))
 
 
+class FallbackFeed:
+    """ESPN's live feed, falling back to the per-game archive when ESPN fails (an outage, a blocked server
+    IP, a response it can't serve). The archive only has finished games, so an unfinished game still fails
+    with ESPN's error."""
+
+    def __init__(self, primary=None):
+        self.primary = primary or ESPNFeed()
+
+    def scoreboard(self, date: str) -> list[dict]:
+        return self.primary.scoreboard(date)
+
+    def summary(self, game_id: int) -> dict:
+        try:
+            d = self.primary.summary(game_id)
+            parse_summary(d)                 # fail over on a response we can't read, too
+            return d
+        except Exception as e:
+            try:
+                return _get_json(RAW_GAME_JSON.format(game_id=game_id), timeout=60)
+            except Exception:
+                raise RuntimeError(f"live feed failed ({e}) and the game archive has no final for it yet") from e
+
+    def game(self, game_id: int) -> LiveState:
+        return parse_summary(self.summary(game_id))
+
+
 class ReplayFeed:
     """Replays a finished game from the archived ESPN JSON, at any point in the game."""
 
