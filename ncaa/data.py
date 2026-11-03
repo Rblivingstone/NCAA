@@ -255,6 +255,18 @@ def load_games(season: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+_D1_CACHE: dict = {}
+
+
+def d1_set(season: int) -> frozenset:
+    """d1_teams as a set, re-read only when the schedule file changes."""
+    path = season_dir(season) / "schedule.csv"
+    stamp = path.stat().st_mtime if path.exists() else 0.0
+    if _D1_CACHE.get(season, (None,))[0] != stamp:
+        _D1_CACHE[season] = (stamp, frozenset(d1_teams(season)))
+    return _D1_CACHE[season][1]
+
+
 def d1_teams(season: int) -> list[str]:
     """Division I teams this season: every team the schedule lists with a conference."""
     s = load_schedule(season)

@@ -612,11 +612,21 @@ def _pre(post, a, b, home):
     return _pregame_cached(id(post), a, b, home)
 
 
+def _with_teams(post, state):
+    """A team the model has no history for starts at the average of its group (D1, or non-D1 opponents)."""
+    d1 = set()
+    for season in {LIVE_SEASON, SEASON}:
+        try:
+            d1 |= data.d1_set(season)
+        except Exception:
+            pass
+    return model.with_teams(post, state.teams, d1 or None)
+
+
 def _model_view(post, state, n=3000):
     """Forecast, pre-game baseline and live unusualness for a state (home team first)."""
+    post = _with_teams(post, state)
     idx = {t: i for i, t in enumerate(post.teams)}
-    if not all(t in idx for t in state.teams):
-        return None
     a, b = idx[state.teams[0]], idx[state.teams[1]]
     home = 0 if state.neutral else 1
     f = live_forecast(post, a, b, home, state, n=n, seed=0)
@@ -644,9 +654,8 @@ def _replay_timeline(season: int, game_id: int) -> list:
 
 def _model_view_light(post, state):
     """Win probability and per-stat shift q at one moment (for timelines)."""
+    post = _with_teams(post, state)
     idx = {t: i for i, t in enumerate(post.teams)}
-    if not all(t in idx for t in state.teams):
-        return None, None
     a, b, home = idx[state.teams[0]], idx[state.teams[1]], 0 if state.neutral else 1
     f = live_forecast(post, a, b, home, state, n=1500, seed=1)
     return f["p_win"][0], shifts(f["samples"], _pre(post, a, b, home)["samples"])

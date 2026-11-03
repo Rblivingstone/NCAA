@@ -109,12 +109,10 @@ class Forecaster:
     def point(self, state, elapsed: float | None = None) -> dict | None:
         from .ingame import forecast, pregame, shifts
 
-        post = self.post
-        if post is None:
+        if self.post is None:
             return None
+        post = model.with_teams(self.post, state.teams, data.d1_set(self.season) or None)  # no history: group average
         idx = {t: i for i, t in enumerate(post.teams)}
-        if not all(t in idx for t in state.teams):
-            return None                  # a team the model doesn't know (non-D1)
         a, b, home = idx[state.teams[0]], idx[state.teams[1]], 0 if state.neutral else 1
         key = (a, b, home)
         if key not in self._pre:

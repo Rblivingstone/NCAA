@@ -283,18 +283,56 @@ def carryover_mean(prior: "Posterior", teams: list[str], aliases: dict | None = 
     return out
 
 
-def newcomer_mean(prior: "Posterior") -> np.ndarray:
-    """Starting skills for a program new to Division I: the average of last season's bottom quarter
-    (first-year D1 programs are usually near the bottom, not average)."""
-    from .simulate import expected_efficiency
+def known_skills(post: "Posterior") -> np.ndarray:
+    """Posterior-mean skills of the real teams (not the pooled "Non-D1" opponent): T' x D."""
+    keep = np.array([t != "Non-D1" for t in post.teams])
+    return post.z.mean(0).astype(float)[keep]
 
-    zbar = prior.z.mean(0).astype(float)
-    keep = np.array([t != "Non-D1" for t in prior.teams])
-    di = def_index()
-    mu = prior.mu.mean(0)
-    net = expected_efficiency(mu + zbar[:, :S]) - expected_efficiency(mu + zbar[:, np.maximum(di, 0)] * (di >= 0))
-    cut = np.quantile(net[keep], 0.25)
-    return zbar[keep & (net <= cut)].mean(0)
+
+def newcomer_mean(prior: "Posterior") -> np.ndarray:
+    """Starting skills for a team with no previous-season data: the average of the teams we do have."""
+    return known_skills(prior).mean(0)
+
+
+_EXTENDED: dict = {}
+
+
+def with_teams(post: "Posterior", names, d1=None) -> "Posterior":
+    """``post`` plus any of ``names`` it has never seen, each starting at the average of the teams we do
+    have data on, in its group:
+
+    * a Division I team: the average of the D1 teams;
+    * a non-D1 school (not in ``d1``, when given): the pooled "Non-D1" rating, i.e. the average of the
+      non-D1 opponents D1 teams have played (about 35 pts/100 below an average D1 team).
+
+    Per posterior draw that average, plus a draw from the spread between teams: nothing is known about
+    where the team ranks within its group, so it is as uncertain as a random team."""
+    missing = sorted({t for t in names if t not in post.teams})
+    if not missing:
+        return post
+    d1 = None if d1 is None else frozenset(d1)
+    key = (id(post), tuple(missing), d1)
+    if key in _EXTENDED and _EXTENDED[key][0] is post:
+        return _EXTENDED[key][1]
+    import zlib
+
+    real = np.array([t != "Non-D1" for t in post.teams])
+    d1_center = post.z[:, real].astype(float).mean(1)                          # draws x D: the average team
+    pooled = post.z[:, post.teams.index("Non-D1")].astype(float) if "Non-D1" in post.teams else d1_center
+    spread = np.cov(known_skills(post).T) + 1e-9 * np.eye(post.z.shape[2])
+    rng = np.random.default_rng(zlib.crc32(",".join(missing).encode()))
+    eps = rng.standard_normal((post.n_draws, len(missing), post.z.shape[2])) @ np.linalg.cholesky(spread).T
+    center = np.stack([pooled if d1 is not None and t not in d1 else d1_center for t in missing], axis=1)
+    z_new = (center + eps).astype(post.z.dtype)
+    n = len(missing)
+    pad = lambda a, axis: np.concatenate([a, np.zeros(a.shape[:axis] + (n,) + a.shape[axis + 1:], a.dtype)], axis)
+    ext = dataclasses.replace(post, teams=list(post.teams) + missing, z=np.concatenate([post.z, z_new], axis=1),
+                              form_mean=pad(post.form_mean, 0), form_lo=pad(post.form_lo, 0),
+                              form_hi=pad(post.form_hi, 0), form_start=pad(post.form_start, 1))
+    if len(_EXTENDED) > 64:
+        _EXTENDED.clear()
+    _EXTENDED[key] = (post, ext)
+    return ext
 
 
 def preseason_posterior(prior: "Posterior", teams: list[str] | None = None, rho: float = 0.65,
@@ -307,12 +345,15 @@ def preseason_posterior(prior: "Posterior", teams: list[str] | None = None, rho:
     rng = np.random.default_rng(0)
     m = rho * carryover_mean(prior, teams)
     new = [i for i, t in enumerate(teams) if t not in prior.teams and TEAM_ALIASES.get(t) not in prior.teams]
-    if new:
-        m[new] = rho * newcomer_mean(prior)    # shrunk like everyone else's carry-over
     zbar = prior.z.mean(0)
-    sd = zbar.std(0) * np.sqrt(1 - rho ** 2) * spread
+    sd = np.repeat((zbar.std(0) * np.sqrt(1 - rho ** 2) * spread)[None], len(teams), axis=0)
+    if new:
+        # No previous season: the average of the teams we have, with the full spread between teams
+        # (nothing is carried over to shrink).
+        m[new] = newcomer_mean(prior)
+        sd[new] = known_skills(prior).std(0) * spread
     K = prior.n_draws
-    z = (m[None] + rng.standard_normal((K, len(teams), zbar.shape[1])) * sd).astype(np.float32)
+    z = (m[None] + rng.standard_normal((K, len(teams), zbar.shape[1])) * sd[None]).astype(np.float32)
     return dataclasses.replace(prior, teams=list(teams), z=z, form_mean=None, form_lo=None, form_hi=None,
                                form_start=None)
 

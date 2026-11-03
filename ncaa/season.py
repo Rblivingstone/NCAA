@@ -360,6 +360,7 @@ def upcoming(season: int, post: model.Posterior, start=None, days: int = 1, n: i
         return []
     start = pd.Timestamp.now(tz="UTC").normalize() if start is None else pd.Timestamp(start, tz="UTC")
     win = sched[(sched.date >= start) & (sched.date < start + pd.Timedelta(days=days))]
+    post = model.with_teams(post, set(win.home) | set(win.away), data.d1_set(season) or None)  # group average
     idx = {t: i for i, t in enumerate(post.teams)}
     out = []
     rng = np.random.default_rng(0)

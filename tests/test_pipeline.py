@@ -596,3 +596,24 @@ def test_fallback_feed_uses_the_archive_when_espn_fails(monkeypatch):
     monkeypatch.setattr(live, "_get_json", missing)       # not archived yet (game still going): ESPN's error
     with pytest.raises(RuntimeError, match="403 Forbidden"):
         feed.summary(401856600)
+
+
+def test_unseen_teams_start_at_their_groups_average():
+    """No history: a D1 team starts at the average D1 team, a non-D1 school at the pooled non-D1 rating,
+    both as uncertain as a random team."""
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    post = model.load_posterior(2026)
+    d1 = {t for t in post.teams if t != "Non-D1"} | {"New D1 U"}
+    ext = model.with_teams(post, ["New D1 U", "Tiny College", "Michigan"], d1)
+    assert ext.teams[-2:] == ["New D1 U", "Tiny College"] and ext.z.shape[1] == len(post.teams) + 2
+    assert model.with_teams(post, ["Tiny College", "New D1 U"], d1) is ext            # cached
+    known = model.known_skills(post)
+    new_d1, tiny = ext.z[:, -2].astype(float), ext.z[:, -1].astype(float)
+    nd1 = post.z[:, post.teams.index("Non-D1")].astype(float)
+    sd = known.std(0)
+    assert np.all(np.abs(new_d1.mean(0) - known.mean(0)) < 0.25 * sd)                 # the average D1 team
+    assert np.all(np.abs(tiny.mean(0) - nd1.mean(0)) < 0.25 * sd)                     # the average non-D1 opponent
+    assert np.allclose(new_d1.std(0), np.sqrt(sd ** 2 + post.z[:, ~np.isin(post.teams, ["Non-D1"])].mean(1).std(0) ** 2), rtol=0.2)
+    assert model.with_teams(post, ["Michigan"]) is post                               # nothing to add

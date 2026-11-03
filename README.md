@@ -258,9 +258,19 @@ ESPN itself.
 
 The nightly refit then resets the beliefs. **Every Division I team is
 ranked** (365 in 2026–27, taken from conference membership in the schedule).
-Renamed programs carry over their ratings (`data.TEAM_ALIASES`). A program
-new to Division I starts at the average of last season's bottom quarter,
-shrunk like everyone else's carry-over, with wide uncertainty.
+Renamed programs carry over their ratings (`data.TEAM_ALIASES`).
+
+**Teams with no previous-season data** (`model.with_teams`) start at the
+average of the teams we do have data on, in their group:
+
+* a program new to Division I starts at the average D1 team;
+* a non-D1 opponent starts at the pooled "Non-D1" rating, which is the
+  average of the non-D1 schools D1 teams have played (about 35 pts/100
+  below an average D1 team).
+
+Either way the team gets the full spread between teams as its uncertainty,
+since nothing says where it ranks in its group. This applies to the preseason
+prior, live forecasts, win-probability histories and upcoming-game forecasts.
 
 **Live in-game forecast** (`ncaa/ingame.py`). At each refresh the box score so
 far updates the model in three Bayesian steps:
