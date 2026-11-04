@@ -140,7 +140,7 @@ def api_compare():
 def api_score():
     br, sims, summary, W, _ = state()
     if W is None:
-        abort(503, "win matrix missing; run `python -m ncaa simulate`")
+        abort(503, "The tournament simulations haven't been built yet; check back once the first build finishes.")
     picks = (request.get_json(silent=True) or {}).get("picks", {})
     out = score_bracket(br, picks, W, summary, sims)
     out["expected_points"] = expected_points(br, picks, summary)
@@ -407,12 +407,12 @@ def api_matchup():
     season = int(request.args.get("season", LIVE_SEASON))
     post = state()[4] if season == SEASON else season_post(season)[0]
     if post is None:
-        abort(404, "no model for this season yet")
+        abort(404, "There's no model for this season yet.")
     a, b = request.args.get("a"), request.args.get("b")
     n = min(int(request.args.get("n", 5000)), 50000)
     home = int(request.args.get("home", 0))
     if a not in post.teams or b not in post.teams or a == b:
-        abort(400, "pick two different teams")
+        abort(400, "Pick two different teams.")
     rng = np.random.default_rng()
     k = rng.integers(post.n_draws, size=n)
     ia, ib = post.team_index([a, b])
@@ -609,7 +609,7 @@ def api_season_upcoming():
     season = int(request.args.get("season", LIVE_SEASON))
     post, label = season_post(season)
     if post is None:
-        abort(404, "no posterior for this season yet")
+        abort(404, "There's no model for this season yet.")
     date = request.args.get("date") or None
     ranks = rank_map(season)
     games = season_mod.upcoming(season, post, start=date, days=int(request.args.get("days", 1)))
@@ -625,7 +625,7 @@ def api_live_scoreboard():
         return jsonify({"date": date, "games": _espn.scoreboard(date.replace("-", ""))})
     except Exception as e:  # ESPN unreachable: list the day from the schedule and what the tracker has seen
         return jsonify({"date": date, "games": _schedule_board(date.replace("-", "")),
-                        "error": f"ESPN scoreboard unavailable ({e}); showing the schedule"})
+                        "error": "ESPN's scoreboard can't be reached right now; showing the schedule"})
 
 
 def _schedule_board(date: str) -> list[dict]:
@@ -744,7 +744,7 @@ def api_live_game():
             timeline = track.get("points", [])
     except Exception as e:
         app.logger.exception("could not load game %s", gid)      # full traceback in the server log
-        return jsonify({"error": f"could not load game {gid}: {type(e).__name__}: {e}"}), 502
+        return jsonify({"error": "This game couldn't be loaded from the live feed right now. Try again in a minute."}), 502
     post, label = season_post(season)
     view = _model_view(post, state) if post is not None else None
     return jsonify({"state": state.to_json(), "model": view, "posterior": label, "timeline": timeline})
@@ -868,7 +868,7 @@ def api_team():
     name = request.args.get("name", "")
     post, label = season_post(season)
     if post is None or name not in post.teams:
-        abort(404, "team not in the model for this season")
+        abort(404, "This team isn't in the model for this season.")
     rows, _ = ratings_for(season)
     rating = next(r for r in rows if r["team"] == name)
     profile = teams_mod.skill_profile(post, name)
@@ -975,7 +975,7 @@ def api_game():
     sched = data.load_schedule(season)
     row = sched[sched.game_id == gid]
     if not len(row):
-        abort(404, "game not found in this season's schedule")
+        abort(404, "This game isn't in this season's schedule.")
     row = next(row.itertuples())
     post, label = season_post(season)
     meta = {"season": season, "date": row.date.isoformat(), "home": row.home, "away": row.away,
@@ -994,13 +994,13 @@ def api_game():
         try:
             track, _ = _tracked(season, gid)        # the worker hasn't got to it (yet): live feed or archive
         except Exception as e:
-            meta["note"] = f"live feed unavailable ({e})"
+            meta["note"] = "The live feed can't be reached right now; showing the pre-game forecast."
     if track is not None and track.get("status") in ("in", "post"):
         try:
             track, live = _tracked(season, gid)     # refreshes a live game if the worker is behind
         except Exception as e:
             live = None
-            meta["note"] = f"live feed unavailable ({e})"
+            meta["note"] = "The live feed can't be reached right now; showing the pre-game forecast."
         if live is not None:
             kind = "live" if track["status"] == "in" else "post"
             state_, timeline = live, track.get("points", [])
@@ -1010,7 +1010,7 @@ def api_game():
             state_ = _replay.game(gid, 999)
             timeline = _replay_timeline(season, gid)
         except Exception as e:
-            meta["note"] = f"play-by-play not available ({e}); showing the final box score against the prior"
+            meta["note"] = "The play-by-play isn't available for this game, so the final box score is shown against the pre-game forecast."
             state_ = _final_state_from_box(season, gid, row)
     if state_ is None:
         state_ = LiveState(gid, [row.home, row.away], ["", ""], bool(row.neutral), "pre" if kind == "pre" else "post",

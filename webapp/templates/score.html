@@ -75,7 +75,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     <div class="scroll"><table class="data" id="games"></table></div></div>
 </div>
 <div class="panel" style="margin-top:14px"><b>Import / export picks</b>
-  <div class="muted" style="margin:4px 0 6px">JSON mapping game id → winning team. Edit and press Import to apply.</div>
+  <div class="muted" style="margin:4px 0 6px">Your picks as text: copy it to save your bracket, or paste picks in and press Import to load them.</div>
   <textarea id="json"></textarea>
   <div class="toolbar" style="margin-top:6px"><button id="import">Import</button></div>
 </div>
@@ -99,7 +99,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   document.getElementById("clear").onclick = () => { view.picks = {}; view.simGames = null; view.refresh(); schedule(); };
   document.getElementById("import").onclick = () => {
     try { view.setPicksByName(JSON.parse(document.getElementById("json").value)); schedule(); }
-    catch (e) { alert("Could not parse JSON: " + e.message); } };
+    catch (e) { alert("Those picks couldn't be read. Paste the text exactly as it was copied."); } };
 
   // ----- optimal bracket builder -----
   const $ = (id) => document.getElementById(id);

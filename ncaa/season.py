@@ -408,7 +408,7 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
             beta = prev.lead_beta if prev is not None else np.zeros(fitted.n_draws)
             beta = np.resize(beta, fitted.n_draws)
         model.add_to_posterior(season, lead_beta=beta)
-        status["posterior"] = f"{season} fit ({refit})"
+        status["posterior"] = f"{season} fit"
         log(f"refit {season} with {refit}")
         # The fit has seen every game so far: restart the running beliefs from it.
         from .updates import load_state, save_state, state_path

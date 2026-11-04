@@ -2,10 +2,10 @@
 {% block title %}Season tracker{% endblock %}
 {% block content %}
 <h1>Season tracker</h1>
-<p class="lede">Every night <code>python -m ncaa update --season {{ live_season }}</code> fetches the day's box scores,
-scores each finished game against the forecast the model made <em>before</em> it was played (win probability and how
-unusual the whole box score was), and refits. Until games are played the model is last season's, carried over and
-shrunk toward average. Upcoming games are forecast from the latest posterior.</p>
+<p class="lede">Every finished game is scored against the forecast the model made <em>before</em> it was played: the win
+probability it gave, and how unusual the whole box score was. Then the game is folded into both teams' ratings, and the model
+is refit each night. At the start of the season the ratings are last season's, pulled part of the way back toward average;
+they sharpen as games are played. Upcoming games are forecast from the latest ratings.</p>
 <div class="toolbar">
   <label>Season <select id="season"><option>{{ live_season }}</option><option>{{ season }}</option></select></label>
   <input class="search" id="q" list="teamlist" placeholder="Filter by team…" autocomplete="off"><datalist id="teamlist"></datalist>
