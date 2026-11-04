@@ -72,6 +72,9 @@ def game_unusualness(post: Posterior, a: int, b: int, home: int, row, n: int = 4
     m = row.pts - row.opp_pts
     u["p_winner"] = float(res["a_wins"].mean() if m > 0 else 1 - res["a_wins"].mean())
     u["margin_percentile"] = float((margin < m).mean() + 0.5 * (margin == m).mean())
+    # The pre-game forecast of the margin (first team's points minus the second's): mean and central 90%.
+    u["pred_margin"] = float(margin.mean())
+    u["margin_lo"], u["margin_hi"] = (float(q) for q in np.percentile(margin, [5, 95]))
     labels = [f"{t}:{s}" for t in ("a", "b") for s in JOINT_STATS]
     top = np.argsort(-u["contrib"])[:3]
     u["drivers"] = [{"team": labels[i].split(":")[0], "stat": labels[i].split(":")[1],

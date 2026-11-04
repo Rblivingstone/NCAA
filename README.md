@@ -354,7 +354,10 @@ The front page is the **model dashboard** for the season being tracked (2026–2
 * **Performance:** out-of-sample log-loss, Brier score, how often the favourite won, and the comparison with ESPN.
 * **Running performance and calibration:** log-loss through the season, and how often a 60/70/80/90% favourite actually won.
 * **Bayesian updates:** each game's prior → posterior for both teams, how a team's uncertainty shrinks with the games it plays, the biggest risers and fallers, and how far one game moves a rating.
-* **Calls:** the most confident calls that came in, the worst misses, wins where ESPN was wrong, upsets the model flagged, and the most unusual box scores.
+* **Point spread:** the model's predicted margin (with its 90% interval) against the real margin for every game, the betting line ESPN showed for the same game, the distribution of the misses (real − predicted), and predicted vs realized margins. Tiles show the average miss, bias, 90% coverage and the model's average miss vs the line's.
+* **Calls:** the most confident calls that came in, the worst misses, wins where ESPN was wrong and, for balance, losses where ESPN was right, upsets the model flagged, and the most unusual box scores.
+
+The ledger now keeps the predicted margin and its 90% interval for every game, plus the betting line from ESPN's game summary (filled in alongside ESPN's win probability). Games logged before the margin was kept get an approximate prediction, recovered from where the real margin fell in the model's simulations; the scatter shows them as hollow dots.
 
 The navigation puts the current season first: Dashboard, Live, Games, Season, Rankings and Simulate a game, then the
 2026 tournament pages (the distribution bracket, now at `/bracket`, and Score a bracket). Every page starts on the

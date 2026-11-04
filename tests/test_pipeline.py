@@ -741,3 +741,29 @@ def test_dashboard_api_shape():
         assert {"metrics", "calibration", "daily", "most_wrong", "best_calls"} <= set(d)
         assert all(g["p_winner"] < 0.5 for g in d["most_wrong"])
         assert sum(b["n"] for b in d["calibration"]) == d["games"]
+
+
+def test_betting_line_and_spread_summary():
+    """The line is the home team's expected margin (minus the quoted spread); the spread summary measures
+    misses, bias and 90% coverage, and recovers an approximate prediction for old ledger rows."""
+    import json
+    from pathlib import Path
+
+    from ncaa.live import betting_line
+    from webapp.app import _spreads
+
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+    raw["pickcenter"] = [{"details": "MICH -4.5", "spread": -4.5, "provider": {"name": "Book"}}]
+    ln = betting_line(raw)
+    assert ln["home"] == "Michigan" and ln["home_margin"] == 4.5
+    assert betting_line({**raw, "pickcenter": []}) is None
+
+    recs = [{"game_id": 1, "date": "2026-11-05", "home": "A", "away": "B", "neutral": False, "home_pts": 80, "away_pts": 70,
+             "pred_margin": 6.0, "margin_lo": -12.0, "margin_hi": 24.0, "line_margin": 8.0, "margin_percentile": 0.6},
+            {"game_id": 2, "date": "2026-11-05", "home": "C", "away": "D", "neutral": True, "home_pts": 60, "away_pts": 70,
+             "pred_margin": None, "margin_lo": None, "margin_hi": None, "line_margin": None, "margin_percentile": 0.5}]
+    s = _spreads(recs)
+    assert s["n"] == 2 and s["approx"] == 1
+    assert abs(s["points"][1]["pred"] - (-10)) < 1e-6          # median of the simulations = the real margin
+    assert abs(s["mae"] - 2.0) < 1e-6 and s["coverage90"] == 1.0
+    assert s["vs_line"] == {"games": 1, "model_mae": 4.0, "line_mae": 2.0}
