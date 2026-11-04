@@ -767,3 +767,28 @@ def test_betting_line_and_spread_summary():
     assert abs(s["points"][1]["pred"] - (-10)) < 1e-6          # median of the simulations = the real margin
     assert abs(s["mae"] - 2.0) < 1e-6 and s["coverage90"] == 1.0
     assert s["vs_line"] == {"games": 1, "model_mae": 4.0, "line_mae": 2.0}
+
+
+def test_upset_precision_recall_and_auc(monkeypatch):
+    """Upset detection scores games with a pre-game ranking underdog: precision and recall at the 35% and
+    50% flags, and a ROC-AUC that is 1 when every upset outscored every non-upset."""
+    import numpy as np
+
+    import webapp.app as A
+
+    assert A._auc(np.array([0.9, 0.2]), np.array([True, False])) == 1.0
+    assert A._auc(np.array([0.3, 0.3]), np.array([True, False])) == 0.5
+    assert A._auc(np.array([0.3]), np.array([True])) is None
+    ranks = {f"T{i}": i for i in range(1, 300)}
+    monkeypatch.setattr(A, "_pregame_rankers", lambda season: (lambda date: (ranks, True)))
+    g = lambda gid, dog_p, dog_won: {"game_id": gid, "date": "2026-11-05", "home": "T1", "away": "T200", "neutral": True,
+                                     "p_home": 1 - dog_p, "home_pts": 60 if dog_won else 80, "away_pts": 70}
+    recs = [g(1, 0.55, True), g(2, 0.40, False), g(3, 0.20, True), g(4, 0.10, False),
+            {**g(5, 0.5, True), "away": "T5"}]                      # 4 places apart: not counted
+    u = A._upset_detection(recs, 2027)
+    assert u["games"] == 4 and u["upsets"] == 2 and u["base_rate"] == 0.5
+    watch, pick = u["thresholds"]
+    assert (watch["tp"], watch["fp"], watch["fn"]) == (1, 1, 1) and watch["precision"] == 0.5 and watch["recall"] == 0.5
+    assert (pick["tp"], pick["fp"]) == (1, 0) and pick["precision"] == 1.0
+    assert u["auc"] == 0.75                                          # upsets at .55, .20 vs non-upsets at .40, .10
+    assert u["roc"][0] == {"fpr": 0.0, "tpr": 0.0, "t": 1.0} and u["roc"][-1]["fpr"] == 1.0 == u["roc"][-1]["tpr"]
