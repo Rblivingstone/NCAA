@@ -29,7 +29,8 @@ from .evaluate import game_unusualness
 from .simulate import estimate_lead_beta
 
 LEDGER_COLUMNS = ["game_id", "date", "home", "away", "neutral", "kind", "home_pts", "away_pts",
-                  "p_home", "pred_margin", "margin_percentile", "unusualness", "drivers", "model"]
+                  "p_home", "pred_margin", "margin_percentile", "unusualness", "drivers", "model",
+                  "espn_p_home", "espn_checked"]
 
 
 def ledger_path(season: int):
@@ -40,7 +41,60 @@ def load_ledger(season: int) -> pd.DataFrame:
     path = ledger_path(season)
     if not path.exists():
         return pd.DataFrame(columns=LEDGER_COLUMNS)
-    return pd.read_csv(path, parse_dates=["date"])
+    led = pd.read_csv(path, parse_dates=["date"])
+    if "espn_p_home" not in led:                 # ledgers written before ESPN's forecast was recorded
+        led["espn_p_home"] = np.nan
+    if "espn_checked" not in led:
+        led["espn_checked"] = False
+    led["espn_checked"] = led.espn_checked.fillna(False).astype(bool)
+    return led
+
+
+def _espn_for_row(row, raw: dict) -> float:
+    """ESPN's pre-game P(first-listed ledger team wins), or NaN."""
+    from .live import espn_pregame
+
+    e = espn_pregame(raw)
+    if e is None:
+        return np.nan
+    if row.home == e["home"] or row.away == e["away"]:
+        return e["p_home"]
+    if row.home == e["away"] or row.away == e["home"]:
+        return 1 - e["p_home"]
+    return np.nan                                  # names don't line up (e.g. a pooled non-D1 opponent)
+
+
+def fill_espn(season: int, feed=None, raws: dict | None = None, log=print) -> int:
+    """Record ESPN's pre-game win probability next to ours for every ledger game that doesn't have it.
+
+    Summaries come from ``raws`` (already in hand), the tracker's stored copies, or, with a ``feed``, a
+    fetch (the archive has every finished game). Each game is looked up once; games ESPN published no
+    forecast for stay blank."""
+    from .tracker import load_summary
+
+    with season_lock(season):
+        led = load_ledger(season)
+        todo = led.index[~led.espn_checked]
+        filled = 0
+        for i in todo:
+            row = led.loc[i]
+            gid = int(row.game_id)
+            raw = (raws or {}).get(gid) or load_summary(season, gid)
+            if raw is None and feed is not None:
+                try:
+                    raw = feed.summary(gid)
+                except Exception:
+                    continue                       # try again next time
+            if raw is None:
+                continue
+            led.loc[i, "espn_p_home"] = _espn_for_row(row, raw)
+            led.loc[i, "espn_checked"] = True
+            filled += int(not np.isnan(led.loc[i, "espn_p_home"]))
+        if len(todo):
+            led.to_csv(ledger_path(season), index=False)
+    if filled:
+        log(f"recorded ESPN's pre-game forecast for {filled} games")
+    return filled
 
 
 def base_posterior(season: int) -> tuple[model.Posterior | None, str]:
@@ -123,6 +177,11 @@ def _pair_posterior(st, base, a: str, b: str, seed: int):
     return state_posterior(sub, base, seed=seed)
 
 
+def _canonical_pooled(team: str, st) -> str | None:
+    """A non-D1 school's name in the two-sided update: the pooled pseudo-team."""
+    return data.OTHER_TEAM if data.OTHER_TEAM in st.teams else (team if team in st.teams else None)
+
+
 def _canonical(team: str, st) -> str | None:
     """The model's name for a team (non-D1 opponents share one pseudo-team)."""
     if team in st.teams:
@@ -133,16 +192,10 @@ def _canonical(team: str, st) -> str | None:
 @contextmanager
 def season_lock(season: int):
     """Serialise writes to a season's ratings across processes (web app, watcher, nightly job)."""
-    import fcntl
+    from .locks import file_lock
 
-    d = model.artifact_dir(season)
-    d.mkdir(parents=True, exist_ok=True)
-    with open(d / ".lock", "w") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    with file_lock(model.artifact_dir(season) / ".lock"):
+        yield
 
 
 def process_final(season: int, games: pd.DataFrame, source: str, n: int = 2000, log=print) -> int:
@@ -153,7 +206,7 @@ def process_final(season: int, games: pd.DataFrame, source: str, n: int = 2000, 
 
 
 def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -> int:
-    from .updates import apply_game, minutes_played, population_cov, save_state
+    from .updates import apply_game, apply_one_sided, minutes_played, population_cov, save_state
 
     st = current_state(season)
     base, label = base_posterior(season)
@@ -166,8 +219,9 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
     d1 = set(data.d1_teams(season))
     rows, applied = [], 0
     for k, r in enumerate(new.itertuples()):
-        a, b = (r.team if r.team in d1 or r.team in st.teams else _canonical(r.team, st)), \
-               (r.opponent if r.opponent in d1 or r.opponent in st.teams else _canonical(r.opponent, st))
+        # The two-sided update always uses the pooled non-D1 team (a school's own rating is updated separately).
+        name = lambda t: t if (t in d1 if d1 else t in st.teams) else _canonical_pooled(t, st)
+        a, b = name(r.team), name(r.opponent)
         if a is None or b is None or a == b:
             continue
         for t in (a, b):
@@ -175,10 +229,15 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
                 st.add_team(t, prior_cov)
         home = int(r.home)
         if int(r.game_id) not in seen:
-            pair = _pair_posterior(st, base, a, b, seed=k)
+            # Forecast with the best pre-game belief: a school's own rating once it has one.
+            fa = r.team if a == data.OTHER_TEAM and r.team in st.teams else a
+            fb = r.opponent if b == data.OTHER_TEAM and r.opponent in st.teams else b
+            pair = _pair_posterior(st, base, fa, fb, seed=k)
             u = game_unusualness(pair, 0, 1, home, r, n=n, seed=k)
             p_first = u["p_winner"] if r.pts > r.opp_pts else 1 - u["p_winner"]
-            rows.append({"game_id": int(r.game_id), "date": r.date, "home": a, "away": b, "neutral": home == 0,
+            show_a = r.team if a == data.OTHER_TEAM else a            # the school's own name, not the pool
+            show_b = r.opponent if b == data.OTHER_TEAM else b
+            rows.append({"game_id": int(r.game_id), "date": r.date, "home": show_a, "away": show_b, "neutral": home == 0,
                          "kind": getattr(r, "kind", "regular season"), "home_pts": int(r.pts), "away_pts": int(r.opp_pts),
                          "p_home": p_first, "pred_margin": np.nan, "margin_percentile": u["margin_percentile"],
                          "unusualness": u["p_value"],
@@ -187,6 +246,13 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
                          "model": f"{label} + updates"})
         box_a = {s_: int(getattr(r, s_)) for s_ in LIVE_BOX}
         box_b = {s_: int(getattr(r, "opp_" + s_)) for s_ in LIVE_BOX}
+        # A named non-D1 school also gets its own rating, updated against the D1 team's pre-game belief.
+        for school, opp, h, bs, bo in ((r.team, b, home, box_a, box_b), (r.opponent, a, -home, box_b, box_a)):
+            if school not in d1 and school != data.OTHER_TEAM and opp in d1:
+                try:
+                    apply_one_sided(st, base, school, opp, h, bs, bo, minutes_played(getattr(r, "ot", 0)), prior_cov)
+                except Exception as e:     # never block the D1 update over it
+                    log(f"could not update {school}'s own rating: {e}")
         apply_game(season, st, base, int(r.game_id), r.date, a, b, home, box_a, box_b,
                    minutes_played(getattr(r, "ot", 0)), prior_cov, source)
         applied += 1
@@ -249,30 +315,13 @@ def apply_archived_finals(season: int, log=print, feed=None) -> int:
     return n
 
 
-def watch(season: int, every: int = 120, log=print, feed=None, rounds: int | None = None) -> None:
-    """Poll the live scoreboard and apply each game's update as soon as it goes final."""
-    from .live import ESPNFeed
+def watch(season: int, every: int = 60, log=print, feed=None, rounds: int | None = None) -> None:
+    """Follow every game from its scheduled tip-off: keep its win-probability history on disk and fold it
+    into the ratings the moment it goes final (see ``ncaa.tracker``)."""
+    from .live import FallbackFeed
+    from .tracker import run
 
-    feed = feed or ESPNFeed()
-    done = 0
-    while rounds is None or done < rounds:
-        today = pd.Timestamp.now(tz="America/New_York")
-        for day in (today - pd.Timedelta(days=1), today):
-            try:
-                games = feed.scoreboard(day.strftime("%Y%m%d"))
-            except Exception as e:  # keep watching through feed hiccups
-                log(f"scoreboard unavailable: {e}")
-                games = []
-            st = current_state(season)
-            for g in games:
-                if g["status"] == "post" and st is not None and g["game_id"] not in st.applied:
-                    try:
-                        apply_live_final(season, feed.game(g["game_id"]), log=log)
-                    except Exception as e:
-                        log(f"could not apply game {g['game_id']}: {e}")
-        done += 1
-        if rounds is None or done < rounds:
-            time.sleep(every)
+    run(season, feed or FallbackFeed(), every=every, log=log, rounds=rounds)
 
 
 def score_new_games(season: int, post: model.Posterior, label: str, n: int = 2000) -> pd.DataFrame:
@@ -316,6 +365,12 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
     before = len(load_ledger(season))
     process_final(season, _completed_games(season), source="nightly box scores", log=log)
     apply_archived_finals(season, log=log)
+    try:
+        from .live import FallbackFeed
+
+        fill_espn(season, feed=FallbackFeed(), log=log)
+    except Exception as e:                         # never fail the nightly update over the comparison
+        log(f"could not record ESPN forecasts: {e}")
     ledger = load_ledger(season)
     log(f"scored {len(ledger) - before} new games out of sample")
 
@@ -335,10 +390,22 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         status["posterior"] = f"{season} fit ({refit})"
         log(f"refit {season} with {refit}")
         # The fit has seen every game so far: restart the running beliefs from it.
-        from .updates import state_path
+        from .updates import load_state, save_state, state_path
         with season_lock(season):
+            old = load_state(season)
             state_path(season).unlink(missing_ok=True)
-            current_state(season)
+            st = current_state(season)
+            # The fit pools non-D1 opponents into one team; keep each school's own rating from before it.
+            d1 = set(data.d1_teams(season))
+            if old is not None and st is not None:
+                kept = 0
+                for t in old.teams:
+                    if t not in st.teams and t not in d1 and t != data.OTHER_TEAM:
+                        i = st.add_team(t, old.cov[old.index(t)])
+                        st.mean[i] = old.mean[old.index(t)]
+                        kept += 1
+                if kept:
+                    save_state(season, st)
     record_ratings(season)
     status["seconds"] = round(time.time() - t0)
     (model.artifact_dir(season)).mkdir(parents=True, exist_ok=True)
@@ -358,9 +425,12 @@ def record_ratings(season: int) -> None:
     if post is None:
         return
     today = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d")
+    d1 = set(data.d1_teams(season))
+    rated = [r for r in team_ratings(post) if r["team"] != data.OTHER_TEAM and (not d1 or r["team"] in d1)]
+    rated.sort(key=lambda r: -r["net"])
     rows = pd.DataFrame([{"date": today, "team": r["team"], "net": r["net"], "net_lo": r["net_lo"], "net_hi": r["net_hi"],
-                          "ortg": r["ortg"], "drtg": r["drtg"], "rank": r["rank"], "model": label}
-                         for r in team_ratings(post)])
+                          "ortg": r["ortg"], "drtg": r["drtg"], "rank": k, "model": label}
+                         for k, r in enumerate(rated, 1)])
     path = ratings_history_path(season)
     if path.exists():
         old = pd.read_csv(path)
@@ -383,6 +453,7 @@ def upcoming(season: int, post: model.Posterior, start=None, days: int = 1, n: i
         return []
     start = pd.Timestamp.now(tz="UTC").normalize() if start is None else pd.Timestamp(start, tz="UTC")
     win = sched[(sched.date >= start) & (sched.date < start + pd.Timedelta(days=days))]
+    post = model.with_teams(post, set(win.home) | set(win.away), data.d1_set(season) or None)  # group average
     idx = {t: i for i, t in enumerate(post.teams)}
     out = []
     rng = np.random.default_rng(0)

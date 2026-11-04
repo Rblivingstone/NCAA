@@ -239,16 +239,63 @@ Each game is scored in the out-of-sample ledger against the beliefs from
 uncertainty before and after). Updates arrive from three sources, and the
 first one wins:
 
-* `python -m ncaa watch` polls the live scoreboard;
-* any Game or Live page that sees a game go final applies it;
+* `python -m ncaa watch` (the worker) follows every game from its scheduled
+  tip-off, whether or not anyone has the page open (see below);
+* a Game or Live page applies the final itself if the worker is behind;
 * the nightly `update` reads the per-game ESPN archive (which updates sooner)
   and the box-score files.
 
+**Head-to-head with ESPN.** Every game in the ledger also records ESPN's pre-game win
+probability: its pre-game projection when the summary has one, otherwise its win
+probability at the opening tip. A tip-off value of exactly 50% is ESPN's placeholder
+when it has no pre-game view, so it counts as no forecast. The Season page scores both
+models on the same games (log-loss, Brier score, how often the favorite won). It also
+shows the per-game difference with a 95% interval, and each model's running log-loss
+through the season. ESPN's number is filled in when the tracker records a final, and
+the nightly update backfills the rest from the stored summaries or the game archive.
+
+**Live tracking** (`ncaa/tracker.py`): each game is picked up 10 minutes before
+its scheduled start, cross-checked against ESPN's scoreboard for delays, and polled
+every `WATCH_EVERY` seconds (60 by default) until it is final. Every poll adds a
+point to the game's win-probability history, stored in `artifacts/<season>/live/`.
+Any gap (the first poll after tip-off, a worker restart, a feed outage) is rebuilt
+minute by minute from the play-by-play. Open a game mid-way and you see its whole
+history since tip-off; after the final the history stays on the game page.
+Finished games are recorded with the beliefs from before the game, and then folded
+into the ratings. If the worker's record is more than 2½ minutes old, the page polls
+ESPN itself.
+
 The nightly refit then resets the beliefs. **Every Division I team is
 ranked** (365 in 2026–27, taken from conference membership in the schedule).
-Renamed programs carry over their ratings (`data.TEAM_ALIASES`). A program
-new to Division I starts at the average of last season's bottom quarter,
-shrunk like everyone else's carry-over, with wide uncertainty.
+Renamed programs carry over their ratings (`data.TEAM_ALIASES`).
+
+**Teams with no previous-season data** (`model.with_teams`) start at the
+average of the teams we do have data on, in their group:
+
+* a program new to Division I starts at the average D1 team;
+* a non-D1 opponent starts at the pooled "Non-D1" rating, which is the
+  average of the non-D1 schools D1 teams have played (about 35 pts/100
+  below an average D1 team).
+
+Either way the team gets the full spread between teams as its uncertainty,
+since nothing says where it ranks in its group. This applies to the preseason
+prior, live forecasts, win-probability histories and upcoming-game forecasts.
+
+Those priors are only starting points. Every finished game moves them:
+
+* **D1 teams** are updated after each game (the Bayesian per-game update)
+  and re-estimated by every nightly refit.
+* **Non-D1 schools** each get their own rating, starting at the pooled
+  non-D1 average and updated by their own games against D1 teams, holding
+  the D1 opponent at its pre-game belief. The D1 side of the game still
+  updates against the pool, so no game is counted twice. A school's rating
+  is kept across nightly refits, since the fit itself pools non-D1
+  opponents. Its later forecasts and ledger entries use its own rating.
+
+Which teams count as Division I comes from conference membership in the
+schedule, in the fit as well as in the rankings. Before, the fit pooled any
+team with fewer than 8 games, which early in a season is nearly every D1
+team.
 
 **Live in-game forecast** (`ncaa/ingame.py`). At each refresh the box score so
 far updates the model in three Bayesian steps:
@@ -436,7 +483,7 @@ Settings live in `/opt/ncaa/.env`:
 | `BOOTSTRAP_FIT` | vi | first-build fit: `vi` takes about 10 min; `nuts` is the exact posterior and takes 1–3 h |
 | `NIGHTLY_FIT` | vi | nightly refit method (`none` only folds in new games) |
 | `NIGHTLY_HOUR` | 10 | UTC hour of the nightly update |
-| `WATCH_EVERY` | 120 | seconds between live-score polls |
+| `WATCH_EVERY` | 60 | seconds between polls of games in progress |
 | `WEB_PORT` | 8000, or the first free port after it | local port the app listens on |
 | `COMPOSE_PROFILES` | `caddy` or empty | set by the script: whether the bundled Caddy runs |
 

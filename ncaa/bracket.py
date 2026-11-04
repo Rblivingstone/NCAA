@@ -194,7 +194,7 @@ def summarize(bracket: Bracket, sims: dict, top_n_matchups: int = 5) -> dict:
 # ---------------------------------------------------------------------------
 
 def pairwise_win_matrix(bracket: Bracket, post: Posterior, n_draws: int = 100, sims_per_draw: int = 100,
-                        seed: int = 1) -> tuple[np.ndarray, np.ndarray]:
+                        seed: int = 1, batch_games: int = 200_000) -> tuple[np.ndarray, np.ndarray]:
     """P(i beats j) on a neutral floor for every pair of tournament teams, per posterior draw.
 
     Returns (draw_ids, W) with W of shape (n_draws, T, T); W[k, i, j] + W[k, j, i] = 1.
@@ -206,7 +206,9 @@ def pairwise_win_matrix(bracket: Bracket, post: Posterior, n_draws: int = 100, s
     pidx = post.team_index(bracket.teams)
     ii, jj = np.triu_indices(T, 1)
     W = np.full((len(draw_ids), T, T), 0.5, dtype=np.float32)
-    chunk = 200  # pairs per batch
+    # Pairs per batch, so each batch simulates about ``batch_games`` games: memory grows with the batch
+    # (~1.7 KB per game, so 200k games is ~0.4 GB), and smaller batches are no slower.
+    chunk = max(1, batch_games // (len(draw_ids) * sims_per_draw))
     for start in range(0, len(ii), chunk):
         pi, pj = ii[start:start + chunk], jj[start:start + chunk]
         P = len(pi)

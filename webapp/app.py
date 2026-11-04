@@ -463,12 +463,36 @@ import pandas as pd
 
 from ncaa import season as season_mod
 from ncaa.ingame import SHIFT_LEVEL, forecast as live_forecast, live_unusualness, pregame, shifts, stat_densities
-from ncaa.live import ESPNFeed, ReplayFeed
+from ncaa.live import FallbackFeed, ReplayFeed, parse_summary
 
 LIVE_SEASON = int(os.environ.get("NCAA_LIVE_SEASON", 2027))
-_espn, _replay = ESPNFeed(), ReplayFeed()
-_history: dict = {}          # game id -> [(elapsed, our P(home), ESPN P(home))] seen while polling live
+_espn, _replay = FallbackFeed(), ReplayFeed()   # ESPN, or the game archive once a game is final
 _lock = threading.Lock()
+_forecasters: dict = {}
+_track_lock = threading.Lock()
+
+
+def _tracked(season: int, gid: int):
+    """A game as the worker's tracker has recorded it: (track, live state), or (None, None) if never seen.
+
+    The worker polls every game from its scheduled tip-off; if its record is stale (worker down or behind),
+    the game is polled here instead, which also reconstructs any missing history from the play-by-play."""
+    from ncaa import tracker
+
+    track = tracker.load_track(season, gid)
+    if tracker.is_stale(track):
+        try:
+            with _track_lock:
+                fc = _forecasters.setdefault(season, tracker.Forecaster(season))
+                track = tracker.track_game(season, gid, _espn, fc, log=lambda *_: None)
+        except Exception as e:
+            app.logger.warning("could not refresh game %s: %r", gid, e)
+            if track is None:
+                raise
+    raw = tracker.load_summary(season, gid)
+    if raw is None:
+        return track, None
+    return track, parse_summary(raw, until=999) if track.get("status") == "post" else parse_summary(raw)
 
 
 @lru_cache(maxsize=4)
@@ -485,16 +509,6 @@ def _stamp(season: int) -> float:
 def season_post(season: int):
     """The season's model as of now (re-read after a refit or a game update)."""
     return _season_post(season, _stamp(season))
-
-
-def _maybe_apply_final(season: int, state) -> None:
-    """A game the live feed shows as final updates the ratings straight away."""
-    if season == LIVE_SEASON and state.status == "post":
-        try:
-            with _lock:
-                season_mod.apply_live_final(season, state, log=lambda *_: None)
-        except Exception as e:  # never let a rating update break the page
-            app.logger.warning("could not apply final for %s: %s", state.game_id, e)
 
 
 @app.route("/season")
@@ -524,12 +538,42 @@ def api_season_status():
         summ |= {"log_loss": float(-np.mean(np.where(won, np.log(p), np.log(1 - p)))),
                  "brier": float(np.mean((p - won) ** 2)), "accuracy": float(np.mean((p > 0.5) == won)),
                  "unusual_hist": np.histogram(u, bins=10, range=(0, 1))[0].tolist(),
-                 "share_unusual_05": float(np.mean(u < 0.05))}
+                 "share_unusual_05": float(np.mean(u < 0.05)),
+                 "vs_espn": _vs_espn(led)}
     rows = led[(led.home == team) | (led.away == team)] if team else led
     rows = rows.sort_values("date", ascending=False).head(300)
     return jsonify({"season": season, "posterior": label, "status": status, "summary": summ,
                     "teams": sorted(post.teams) if post is not None else [],
                     "games": json.loads(rows.to_json(orient="records", date_format="iso"))})
+
+
+def _vs_espn(led: pd.DataFrame) -> dict | None:
+    """This model vs ESPN, on the games both forecast before tip-off: log-loss, Brier, and the running
+    (cumulative) log-loss of each through the season."""
+    if "espn_p_home" not in led:
+        return None
+    both = led[led.espn_p_home.notna()].sort_values("date")
+    if not len(both):
+        return {"games": 0, "checked": int(led.espn_checked.sum()) if "espn_checked" in led else 0}
+    won = (both.home_pts > both.away_pts).to_numpy()
+    out = {"games": int(len(both)), "checked": int(led.espn_checked.sum())}
+    losses = {}
+    for name, col in (("ours", "p_home"), ("espn", "espn_p_home")):
+        p = both[col].astype(float).clip(1e-3, 1 - 1e-3).to_numpy()
+        ll = -np.where(won, np.log(p), np.log(1 - p))
+        losses[name] = ll
+        out[name] = {"log_loss": float(ll.mean()), "brier": float(np.mean((p - won) ** 2)),
+                     "accuracy": float(np.mean((p > 0.5) == won))}
+    d = losses["ours"] - losses["espn"]          # per game: > 0 when ESPN did better
+    out["diff"] = float(d.mean())
+    out["diff_se"] = float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else None
+    days = both.date.dt.strftime("%Y-%m-%d").to_numpy()
+    n = np.arange(1, len(both) + 1)
+    cum = {k: np.cumsum(v) / n for k, v in losses.items()}
+    last = np.r_[days[1:] != days[:-1], True]   # one point per day: the running mean after that day's games
+    out["running"] = [{"date": days[i], "games": int(n[i]), "ours": float(cum["ours"][i]), "espn": float(cum["espn"][i])}
+                      for i in np.flatnonzero(last)]
+    return out
 
 
 @app.route("/api/season/upcoming")
@@ -548,8 +592,30 @@ def api_live_scoreboard():
     date = request.args.get("date") or pd.Timestamp.now(tz="America/New_York").strftime("%Y%m%d")
     try:
         return jsonify({"date": date, "games": _espn.scoreboard(date.replace("-", ""))})
-    except Exception as e:  # network or feed trouble: say so instead of failing the page
-        return jsonify({"date": date, "games": [], "error": f"ESPN scoreboard unavailable: {e}"})
+    except Exception as e:  # ESPN unreachable: list the day from the schedule and what the tracker has seen
+        return jsonify({"date": date, "games": _schedule_board(date.replace("-", "")),
+                        "error": f"ESPN scoreboard unavailable ({e}); showing the schedule"})
+
+
+def _schedule_board(date: str) -> list[dict]:
+    from ncaa import tracker
+
+    try:
+        sched = data.load_schedule(LIVE_SEASON)
+    except Exception:
+        return []
+    day = sched[sched.date.dt.tz_convert("America/New_York").dt.strftime("%Y%m%d") == date]
+    out = []
+    for r in day.sort_values("date").itertuples():
+        tr = tracker.load_track(LIVE_SEASON, r.game_id) or {}
+        pts = (tr.get("points") or [{}])[-1].get("score")
+        status = tr.get("status") or ("post" if r.completed else "pre")
+        score = pts or ([int(r.home_score), int(r.away_score)] if r.completed else [0, 0])
+        out.append({"game_id": int(r.game_id), "teams": [r.home, r.away], "score": score, "neutral": bool(r.neutral),
+                    "status": status, "detail": tr.get("detail") or ("Final" if r.completed else
+                                                                      r.date.tz_convert("America/New_York").strftime("%I:%M %p ET").lstrip("0")),
+                    "start": r.date.isoformat()})
+    return out
 
 
 @app.route("/api/live/replay_games")
@@ -576,11 +642,21 @@ def _pre(post, a, b, home):
     return _pregame_cached(id(post), a, b, home)
 
 
+def _with_teams(post, state):
+    """A team the model has no history for starts at the average of its group (D1, or non-D1 opponents)."""
+    d1 = set()
+    for season in {LIVE_SEASON, SEASON}:
+        try:
+            d1 |= data.d1_set(season)
+        except Exception:
+            pass
+    return model.with_teams(post, state.teams, d1 or None)
+
+
 def _model_view(post, state, n=3000):
     """Forecast, pre-game baseline and live unusualness for a state (home team first)."""
+    post = _with_teams(post, state)
     idx = {t: i for i, t in enumerate(post.teams)}
-    if not all(t in idx for t in state.teams):
-        return None
     a, b = idx[state.teams[0]], idx[state.teams[1]]
     home = 0 if state.neutral else 1
     f = live_forecast(post, a, b, home, state, n=n, seed=0)
@@ -608,9 +684,8 @@ def _replay_timeline(season: int, game_id: int) -> list:
 
 def _model_view_light(post, state):
     """Win probability and per-stat shift q at one moment (for timelines)."""
+    post = _with_teams(post, state)
     idx = {t: i for i, t in enumerate(post.teams)}
-    if not all(t in idx for t in state.teams):
-        return None, None
     a, b, home = idx[state.teams[0]], idx[state.teams[1]], 0 if state.neutral else 1
     f = live_forecast(post, a, b, home, state, n=1500, seed=1)
     return f["p_win"][0], shifts(f["samples"], _pre(post, a, b, home)["samples"])
@@ -620,7 +695,7 @@ def _model_view_light(post, state):
 def api_live_game():
     """A game's live state with the model's Bayesian in-game forecast.
 
-    ?source=espn&id=<game id>  — live from ESPN (history builds up as it is polled)
+    ?source=espn&id=<game id>  — live from ESPN, with the history the worker has tracked since tip-off
     ?source=replay&id=<game id>&minute=<m>&season=2026 — a finished game replayed at minute m
     """
     source = request.args.get("source", "espn")
@@ -632,21 +707,15 @@ def api_live_game():
             timeline = [t for t in _replay_timeline(season, gid) if t["elapsed"] <= state.elapsed + 1e-6]
         else:
             season = int(request.args.get("season", LIVE_SEASON))
-            state = _espn.game(gid)
-            _maybe_apply_final(season, state)
-            timeline = None
+            track, state = _tracked(season, gid)
+            if state is None:
+                raise ValueError("no data from the live feed yet")
+            timeline = track.get("points", [])
     except Exception as e:
-        return jsonify({"error": f"could not load game {gid}: {e}"}), 502
+        app.logger.exception("could not load game %s", gid)      # full traceback in the server log
+        return jsonify({"error": f"could not load game {gid}: {type(e).__name__}: {e}"}), 502
     post, label = season_post(season)
     view = _model_view(post, state) if post is not None else None
-    if timeline is None:
-        with _lock:
-            hist = _history.setdefault(gid, [])
-            if view and (not hist or hist[-1]["elapsed"] < state.elapsed - 1e-6):
-                hist.append({"elapsed": state.elapsed, "ours": view["p_win"][0], "espn": state.espn_home_wp,
-                             "score": [state.box.get(t, {}).get("pts", 0) for t in state.teams],
-                             "q": {k: v["q"] for k, v in view["densities"].items()}})
-            timeline = list(hist)
     return jsonify({"state": state.to_json(), "model": view, "posterior": label, "timeline": timeline})
 
 
@@ -883,7 +952,25 @@ def api_game():
         meta["ledger"] = {"p_home": float(lr.p_home) if lr.home == row.home else 1 - float(lr.p_home),
                           "unusualness": float(lr.unusualness), "model": lr.model}
     timeline, kind, state_ = None, "pre", None
-    if row.completed:
+    now = pd.Timestamp.now(tz="UTC")
+    from ncaa import tracker
+
+    track = tracker.load_track(season, gid)
+    if track is None and not row.completed and row.date - tracker.POLL_BEFORE <= now:
+        try:
+            track, _ = _tracked(season, gid)        # the worker hasn't got to it (yet): live feed or archive
+        except Exception as e:
+            meta["note"] = f"live feed unavailable ({e})"
+    if track is not None and track.get("status") in ("in", "post"):
+        try:
+            track, live = _tracked(season, gid)     # refreshes a live game if the worker is behind
+        except Exception as e:
+            live = None
+            meta["note"] = f"live feed unavailable ({e})"
+        if live is not None:
+            kind = "live" if track["status"] == "in" else "post"
+            state_, timeline = live, track.get("points", [])
+    if state_ is None and row.completed:
         kind = "post"
         try:
             state_ = _replay.game(gid, 999)
@@ -891,23 +978,10 @@ def api_game():
         except Exception as e:
             meta["note"] = f"play-by-play not available ({e}); showing the final box score against the prior"
             state_ = _final_state_from_box(season, gid, row)
-    else:
-        now = pd.Timestamp.now(tz="UTC")
-        if row.date - pd.Timedelta(hours=1) <= now <= row.date + pd.Timedelta(hours=4):
-            try:
-                live = _espn.game(gid)
-                _maybe_apply_final(season, live)
-                if live.status == "in":
-                    kind, state_ = "live", live
-            except Exception as e:
-                meta["note"] = f"live feed unavailable ({e})"
     if state_ is None:
         state_ = LiveState(gid, [row.home, row.away], ["", ""], bool(row.neutral), "pre" if kind == "pre" else "post",
                            1, 20.0, {}, detail="Scheduled" if kind == "pre" else "Final")
     view = _model_view(post, state_) if post is not None else None
-    if kind == "live":
-        with _lock:
-            timeline = list(_history.get(gid, []))
     return jsonify({"kind": kind, "meta": meta, "state": state_.to_json(), "model": view, "posterior": label,
                     "timeline": timeline})
 

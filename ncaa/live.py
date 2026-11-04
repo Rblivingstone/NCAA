@@ -246,6 +246,58 @@ def _espn_wp_at(d: dict, flat: list[dict], until: float):
     return best
 
 
+def last_play_elapsed(d: dict) -> float:
+    """Minutes into the game of the latest play in a summary (0 before tip-off)."""
+    return max((play_elapsed(flatten(p)) for p in d.get("plays") or []), default=0.0)
+
+
+def espn_pregame(d: dict) -> dict | None:
+    """ESPN's pre-game win probability for the home team, from a game summary: its pre-game projection when
+    the summary has one, otherwise its win probability at the opening tip (score 0-0, first minute).
+    Returns {"p_home", "home", "away", "source"}, or None when ESPN published neither. A tip-off value of
+    exactly 50% is ESPN's placeholder when it has no pre-game view (its chart then follows only the score),
+    so it counts as no forecast."""
+    comp = d["header"]["competitions"][0]
+    order = sorted(comp["competitors"], key=lambda c: c["homeAway"] != "home")
+    home, away = (c["team"]["location"] for c in order)
+    pred = d.get("predictor") or {}
+    try:
+        proj = float((pred.get("homeTeam") or {}).get("gameProjection"))
+        if 0 <= proj <= 100:
+            return {"p_home": proj / 100, "home": home, "away": away, "source": "ESPN pre-game projection"}
+    except (TypeError, ValueError):
+        pass
+    wps = d.get("winprobability") or []
+    plays = {str(flatten(p).get("id")): flatten(p) for p in (d.get("plays") or [])[:20]}
+    for w in wps[:5]:
+        p = plays.get(str(w.get("playId")))
+        if p is None or w.get("homeWinPercentage") is None:
+            continue
+        if play_elapsed(p) <= 1.0 and not (p.get("homeScore") or p.get("awayScore")):
+            p0 = float(w["homeWinPercentage"])
+            if abs(p0 - 0.5) < 1e-9:       # ESPN had no pre-game view: its chart starts at a coin flip
+                return None
+            return {"p_home": p0, "home": home, "away": away, "source": "ESPN win probability at tip-off"}
+        break
+    return None
+
+
+def summary_at(d: dict, minute: float) -> dict:
+    """A finished game's summary cut off ``minute`` into the game, shaped like the live feed's summary then:
+    plays and win probabilities so far, status in progress, no final box score."""
+    plays = [p for p in d.get("plays") or [] if play_elapsed(flatten(p)) <= minute + 1e-9]
+    ids = {str(flatten(p).get("id")) for p in plays}
+    period = 1 if minute <= HALF else 2 if minute <= 2 * HALF else 3 + int((minute - 2 * HALF - 1e-9) // OT)
+    clock = HALF * period - minute if period <= 2 else OT - (minute - 2 * HALF - (period - 3) * OT)
+    header = json.loads(json.dumps(d["header"]))
+    comp = header["competitions"][0]
+    comp["status"] = {"period": period, "displayClock": f"{int(clock)}:{int(round(clock % 1 * 60)):02d}",
+                      "type": {"state": "in", "completed": False, "shortDetail": _detail("in", period, clock)}}
+    return {**{k: v for k, v in d.items() if k not in ("plays", "boxscore", "winprobability", "header")},
+            "header": header, "plays": plays,
+            "winprobability": [w for w in d.get("winprobability") or [] if str(w.get("playId")) in ids]}
+
+
 def _get_json(url: str, timeout: float = 20) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ncaa-bayes)"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -271,8 +323,38 @@ class ESPNFeed:
                         "start": ev.get("date")})
         return out
 
+    def summary(self, game_id: int) -> dict:
+        """The raw game summary: header, box score, play-by-play so far, ESPN win probabilities."""
+        return _get_json(f"{self.base}/summary?event={game_id}")
+
     def game(self, game_id: int) -> LiveState:
-        return parse_summary(_get_json(f"{self.base}/summary?event={game_id}"))
+        return parse_summary(self.summary(game_id))
+
+
+class FallbackFeed:
+    """ESPN's live feed, falling back to the per-game archive when ESPN fails (an outage, a blocked server
+    IP, a response it can't serve). The archive only has finished games, so an unfinished game still fails
+    with ESPN's error."""
+
+    def __init__(self, primary=None):
+        self.primary = primary or ESPNFeed()
+
+    def scoreboard(self, date: str) -> list[dict]:
+        return self.primary.scoreboard(date)
+
+    def summary(self, game_id: int) -> dict:
+        try:
+            d = self.primary.summary(game_id)
+            parse_summary(d)                 # fail over on a response we can't read, too
+            return d
+        except Exception as e:
+            try:
+                return _get_json(RAW_GAME_JSON.format(game_id=game_id), timeout=60)
+            except Exception:
+                raise RuntimeError(f"live feed failed ({e}) and the game archive has no final for it yet") from e
+
+    def game(self, game_id: int) -> LiveState:
+        return parse_summary(self.summary(game_id))
 
 
 class ReplayFeed:

@@ -495,12 +495,217 @@ def test_live_final_is_scored_then_applied_once(tmp_path, monkeypatch):
     assert len(led) == 1 and 0.5 < led.p_home.iloc[0] < 0.9      # the pre-game forecast, logged before updating
     assert season.apply_live_final(2026, final, log=lambda *_: None) == 0   # never applied twice
 
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+
     class Feed:  # the watch loop picks finals off the scoreboard
         def scoreboard(self, date):
             return [{"game_id": final.game_id, "status": "post"}]
 
-        def game(self, gid):
-            return final
+        def summary(self, gid):
+            return raw
 
     season.watch(2026, every=0, log=lambda *_: None, feed=Feed(), rounds=1)
     assert len(load_updates(2026)) == 2
+
+
+def test_tracker_follows_a_game_from_tipoff(tmp_path, monkeypatch):
+    """The worker tracks a game from its scheduled start, with no one watching: the first poll mid-game
+    reconstructs the history so far from the plays, later polls add points, and the final finishes the
+    history and updates the ratings once."""
+    import json
+    import shutil
+    from pathlib import Path
+
+    import pandas as pd
+
+    from ncaa import tracker
+    from ncaa.live import summary_at
+    from ncaa.updates import load_updates
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2026").mkdir()
+    for f in ("posterior.npz", "teams.json"):
+        shutil.copy(real / f, tmp_path / "2026" / f)
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+    gid = 401856600
+    tip = pd.Timestamp("2026-04-07 01:20", tz="UTC")
+    sched = pd.DataFrame({"game_id": [gid], "date": [tip], "home": ["Michigan"], "away": ["UConn"],
+                          "neutral": [True], "completed": [False]})
+    monkeypatch.setattr(tracker.data, "load_schedule", lambda season: sched)
+
+    class Feed:  # ESPN as the game goes on; the scoreboard is down, so only the schedule says it's on
+        minute = 0.0
+
+        def scoreboard(self, date):
+            raise OSError("scoreboard down")
+
+        def summary(self, g):
+            return raw if self.minute >= 41 else summary_at(raw, self.minute)
+
+    feed = Feed()
+    assert tracker.games_to_poll(2026, [], now=tip - pd.Timedelta(hours=1)) == ([], [])   # before tip-off
+    assert tracker.games_to_poll(2026, [], now=tip + pd.Timedelta(minutes=30)) == ([gid], [])
+
+    feed.minute = 12.5                 # first look 12.5 minutes in: minutes 0-12 rebuilt from the plays
+    fc = tracker.Forecaster(2026)
+    tr = tracker.track_game(2026, gid, feed, fc)
+    el = [p["elapsed"] for p in tr["points"]]
+    assert tr["status"] == "in" and el[0] == 0 and el[-1] == 12.5 and len(el) == 14
+    assert all(0 < p["ours"] < 1 and set(p["q"]) for p in tr["points"])
+
+    feed.minute = 13.2                 # the next poll adds its point (and the minute-13 grid point it skipped)
+    tr = tracker.track_game(2026, gid, feed, fc)
+    assert [p["elapsed"] for p in tr["points"]][-3:] == [12.5, 13.0, 13.2]
+
+    feed.minute = 99                   # final: the rest of the game is filled in and the ratings update
+    tr = tracker.track_game(2026, gid, feed, fc, log=lambda *_: None)
+    el = [p["elapsed"] for p in tr["points"]]
+    assert tr["status"] == "post" and tr["applied"] and el[-1] == 40 and len(el) == 43   # minutes 0-39, the two polls, the final
+    assert tr["points"][-1]["ours"] in (0.0, 1.0) and tr["points"][-1]["score"] == [69, 63]
+    assert len(load_updates(2026)) == 2
+    assert tracker.load_track(2026, gid)["points"] == tr["points"]          # stored for the game page
+    assert tracker.games_to_poll(2026, [], now=tip + pd.Timedelta(hours=3)) == ([], [])   # done
+    tracker.run(2026, feed, every=0, log=lambda *_: None, rounds=1)
+    assert len(load_updates(2026)) == 2                                     # never applied twice
+
+
+def test_fallback_feed_uses_the_archive_when_espn_fails(monkeypatch):
+    """A server ESPN won't answer still gets finished games, from the per-game archive."""
+    import json
+    from pathlib import Path
+
+    from ncaa import live
+
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+
+    class Blocked:
+        def summary(self, gid):
+            raise OSError("403 Forbidden")
+
+    urls = []
+    monkeypatch.setattr(live, "_get_json", lambda url, timeout=20: urls.append(url) or raw)
+    feed = live.FallbackFeed(Blocked())
+    assert feed.game(401856600).status == "post" and urls == [live.RAW_GAME_JSON.format(game_id=401856600)]
+
+    def missing(url, timeout=20):
+        raise OSError("404")
+
+    monkeypatch.setattr(live, "_get_json", missing)       # not archived yet (game still going): ESPN's error
+    with pytest.raises(RuntimeError, match="403 Forbidden"):
+        feed.summary(401856600)
+
+
+def test_unseen_teams_start_at_their_groups_average():
+    """No history: a D1 team starts at the average D1 team, a non-D1 school at the pooled non-D1 rating,
+    both as uncertain as a random team."""
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    post = model.load_posterior(2026)
+    d1 = {t for t in post.teams if t != "Non-D1"} | {"New D1 U"}
+    ext = model.with_teams(post, ["New D1 U", "Tiny College", "Michigan"], d1)
+    assert ext.teams[-2:] == ["New D1 U", "Tiny College"] and ext.z.shape[1] == len(post.teams) + 2
+    assert model.with_teams(post, ["Tiny College", "New D1 U"], d1) is ext            # cached
+    known = model.known_skills(post)
+    new_d1, tiny = ext.z[:, -2].astype(float), ext.z[:, -1].astype(float)
+    nd1 = post.z[:, post.teams.index("Non-D1")].astype(float)
+    sd = known.std(0)
+    assert np.all(np.abs(new_d1.mean(0) - known.mean(0)) < 0.25 * sd)                 # the average D1 team
+    assert np.all(np.abs(tiny.mean(0) - nd1.mean(0)) < 0.25 * sd)                     # the average non-D1 opponent
+    assert np.allclose(new_d1.std(0), np.sqrt(sd ** 2 + post.z[:, ~np.isin(post.teams, ["Non-D1"])].mean(1).std(0) ** 2), rtol=0.2)
+    assert model.with_teams(post, ["Michigan"]) is post                               # nothing to add
+
+
+def test_espn_pregame_forecast_goes_in_the_ledger(tmp_path, monkeypatch):
+    """ESPN's pre-game probability is read at tip-off, oriented to the ledger's first team, recorded once,
+    and a 50% placeholder (ESPN had no view) counts as no forecast."""
+    import copy
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    from ncaa import season
+    from ncaa.live import espn_pregame
+
+    raw = json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text())
+    e = espn_pregame(raw)
+    assert e["home"] == "Michigan" and abs(e["p_home"] - 0.697) < 1e-9
+    flat = copy.deepcopy(raw)
+    flat["winprobability"][0]["homeWinPercentage"] = 0.5
+    assert espn_pregame(flat) is None
+
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2026").mkdir()
+    pd.DataFrame([{"game_id": 401856600, "date": "2026-04-07", "home": "UConn", "away": "Michigan",
+                   "home_pts": 63, "away_pts": 69, "p_home": 0.4},
+                  {"game_id": 1, "date": "2026-04-06", "home": "A", "away": "B", "home_pts": 1, "away_pts": 0,
+                   "p_home": 0.5}]).to_csv(season.ledger_path(2026), index=False)
+
+    class Feed:
+        calls = 0
+
+        def summary(self, gid):
+            Feed.calls += 1
+            if gid == 1:
+                raise OSError("no such game")
+            return raw
+
+    assert season.fill_espn(2026, feed=Feed(), log=lambda *_: None) == 1
+    led = season.load_ledger(2026).set_index("game_id")
+    assert abs(led.loc[401856600, "espn_p_home"] - (1 - 0.697)) < 1e-9          # P(UConn), the first team
+    assert led.loc[401856600, "espn_checked"] and not led.loc[1, "espn_checked"]  # retried later
+    season.fill_espn(2026, feed=Feed(), log=lambda *_: None)
+    assert Feed.calls == 3                                                       # the recorded game isn't fetched again
+
+
+def test_non_d1_school_gets_its_own_rating_that_moves_with_its_games(tmp_path, monkeypatch):
+    """A non-D1 school starts at the pooled non-D1 rating and drifts with its own results; the D1 side of
+    the game updates exactly as before (against the pool), so nothing is counted twice."""
+    import json
+    import shutil
+    from pathlib import Path
+
+    import pandas as pd
+
+    from ncaa import season
+    from ncaa.live import parse_summary
+    from ncaa.updates import net_rating
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    final = parse_summary(json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text()))
+
+    def run(tmp, school):
+        monkeypatch.setattr(model, "ARTIFACTS", tmp)
+        (tmp / "2026").mkdir(parents=True)
+        for f in ("posterior.npz", "teams.json"):
+            shutil.copy(real / f, tmp / "2026" / f)
+        rows = []
+        for k in range(3):                        # three close losses to Michigan
+            rec = {"game_id": 900 + k, "date": pd.Timestamp("2026-04-07", tz="UTC") + pd.Timedelta(days=k),
+                   "team": "Michigan", "opponent": school, "home": 1, "ot": 0, "kind": "regular season"}
+            for s_ in season.LIVE_BOX:
+                rec[s_], rec["opp_" + s_] = final.box["Michigan"][s_], final.box["UConn"][s_]
+            rows.append(rec)
+        season.process_final(2026, pd.DataFrame(rows), source="test", log=lambda *_: None)
+        return season.current_state(2026, create=False)
+
+    st = run(tmp_path / "named", "Tiny College")
+    base, _ = season.base_posterior(2026)
+    assert "Tiny College" in st.teams
+    pooled0 = net_rating(season.current_state(2026, create=False), base, "Non-D1")
+    tiny = net_rating(st, base, "Tiny College")
+    led = season.load_ledger(2026)
+    assert list(led.away) == ["Tiny College"] * 3                       # the school's name, not the pool
+    assert led.p_home.iloc[2] < led.p_home.iloc[0]                       # later forecasts use its own rating
+
+    pooled_only = run(tmp_path / "pooled", "Non-D1")                     # the same games, played as the pool
+    i, j = st.index("Michigan"), pooled_only.index("Michigan")
+    assert np.allclose(st.mean[i], pooled_only.mean[j]) and np.allclose(st.mean[st.index("Non-D1")],
+                                                                        pooled_only.mean[pooled_only.index("Non-D1")])
+    assert tiny[0] > pooled0[0] + 10                                     # well above the pool after 3 close games

@@ -27,7 +27,7 @@ services:
       BOOTSTRAP_FIT: ${BOOTSTRAP_FIT:-vi}
       NIGHTLY_FIT: ${NIGHTLY_FIT:-vi}
       NIGHTLY_HOUR: ${NIGHTLY_HOUR:-10}
-      WATCH_EVERY: ${WATCH_EVERY:-120}
+      WATCH_EVERY: ${WATCH_EVERY:-60}
     volumes:
       - artifacts:/app/artifacts
       - data:/app/data
