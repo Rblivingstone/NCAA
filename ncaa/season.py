@@ -41,7 +41,10 @@ def load_ledger(season: int) -> pd.DataFrame:
     path = ledger_path(season)
     if not path.exists():
         return pd.DataFrame(columns=LEDGER_COLUMNS)
-    led = pd.read_csv(path, parse_dates=["date"])
+    led = pd.read_csv(path)
+    # Rows come from several sources (live feed, game archive, nightly box scores) whose timestamps are written
+    # in slightly different formats; parse them all, as UTC.
+    led["date"] = pd.to_datetime(led["date"], utc=True, format="mixed")
     if "espn_p_home" not in led:                 # ledgers written before ESPN's forecast was recorded
         led["espn_p_home"] = np.nan
     if "espn_checked" not in led:

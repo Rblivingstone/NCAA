@@ -37,6 +37,13 @@ against an average D1 team.</p>
   <div class="panel"><b>How far one game moves a rating</b>
     <div class="muted mini">Every update so far: the change in a team's net rating from a single game.</div>
     <div id="moves"></div></div>
+  <div class="panel" style="grid-column:span 2"><b>Winning streaks: earned or not?</b>
+    <div class="muted mini">Teams on 3+ straight wins, least backed by their box scores first. "Rating over the run" is how far the
+      box scores moved the team's rating during the streak: near zero or below means it's winning without playing better than
+      expected. Open a team for the full picture.</div><table class="data mini" id="streaks"></table></div>
+  <div class="panel"><b>Results running ahead of the play</b>
+    <div class="muted mini">Most unexplained wins: wins beyond expectation that the box scores don't account for (5+ games).</div>
+    <table class="data mini" id="luckiest"></table></div>
   <div class="panel"><b>Top of the rankings</b><div class="muted mini">Net rating with 90% credible interval. <a href="/rankings">All teams →</a></div><div id="top"></div></div>
 </div>
 
@@ -149,6 +156,7 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     movers("risers", d.risers || []); movers("fallers", d.fallers || []);
     histogram($("moves"), d.moves_hist || [], -12, 12, "change in net rating", null);
     forest(d.top || []);
+    streakTables(d.win_streaks || [], d.luckiest || []);
     games("best", d.best_calls, (g) => fmtPct(g.p_winner), "P(winner)");
     games("wrong", d.most_wrong, (g) => `<span style="color:var(--upset)">${fmtPct(g.p_winner)}</span>`, "P(winner)", "The model's favourite hasn't lost yet.");
     games("beat", d.beat_espn, (g) => `${fmtPct(g.p_winner)} <span class="muted">vs ESPN ${fmtPct(g.espn_p_winner)}</span>`, "P(winner)",
@@ -488,6 +496,21 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     if (even) s += `<line x1="${P}" x2="${W - P}" y1="${H - P - even / max * (H - 2 * P)}" y2="${H - P - even / max * (H - 2 * P)}" stroke="var(--muted)" stroke-dasharray="4 3"/>`;
     s += `<text x="${P}" y="${H - 6}">${lo}</text><text x="${W / 2}" y="${H - 6}" text-anchor="middle">${xlabel}</text><text x="${W - P}" y="${H - 6}" text-anchor="end">${hi}</text></svg>`;
     el.innerHTML = s;
+  }
+
+  function streakTables(hot, lucky) {
+    const sgn = (v) => (v >= 0 ? "+" : "") + v.toFixed(1);
+    const team = (r) => `<a href="/team/${encodeURIComponent(r.team)}?season=${$("season").value}">${r.team}</a> ${rankTag(r.rank)}`;
+    const tag = (lv) => `<span class="badge ${lv === "unearned" || lv === "lucky" ? "upset" : lv === "mixed" ? "watch" : ""}">${lv}</span>`;
+    $("streaks").innerHTML = hot.length ? `<tr><th>Team</th><th class="num">Streak</th><th class="num">Rating over the run</th><th class="num">Per game</th>
+      <th class="num">Close wins in it</th><th class="num">Season record</th><th>Verdict</th></tr>` + hot.map((r) => `<tr><td>${team(r)}</td>
+      <td class="num">W${r.streak.length}</td><td class="num" style="color:${r.streak.rating_change < 0 ? "var(--upset)" : "inherit"}">${sgn(r.streak.rating_change)}</td>
+      <td class="num">${sgn(r.streak.per_game)}</td><td class="num">${r.streak.close}</td><td class="num">${r.wins}–${r.losses}</td><td>${tag(r.verdict.level)}</td></tr>`).join("")
+      : `<tr><td class="muted">No team has won 3 straight yet.</td></tr>`;
+    $("luckiest").innerHTML = lucky.length ? `<tr><th>Team</th><th class="num">Record</th><th class="num">Beyond expectation</th><th class="num">Unexplained</th></tr>` +
+      lucky.map((r) => `<tr><td>${team(r)}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${sgn(r.beyond)}</td>
+        <td class="num" style="color:${r.unexplained > 0 ? "var(--upset)" : "inherit"}">${sgn(r.unexplained)}</td></tr>`).join("")
+      : `<tr><td class="muted">Appears once teams have 5 forecast games.</td></tr>`;
   }
 
   function forest(top) {
