@@ -38,8 +38,59 @@
     h += `<div class="panel" style="margin-top:12px"><b>Core strengths and weaknesses</b>
       <div class="muted" style="margin:4px 0 6px">Each skill's contribution: how many points per 100 possessions the team's offense scores
         (or its defense saves) because of it, versus an average D1 team at that skill. Bar = 90% credible interval.</div>${profileTable(d.profile)}</div>`;
+    h += streakPanel(d.streaks);
     h += `<div class="panel" style="margin-top:12px"><b>Games</b><div class="scroll" style="max-height:420px">${gamesTable(d)}</div></div>`;
     $("out").innerHTML = h;
+  }
+
+  function streakPanel(s) {
+    const head = `<div class="panel" style="margin-top:12px"><b>Is the winning real?</b>
+      <div class="muted" style="margin:4px 0 8px">Two things move when a team plays: its <b>results</b> against what the model expected
+        (a win it gave 30% counts +0.7, a loss it gave 80% counts −0.8), and its <b>rating</b>, which each game's box score moves up when the
+        team played better than expected against that opponent, win or lose. Winning because a team is better moves both. Wins
+        the box scores don't back up are the kind that tend not to last.</div>`;
+    if (!s || !s.games) return head + `<div class="muted">No games folded into this team's rating yet.</div></div>`;
+    const sgn = (v, d = 1) => (v >= 0 ? "+" : "") + v.toFixed(d);
+    const st = s.streak, lv = s.verdict.level;
+    const colour = { unearned: "var(--upset)", lucky: "var(--upset)", earned: "var(--win)", unlucky: "var(--accent)" }[lv] || "var(--ink)";
+    const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+    let h = head + `<div class="upset-banner" style="background:var(--accent-soft)"><b style="color:${colour}">${lv[0].toUpperCase() + lv.slice(1)}.</b> ${s.verdict.text}</div>`;
+    h += `<div class="stats">${stat(`${s.wins}–${s.losses}`, "record")}${stat(s.expected_wins.toFixed(1), `wins the model expected (${s.games_with_forecast} games forecast)`)}
+      ${stat(sgn(s.beyond), "wins beyond expectation")}${stat(sgn(s.rating_change), "rating change from the box scores (pts/100)")}
+      ${stat(sgn(s.unexplained), `unexplained wins: beyond expectation, minus what the rating gain accounts for ${s.unexplained_pct != null ? ` (${s.unexplained_pct >= 0.995 ? `the most of all ${s.league_teams} teams` : s.unexplained_pct <= 0.005 ? `the fewest of all ${s.league_teams} teams` : `more than ${Math.round(100 * s.unexplained_pct)}% of teams`})` : ""}`)}
+      ${stat(`${st.kind || "—"}${st.length || ""}`, st.kind ? `current streak, rating ${sgn(st.rating_change)} over it (${sgn(st.per_game)} a game)` : "current streak")}
+      ${stat(`${s.close_wins}–${s.close_losses}`, "record in games decided by 5 or fewer")}
+      ${stat(s.unearned_wins, "wins where the box score pulled the rating down")}</div>`;
+    const G = s.games_list;
+    if (G.length >= 2) {
+      // top: cumulative wins beyond expectation vs what the rating gain explains (same units: wins)
+      const W = 900, H = 170, L = 44, R = 14, T = 12, B = 22, n = G.length;
+      let cb = 0, cd = 0; const beyond = [0], expl = [0];
+      G.forEach((g) => { cb += g.p_pre != null ? (g.won ? 1 : 0) - g.p_pre : 0; cd += g.dnet; beyond.push(cb); expl.push(s.slope * cd); });
+      const lo = Math.min(-0.5, ...beyond, ...expl), hi = Math.max(0.5, ...beyond, ...expl);
+      const x = (i) => L + i / n * (W - L - R), y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
+      let c = `<svg viewBox="0 0 ${W} ${H}" width="100%"><line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line)"/>
+        <text x="${L - 5}" y="${y(0) + 4}" text-anchor="end">0</text><text x="${L - 5}" y="${y(hi) + 10}" text-anchor="end">${sgn(hi)}</text><text x="${L - 5}" y="${y(lo)}" text-anchor="end">${sgn(lo)}</text>`;
+      c += `<polygon points="${beyond.map((v, i) => `${x(i)},${y(v)}`).join(" ")} ${expl.slice().reverse().map((v, j) => `${x(n - j)},${y(v)}`).join(" ")}" fill="${cb - s.slope * cd > 0 ? "var(--upset)" : "var(--accent)"}" opacity=".12"/>`;
+      c += `<polyline points="${expl.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4"/>
+        <polyline points="${beyond.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" fill="none" stroke="var(--ink)" stroke-width="2.5"/></svg>`;
+      // bottom: each game's rating change, marked by the result
+      const H2 = 120, m = Math.max(1, ...G.map((g) => Math.abs(g.dnet))), y2 = (v) => H2 / 2 - v / m * (H2 / 2 - 14), bw = (W - L - R) / n;
+      let b = `<svg viewBox="0 0 ${W} ${H2}" width="100%"><line x1="${L}" x2="${W - R}" y1="${y2(0)}" y2="${y2(0)}" stroke="var(--line)"/>
+        <text x="${L - 5}" y="${y2(m) + 10}" text-anchor="end">${sgn(m)}</text><text x="${L - 5}" y="${y2(-m)}" text-anchor="end">${sgn(-m)}</text>`;
+      G.forEach((g, i) => {
+        const cx = L + (i + 0.5) * bw, w = Math.max(2, Math.min(22, bw * 0.6));
+        b += `<rect x="${cx - w / 2}" y="${Math.min(y2(0), y2(g.dnet))}" width="${w}" height="${Math.abs(y2(g.dnet) - y2(0))}" rx="2"
+          fill="${g.dnet >= 0 ? "var(--win)" : "var(--upset)"}" opacity=".65"><title>${g.date} ${g.won ? "W" : "L"} ${g.pts}–${g.opp_pts} vs ${g.opponent}: rating ${sgn(g.dnet)}${g.p_pre != null ? `, pre-game ${fmtPct(g.p_pre)}` : ""}</title></rect>
+          <text x="${cx}" y="${H2 - 2}" text-anchor="middle" style="fill:${g.won ? "var(--ink)" : "var(--muted)"};font-weight:${g.won ? 700 : 400}">${n <= 40 ? (g.won ? "W" : "L") : ""}</text>`;
+      });
+      b += `</svg>`;
+      h += `<div style="margin-top:8px">${c}<div class="muted mini"><b style="color:var(--ink)">━</b> wins beyond expectation, game by game ·
+          <span style="color:var(--accent)">╍</span> what the rating gain accounts for (${s.slope.toFixed(2)} extra wins per point of rating, fitted across ${s.league_teams} D1 teams) ·
+          shaded: the gap, i.e. unexplained wins</div>${b}<div class="muted mini">Each game's rating change from its box score
+          (green up, red down), with the result below. A run of Ws over red bars is winning without playing better than expected.</div></div>`;
+    }
+    return h + `</div>`;
   }
 
   function trend(d) {

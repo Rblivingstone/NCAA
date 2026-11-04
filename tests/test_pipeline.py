@@ -837,3 +837,41 @@ def test_auc_time_series_model_vs_espn():
     assert all(p["games"] <= 31 * 40 for p in s["rolling"])            # only the last 30 days
     assert s["since_jan"]["games"] == sum(r["date"] >= "2027-01-01" for r in recs)
     assert A._auc_series(recs[:10], 2027)["cumulative"] == []           # too few games yet
+
+
+def test_unearned_winning_streaks():
+    """A team winning while its box scores pull its rating down reads as an unearned streak with positive
+    unexplained wins; one whose rating climbs with the wins reads as earned."""
+    import numpy as np
+    import pandas as pd
+
+    from ncaa import streaks
+
+    rng = np.random.default_rng(0)
+    up, led, gid = [], [], 0
+    teams = [f"T{i}" for i in range(30)]
+    for k in range(8):
+        for t in teams:
+            gid += 1
+            if t == "Hot":
+                continue
+            d = rng.normal(0, 1.5); p = 0.5
+            won = rng.random() < 1 / (1 + np.exp(-d))           # results follow the play
+            up.append({"game_id": gid, "date": f"2026-11-{k + 3:02d}", "team": t, "opponent": "X", "pts": 70 if won else 60,
+                       "opp_pts": 65, "net_before": 0.0, "net_after": d})
+            led.append({"game_id": gid, "home": t, "away": "X", "p_home": p})
+    for name, dnet in (("Hot", -0.6), ("Real", 1.8)):            # 8 straight wins each, at 40% pre-game
+        teams.append(name)
+        for k in range(8):
+            gid += 1
+            up.append({"game_id": gid, "date": f"2026-11-{k + 3:02d}", "team": name, "opponent": "X", "pts": 71, "opp_pts": 68,
+                       "net_before": 0.0, "net_after": dnet})
+            led.append({"game_id": gid, "home": "X", "away": name, "p_home": 0.6})
+    lg = streaks.league(pd.DataFrame(up), pd.DataFrame(led), teams)
+    hot, real = lg["teams"]["Hot"], lg["teams"]["Real"]
+    assert hot["wins"] == 8 and abs(hot["expected_wins"] - 3.2) < 1e-9 and abs(hot["beyond"] - 4.8) < 1e-9
+    assert hot["streak"] == {**hot["streak"], "kind": "W", "length": 8} and hot["unearned_wins"] == 8 and hot["close_wins"] == 8
+    assert lg["slope"] > 0 and hot["unexplained"] > real["unexplained"] and hot["unexplained_pct"] == 1.0
+    assert hot["verdict"]["level"] == "unearned" and real["verdict"]["level"] == "earned"
+    g = streaks.team_games(pd.DataFrame(up), pd.DataFrame(led), "Hot")
+    assert list(g.won) == [True] * 8 and abs(g.p_pre.iloc[0] - 0.4) < 1e-9     # oriented to the team (it was the away side)

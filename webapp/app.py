@@ -862,6 +862,37 @@ def _end_of_data(season: int):
     return g.date.max() if len(g) else pd.Timestamp.now(tz="UTC")
 
 
+@lru_cache(maxsize=4)
+def _streak_league(season: int, stamp: float) -> dict:
+    from ncaa import streaks
+
+    up, led = season_mod.load_updates(season), season_mod.load_ledger(season)
+    if not len(up):
+        return {"teams": {}, "n": 0, "slope": 0.0, "intercept": 0.0, "resid_sd": 0.0}
+    d1 = data.d1_set(season)
+    teams = sorted(set(up.team) & d1) if d1 else sorted(set(up.team))
+    return streaks.league(up, led, teams)
+
+
+def streak_league(season: int) -> dict:
+    """Every D1 team's wins against its box scores (see ncaa.streaks), recomputed when the ratings change."""
+    return _streak_league(season, _stamp(season))
+
+
+def _streak_for(season: int, name: str) -> dict | None:
+    from ncaa import streaks
+
+    lg = streak_league(season)
+    s = lg["teams"].get(name)
+    if s is None:
+        return None
+    g = streaks.team_games(season_mod.load_updates(season), season_mod.load_ledger(season), name)
+    games = [{"game_id": int(r.game_id), "date": str(r.date)[:10], "opponent": r.opponent, "pts": int(r.pts),
+              "opp_pts": int(r.opp_pts), "won": bool(r.won), "dnet": float(r.dnet),
+              "p_pre": None if pd.isna(r.p_pre) else float(r.p_pre)} for r in g.itertuples()]
+    return {**s, "games_list": games, "slope": lg["slope"], "resid_sd": lg["resid_sd"], "league_teams": lg["n"]}
+
+
 @app.route("/api/team")
 def api_team():
     season = int(request.args.get("season", LIVE_SEASON))
@@ -897,7 +928,7 @@ def api_team():
                     "assessment": teams_mod.assessment(profile, styles, rating, tempo),
                     "profile": profile, "styles": styles, "tempo": tempo,
                     "form": teams_mod.form_history(post, name, _end_of_data(season)),
-                    "history": hist, "updates": per_game, "games": games})
+                    "history": hist, "updates": per_game, "games": games, "streaks": _streak_for(season, name)})
 
 
 @app.route("/games")
@@ -1405,6 +1436,17 @@ def api_dashboard():
             recent.append({"game_id": int(gid), "date": str(g.date.iloc[0])[:10], "teams": teams_, "p_first": p_first,
                            "source": g.source.iloc[0] if "source" in g else ""})
         out["recent_updates"] = sorted(recent, key=lambda r: r["date"], reverse=True)
+        from ncaa import streaks as streaks_mod
+
+        lg = streak_league(season)
+        hot = [{"team": t, "rank": ranks.get(t), **{k: s[k] for k in ("wins", "losses", "beyond", "rating_change", "unexplained", "verdict")},
+                "streak": s["streak"]} for t, s in lg["teams"].items()
+               if s["streak"]["kind"] == "W" and s["streak"]["length"] >= 3]
+        out["win_streaks"] = sorted(hot, key=lambda r: r["streak"]["per_game"])[:12]       # least-backed first
+        out["luckiest"] = sorted(({"team": t, "rank": ranks.get(t), **{k: s[k] for k in ("wins", "losses", "beyond", "rating_change", "unexplained", "verdict")}}
+                                  for t, s in lg["teams"].items() if s["games_with_forecast"] >= streaks_mod.VERDICT_MIN),
+                                 key=lambda r: -r["unexplained"])[:8]
+        out["streak_fit"] = {"slope": lg["slope"], "resid_sd": lg["resid_sd"], "teams": lg["n"]}
         out["updates"] = int(len(up) // 2)
     if ranks:
         rows, _ = ratings_for(season)
