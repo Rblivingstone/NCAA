@@ -1090,6 +1090,75 @@ def _ledger_records(led: pd.DataFrame, ranks: dict) -> list:
     return recs
 
 
+def _pregame_rankers(season: int):
+    """A function date -> {team: rank} giving the D1 ranking as it stood before that day's games: the latest
+    nightly snapshot dated before the game (so the game's own result can't leak in), else the current one."""
+    hist = season_mod.load_ratings_history(season)
+    d1 = data.d1_set(season)
+    snaps = {}
+    if len(hist):
+        for day, g in hist.groupby("date"):
+            g = g[(g.team != "Non-D1") & (g.team.isin(d1) if d1 else True)].sort_values("net", ascending=False)
+            snaps[str(day)[:10]] = {t: i for i, t in enumerate(g.team, 1)}
+    days = sorted(snaps)
+    now = rank_map(season)
+
+    def at(date: str):
+        earlier = [d for d in days if d < date[:10]]
+        return (snaps[earlier[-1]], True) if earlier else (now, False)
+    return at
+
+
+def _auc(score: np.ndarray, label: np.ndarray) -> float | None:
+    """ROC-AUC: the chance a random upset got a higher pre-game score than a random non-upset (ties count half)."""
+    pos, neg = score[label], score[~label]
+    if not len(pos) or not len(neg):
+        return None
+    gt = (pos[:, None] > neg[None, :]).sum() + 0.5 * (pos[:, None] == neg[None, :]).sum()
+    return float(gt / (len(pos) * len(neg)))
+
+
+def _upset_detection(recs: list, season: int) -> dict:
+    """How well the model's pre-game chance for the ranking underdog separates upsets from non-upsets.
+
+    A game counts when the pre-game ranking makes one team the underdog (20+ places apart, or a non-D1 team).
+    Score: the model's pre-game P(underdog wins). Label: the underdog won. Precision and recall at the
+    flag thresholds (35% "upset watch", 50% "upset pick"), the ROC curve and its AUC."""
+    ranker = _pregame_rankers(season)
+    rows, fallback = [], 0
+    for g in recs:
+        ranks, pre = ranker(g["date"])
+        fallback += not pre
+        f = game_flags(g["home"], g["away"], g["p_home"], ranks, result=(g["home_pts"], g["away_pts"]))
+        if f.get("underdog"):
+            rows.append({**{k: g[k] for k in ("game_id", "date", "home", "away", "neutral", "home_pts", "away_pts")},
+                         "underdog": f["underdog"], "favorite": f["favorite"], "p": f["p_underdog"], "upset": bool(f["upset"])})
+    out = {"games": len(rows), "upsets": sum(r["upset"] for r in rows), "current_ranks_used": fallback}
+    if not rows:
+        return out
+    p = np.array([r["p"] for r in rows]); y = np.array([r["upset"] for r in rows])
+    out["base_rate"] = float(y.mean())
+    out["auc"] = _auc(p, y)
+    out["thresholds"] = []
+    for t, name in ((UPSET_WATCH, "upset watch or pick"), (0.5, "upset pick")):
+        flag = p >= t
+        tp, fp, fn = int((flag & y).sum()), int((flag & ~y).sum()), int((~flag & y).sum())
+        out["thresholds"].append({"threshold": t, "name": name, "flagged": int(flag.sum()), "tp": tp, "fp": fp, "fn": fn,
+                                  "tn": int((~flag & ~y).sum()),
+                                  "precision": tp / (tp + fp) if tp + fp else None, "recall": tp / (tp + fn) if tp + fn else None})
+    # ROC curve: sweep the threshold from high to low.
+    order = np.argsort(-p, kind="stable")
+    P, N = int(y.sum()), int((~y).sum())
+    roc, tp, fp = [{"fpr": 0.0, "tpr": 0.0, "t": 1.0}], 0, 0
+    for i in order:
+        tp += y[i]; fp += not y[i]
+        roc.append({"fpr": fp / N if N else 0.0, "tpr": tp / P if P else 0.0, "t": float(p[i])})
+    out["roc"] = roc
+    out["missed"] = sorted([r for r in rows if r["upset"] and r["p"] < UPSET_WATCH], key=lambda r: r["p"])[:6]
+    out["false_alarms"] = sorted([r for r in rows if not r["upset"] and r["p"] >= UPSET_WATCH], key=lambda r: -r["p"])[:6]
+    return out
+
+
 MARGIN_SD = 11.5      # typical sd of a simulated game margin, for ledger rows written before margins were kept
 
 
@@ -1192,6 +1261,7 @@ def api_dashboard():
                                "only_espn": sum(g["espn_p_winner"] > 0.5 >= g["p_winner"] for g in both),
                                "both_wrong": sum(g["p_winner"] <= 0.5 and g["espn_p_winner"] <= 0.5 for g in both)}
         out["spreads"] = _spreads(recs)
+        out["upset_detection"] = _upset_detection(recs, season)
         out["upsets_called"] = sorted([g for g in recs if g.get("upset") and g.get("upset_level")],
                                       key=lambda g: -g["p_underdog"])[:8]
         out["most_wrong"] = sorted([g for g in recs if g["p_winner"] < 0.5], key=lambda g: g["p_winner"])[:10]

@@ -58,6 +58,23 @@ other's) against the margin that happened, with the betting line ESPN showed for
     <div id="spread-dist"></div></div>
 </div>
 
+<h2 style="margin:22px 0 4px">Upset detection</h2>
+<p class="lede" style="margin-bottom:4px">Treating "will the underdog win?" as a yes/no prediction. A game counts when the
+ranking <em>before</em> it made one team the underdog (20+ places apart, or a non-D1 team); the model's score is its pre-game
+chance for that underdog. <b>Precision</b>: of the games it flagged, how many were upsets. <b>Recall</b>: of the upsets, how many
+it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game score than a random non-upset (0.5 = no skill, 1 = perfect).</p>
+<div class="stats" id="upset-tiles"></div>
+<div class="dash-grid">
+  <div class="panel"><b>ROC curve</b>
+    <div class="muted mini">Every possible flag threshold, from strictest (bottom left) to flag-everything (top right). Dots mark the
+      35% and 50% flags. The diagonal is guessing.</div>
+    <div id="upset-roc"></div></div>
+  <div class="panel"><b>At the flag thresholds</b><table class="data mini" id="upset-table"></table>
+    <div class="muted mini" id="upset-note" style="margin-top:6px"></div>
+    <b style="display:block;margin-top:10px">Upsets it missed</b><table class="data mini" id="upset-missed"></table>
+    <b style="display:block;margin-top:10px">False alarms</b><table class="data mini" id="upset-false"></table></div>
+</div>
+
 <h2 style="margin:22px 0 4px">Calls</h2>
 <div class="dash-grid">
   <div class="panel"><b>Most confident calls that came in</b><table class="data mini" id="best"></table></div>
@@ -110,10 +127,51 @@ other's) against the margin that happened, with the betting line ESPN showed for
     $("h2h").innerHTML = h && h.games ? `On the ${h.games} games both made a pre-game call: both right ${h.both_right}, only this model ${h.only_ours},
       only ESPN ${h.only_espn}, both wrong ${h.both_wrong}.` : "";
     spreads(d.spreads || { n: 0, points: [] });
+    upsets(d.upset_detection || { games: 0 });
     games("called", d.upsets_called, (g) => fmtPct(g.p_underdog), "P(underdog)", "No flagged upsets have come in yet.");
     games("unusual", d.most_unusual, (g) => `${g.unusualness.toFixed(3)} <span class="muted">${g.drivers || ""}</span>`, "unusualness");
     const n = (d.unusual_hist || []).reduce((a, b) => a + b, 0);
     histogram($("uhist"), d.unusual_hist || [], 0, 1, "0 = unusual · 1 = typical", n / 10);
+  }
+
+  function upsets(u) {
+    const tile = (val, k) => `<div class="stat"><div class="v">${val}</div><div class="k">${k}</div></div>`;
+    const pct = (v) => (v == null ? "—" : fmtPct(v));
+    if (!u.games) { $("upset-tiles").innerHTML = ""; $("upset-roc").innerHTML = empty("No games with a clear ranking underdog scored yet.");
+      ["upset-table", "upset-missed", "upset-false"].forEach((id) => ($(id).innerHTML = "")); $("upset-note").textContent = ""; return; }
+    const w = u.thresholds[0], pk = u.thresholds[1];
+    $("upset-tiles").innerHTML = tile(pct(w.precision), `precision of the 35% flag (${w.tp} of ${w.flagged} flagged were upsets)`) +
+      tile(pct(w.recall), `recall of the 35% flag (${w.tp} of ${u.upsets} upsets flagged)`) +
+      tile(u.auc == null ? "—" : u.auc.toFixed(3), "upset ROC-AUC (0.5 = no skill)") +
+      tile(pct(u.base_rate), `upset rate (${u.upsets} of ${u.games} games with an underdog)`);
+    // ROC curve
+    const W = 360, H = 300, L = 36, B = 28, T = 8, R = 10;
+    const x = (v) => L + v * (W - L - R), y = (v) => H - B - v * (H - B - T);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:460px">`;
+    [0, 0.5, 1].forEach((t) => (s += `<line x1="${x(t)}" x2="${x(t)}" y1="${y(0)}" y2="${y(1)}" stroke="var(--line)"/><line x1="${x(0)}" x2="${x(1)}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
+      <text x="${x(t)}" y="${H - B + 14}" text-anchor="middle">${t}</text><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${t}</text>`));
+    s += `<line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="var(--muted)" stroke-dasharray="5 4"/>`;
+    s += `<polyline points="${u.roc.map((p) => `${x(p.fpr)},${y(p.tpr)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
+    for (const t of u.thresholds) {
+      const n = u.games - u.upsets, fpr = n ? t.fp / n : 0, tpr = u.upsets ? t.tp / u.upsets : 0;
+      s += `<circle cx="${x(fpr)}" cy="${y(tpr)}" r="5" fill="var(--hl)" stroke="var(--ink)"><title>${Math.round(t.threshold * 100)}% flag: ${t.tp} upsets caught, ${t.fp} false alarms</title></circle>
+        <text x="${x(fpr) + 7}" y="${y(tpr) - 6}">${Math.round(t.threshold * 100)}%</text>`;
+    }
+    s += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">false alarm rate</text>
+      <text x="11" y="${(T + H - B) / 2}" transform="rotate(-90 11 ${(T + H - B) / 2})" text-anchor="middle">share of upsets caught</text></svg>`;
+    $("upset-roc").innerHTML = s;
+    $("upset-table").innerHTML = `<tr><th>Flag</th><th class="num">Flagged</th><th class="num">Upsets caught</th><th class="num">False alarms</th>
+      <th class="num">Missed</th><th class="num">Precision</th><th class="num">Recall</th></tr>` + u.thresholds.map((t) =>
+      `<tr><td>${t.name} (≥${Math.round(t.threshold * 100)}%)</td><td class="num">${t.flagged}</td><td class="num">${t.tp}</td><td class="num">${t.fp}</td>
+        <td class="num">${t.fn}</td><td class="num">${pct(t.precision)}</td><td class="num">${pct(t.recall)}</td></tr>`).join("");
+    $("upset-note").textContent = `For scale: always guessing "no upset" would be right ${pct(1 - u.base_rate)} of the time but catch none.` +
+      (u.games < 100 ? ` Only ${u.games} games so far, so these numbers will move a lot.` : "") +
+      (u.current_ranks_used ? ` ${u.current_ranks_used} game${u.current_ranks_used > 1 ? "s" : ""} predate the first ranking snapshot and use the current ranking.` : "");
+    const row = (r) => `<tr><td>${r.date.slice(5, 10)}</td><td><a href="/game/${r.game_id}?season=${$("season").value}">${r.underdog} vs ${r.favorite}</a></td>
+      <td class="num">${r.underdog === r.home ? `${r.home_pts}–${r.away_pts}` : `${r.away_pts}–${r.home_pts}`}</td><td class="num">${fmtPct(r.p)}</td></tr>`;
+    const head = `<tr><th>Date</th><th>Underdog vs favourite</th><th class="num">Score (underdog first)</th><th class="num">P(underdog)</th></tr>`;
+    $("upset-missed").innerHTML = (u.missed || []).length ? head + u.missed.map(row).join("") : `<tr><td class="muted">None: every upset was flagged.</td></tr>`;
+    $("upset-false").innerHTML = (u.false_alarms || []).length ? head + u.false_alarms.map(row).join("") : `<tr><td class="muted">None yet.</td></tr>`;
   }
 
   function spreads(s) {
