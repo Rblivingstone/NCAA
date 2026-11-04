@@ -6,6 +6,7 @@
   <span class="muted" id="sub"></span>
 </div>
 <p class="lede" id="explain"></p>
+<div id="upset"></div>
 <div class="muted" id="note"></div>
 <div id="game"><div class="muted">Loading…</div></div>
 {% endblock %}
@@ -21,6 +22,20 @@
     post: "Final: the Bayesian forecast replayed play by play from tip-off, against the prior. The win-probability line and the shift charts show how the evidence moved the forecast; red edges mark stats that finished outside the prior's central 95%.",
   };
   let timer = null;
+  const rk = (t, m) => { const r = t === m.home ? m.rank_home : m.rank_away; return r ? `#${r}` : "non-D1"; };
+  function upsetBanner(m, kind) {
+    if (!m.underdog) return "";
+    const dog = `<b>${m.underdog}</b> (${rk(m.underdog, m)})`, fav = `${m.favorite} (${rk(m.favorite, m)})`;
+    if (kind === "post")
+      return m.upset ? `<div class="upset-banner hot"><span class="badge upset">upset</span> ${dog} beat higher-ranked ${fav};
+        the model gave it ${fmtPct(m.p_underdog)} before tip-off${m.upset_level ? ", and had flagged it" : ""}.</div>` : "";
+    if (kind === "live" && m.p_underdog_live != null && (m.p_underdog_live >= 0.5 || m.upset_level))
+      return `<div class="upset-banner ${m.p_underdog_live >= 0.5 ? "hot" : ""}"><span class="badge ${m.p_underdog_live >= 0.5 ? "upset" : "watch"}">${m.p_underdog_live >= 0.5 ? "upset in progress" : "upset watch"}</span>
+        ${dog} now has a <b>${fmtPct(m.p_underdog_live)}</b> chance against ${fav} (${fmtPct(m.p_underdog)} before tip-off).</div>`;
+    if (!m.upset_level) return "";
+    return `<div class="upset-banner ${m.upset_level === "pick" ? "hot" : ""}"><span class="badge ${m.upset_level === "pick" ? "upset" : "watch"}">${m.upset_level === "pick" ? "upset pick" : "upset watch"}</span>
+      Lower-ranked ${dog} has a <b>${fmtPct(m.p_underdog)}</b> chance against ${fav}.</div>`;
+  }
   await load();
   async function load() {
     const r = await fetch(`/api/game?season=${season}&id=${gid}`);
@@ -37,6 +52,7 @@
     if (m.ledger) notes.push(`Forecast logged before the game (${m.ledger.model}): ${m.home} ${fmtPct(m.ledger.p_home)}; whole-box-score unusualness ${m.ledger.unusualness.toFixed(3)}.`);
     else if (d.kind === "post") notes.push("This game has no pre-game ledger entry, so the prior shown comes from the current model (for regular-season games of a finished season, that model was fitted on this game too).");
     $("note").textContent = notes.join(" ");
+    $("upset").innerHTML = upsetBanner(m, d.kind);
     if (!d.model) { $("game").innerHTML = `<div class="muted">One of these teams is not in the model.</div>`; return; }
     LiveGame.render($("game"), d, { mode: d.kind === "live" ? "live" : d.kind });
     clearTimeout(timer);

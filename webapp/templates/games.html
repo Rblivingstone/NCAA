@@ -9,28 +9,59 @@ history against the prior afterwards.</p>
 <div class="toolbar">
   <label>Season <select id="season">{% for s in seasons|reverse %}<option>{{ s }}</option>{% endfor %}</select></label>
   <button id="prev">◀</button><input type="date" id="date"><button id="next">▶</button>
-  <label>or team <select id="team"><option value="">—</option></select></label>
+  <input class="search" id="q" list="teamlist" placeholder="Type a team: filter, or pick one for its season" autocomplete="off"><datalist id="teamlist"></datalist>
   <span class="muted" id="note"></span>
 </div>
-<div class="panel"><table class="data" id="games"></table></div>
+<div class="panel"><div class="muted mini" style="margin-bottom:4px">Click a column to sort. Upset flags compare the two teams'
+  current rankings: <span class="badge watch">upset watch</span> when the lower-ranked team has at least a 35% chance,
+  <span class="badge upset">upset pick</span> when the model favours it, <span class="badge upset">upset</span> when it won.</div>
+  <table class="data" id="games"></table></div>
 {% endblock %}
 {% block scripts %}
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
-  let dates = [];
-  $("season").onchange = async () => { await teams(); $("team").value = ""; await jumpToNearest(); };
-  $("date").onchange = () => { $("team").value = ""; load(); };
-  $("team").onchange = load;
+  let dates = [], teamNames = new Set(), teamMode = "";
+  const season = () => $("season").value;
+  const table = DataTable($("games"), [
+    { key: "date", label: "When", sort: (g) => g.date, dir: 1,
+      render: (g) => new Date(g.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + (g.tournament ? ' <span class="badge">NCAA</span>' : "") },
+    { key: "away", label: "Away", render: (g) => `<a href="/team/${encodeURIComponent(g.away)}?season=${season()}">${g.away}</a> ${rankTag(g.rank_away)}` },
+    { key: "home", label: "Home", render: (g) => `<a href="/team/${encodeURIComponent(g.home)}?season=${season()}">${g.home}</a> ${rankTag(g.rank_home)}${g.neutral ? ' <span class="muted">(neutral)</span>' : ""}` },
+    { key: "rank", label: "Best rank", num: true, sort: bestRank, dir: 1, title: "the better-ranked team in the game", render: (g) => bestRank(g) ? "#" + bestRank(g) : "" },
+    { key: "score", label: "Score", num: true, render: (g) => {
+        const p = prob(g), upset = g.completed && p != null && (p > 0.5) !== (g.score[0] > g.score[1]);
+        return g.completed ? `<span style="color:${upset ? "var(--upset)" : "inherit"}">${g.score[1]}–${g.score[0]}</span>`
+          : (g.pred_score ? `<span class="muted">proj. ${g.pred_score[1]}–${g.pred_score[0]}</span>` : "");
+      } },
+    { key: "p", label: "P(home wins)", num: true, sort: prob, render: (g) => prob(g) != null ? fmtPct(prob(g)) + (g.completed ? ' <span class="muted">pre-game</span>' : "") : "" },
+    { key: "upset", label: "Upset", sort: (g) => g.p_underdog, title: "lower-ranked team's chance; flagged at 35%+", render: (g) => upsetBadge(g, g.completed) },
+    { key: "u", label: "Unusualness", num: true, sort: (g) => g.unusualness, dir: 1,
+      render: (g) => g.unusualness != null ? `<span style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness.toFixed(3)}</span>` : "" },
+    { key: "go", label: "", render: (g) => `<a href="/game/${g.game_id}?season=${season()}">${g.completed ? "update history" : "forecast"} →</a>` },
+  ], { sortKey: "date", dir: 1, text: (g) => `${g.home} ${g.away}`, empty: "No games on this date." });
+  function prob(g) { return g.completed ? g.p_home_pregame : g.p_home; }
+
+  $("season").onchange = async () => { await teams(); $("q").value = ""; teamMode = ""; await jumpToNearest(); };
+  $("date").onchange = () => { clearTeam(); load(); };
+  $("q").oninput = () => {
+    const v = $("q").value.trim();
+    if (teamNames.has(v) && v !== teamMode) { teamMode = v; table.filter(""); load(); return; }   // a whole team: its season
+    if (teamMode && v !== teamMode) { teamMode = ""; load(); }
+    table.filter(teamMode ? "" : v);
+  };
   $("prev").onclick = () => step(-1); $("next").onclick = () => step(1);
   await teams(); await jumpToNearest();
 
+  function clearTeam() { if (teamMode) { teamMode = ""; $("q").value = ""; } }
   async function teams() {
-    const r = await (await fetch(`/api/rankings?season=${$("season").value}`)).json();
-    $("team").innerHTML = `<option value="">—</option>` + r.teams.map((t) => t.team).sort().map((t) => `<option>${t}</option>`).join("");
+    const r = await (await fetch(`/api/rankings?season=${season()}`)).json();
+    const names = r.teams.map((t) => t.team).sort();
+    teamNames = new Set(names);
+    $("teamlist").innerHTML = names.map((t) => `<option value="${t}">`).join("");
   }
   async function jumpToNearest() {
-    const r = await (await fetch(`/api/games?season=${$("season").value}&date=1900-01-01`)).json();
+    const r = await (await fetch(`/api/games?season=${season()}&date=1900-01-01`)).json();
     dates = r.dates;
     const today = new Date().toISOString().slice(0, 10);
     $("date").value = dates.find((d) => d >= today) || dates[dates.length - 1] || today;
@@ -39,27 +70,16 @@ history against the prior afterwards.</p>
   function step(k) {
     const i = dates.indexOf($("date").value);
     const j = i < 0 ? dates.findIndex((d) => d > $("date").value) : i + k;
-    if (dates[j]) { $("date").value = dates[j]; $("team").value = ""; load(); }
+    if (dates[j]) { $("date").value = dates[j]; clearTeam(); load(); }
   }
   async function load() {
-    const q = $("team").value ? `team=${encodeURIComponent($("team").value)}` : `date=${$("date").value}`;
+    const q = teamMode ? `team=${encodeURIComponent(teamMode)}` : `date=${$("date").value}`;
     $("note").textContent = "Loading…";
-    const r = await (await fetch(`/api/games?season=${$("season").value}&${q}`)).json();
-    $("note").textContent = `${r.games.length} games · model: ${r.posterior}`;
-    $("games").innerHTML = r.games.length ? `<tr><th>When</th><th>Away</th><th>Home</th><th class="num">Score</th>
-      <th class="num">P(home wins)</th><th class="num">Unusualness</th><th></th></tr>` + r.games.map((g) => {
-        const p = g.completed ? g.p_home_pregame : g.p_home;
-        const when = new Date(g.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-        const sc = g.completed ? `${g.score[1]}–${g.score[0]}` : (g.pred_score ? `<span class="muted">proj. ${g.pred_score[1]}–${g.pred_score[0]}</span>` : "");
-        const upset = g.completed && p != null && (p > 0.5) !== (g.score[0] > g.score[1]);
-        return `<tr><td>${when}${g.tournament ? ' <span class="badge">NCAA</span>' : ""}</td>
-          <td><a href="/team/${encodeURIComponent(g.away)}?season=${$("season").value}">${g.away}</a></td>
-          <td><a href="/team/${encodeURIComponent(g.home)}?season=${$("season").value}">${g.home}</a>${g.neutral ? ' <span class="muted">(neutral)</span>' : ""}</td>
-          <td class="num" style="color:${upset ? "var(--upset)" : "inherit"}">${sc}</td>
-          <td class="num">${p != null ? fmtPct(p) + (g.completed ? ' <span class="muted">pre-game</span>' : "") : ""}</td>
-          <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness != null ? g.unusualness.toFixed(3) : ""}</td>
-          <td><a href="/game/${g.game_id}?season=${$("season").value}">${g.completed ? "update history" : "forecast"} →</a></td></tr>`;
-      }).join("") : `<tr><td class="muted">No games on this date.</td></tr>`;
+    const r = await (await fetch(`/api/games?season=${season()}&${q}`)).json();
+    const flagged = r.games.filter((g) => !g.completed && g.upset_level).length, upsets = r.games.filter((g) => g.completed && g.upset).length;
+    $("note").textContent = `${teamMode ? teamMode + "'s season · " : ""}${r.games.length} games` +
+      (flagged ? ` · ${flagged} upset alert${flagged > 1 ? "s" : ""}` : "") + (upsets ? ` · ${upsets} upset${upsets > 1 ? "s" : ""}` : "") + ` · model: ${r.posterior}`;
+    table.set(r.games);
   }
 })();
 </script>

@@ -58,18 +58,23 @@ def _building():
 
 
 @app.route("/")
+def dashboard_page():
+    return render_template("dashboard.html", season=SEASON, live_season=LIVE_SEASON, page="dashboard")
+
+
+@app.route("/bracket")
 def index():
-    return render_template("index.html", season=SEASON, page="bracket")
+    return render_template("index.html", season=SEASON, live_season=LIVE_SEASON, page="bracket")
 
 
 @app.route("/score")
 def score_page():
-    return render_template("score.html", season=SEASON, page="score")
+    return render_template("score.html", season=SEASON, live_season=LIVE_SEASON, page="score")
 
 
 @app.route("/matchup")
 def matchup_page():
-    return render_template("matchup.html", season=SEASON, page="matchup")
+    return render_template("matchup.html", season=SEASON, live_season=LIVE_SEASON, page="matchup")
 
 
 @app.route("/teams")
@@ -397,8 +402,11 @@ def compare_to_game(res: dict, row) -> dict:
 
 @app.route("/api/matchup")
 def api_matchup():
-    """Simulate full box scores for a head-to-head game."""
-    _, _, _, _, post = state()
+    """Simulate full box scores for a head-to-head game (?season=, default the live season)."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    post = state()[4] if season == SEASON else season_post(season)[0]
+    if post is None:
+        abort(404, "no model for this season yet")
     a, b = request.args.get("a"), request.args.get("b")
     n = min(int(request.args.get("n", 5000)), 50000)
     home = int(request.args.get("home", 0))
@@ -418,7 +426,7 @@ def api_matchup():
     samples = [{s: res[s][i].tolist() for s in BOX_STATS} | {"ot": int(res["ot"][i])} for i in range(8)]
     actual_game = None
     if request.args.get("game_id"):
-        rows = _meeting_rows(a, b)
+        rows = _meeting_rows(a, b) if season == SEASON else pd.DataFrame(columns=["game_id"])
         rows = rows[rows.game_id == int(request.args["game_id"])]
         if len(rows):
             row = next(rows.itertuples())
@@ -450,7 +458,13 @@ def api_h2h():
 
 @app.route("/api/team_list")
 def api_team_list():
-    return jsonify(sorted(state()[4].teams))
+    season = int(request.args.get("season", LIVE_SEASON))
+    if season == SEASON:
+        return jsonify(sorted(state()[4].teams))
+    d1 = data.d1_set(season)
+    post = season_post(season)[0]
+    teams = [t for t in (post.teams if post is not None else []) if t != "Non-D1" and (not d1 or t in d1)]
+    return jsonify(sorted(teams))
 
 
 # ---------------------------------------------------------------------------
@@ -541,10 +555,14 @@ def api_season_status():
                  "share_unusual_05": float(np.mean(u < 0.05)),
                  "vs_espn": _vs_espn(led)}
     rows = led[(led.home == team) | (led.away == team)] if team else led
-    rows = rows.sort_values("date", ascending=False).head(300)
+    rows = rows.sort_values("date", ascending=False).head(3000)
+    games = json.loads(rows.to_json(orient="records", date_format="iso"))
+    ranks = rank_map(season)
+    for g in games:
+        g |= game_flags(g["home"], g["away"], g.get("p_home"), ranks, result=(g["home_pts"], g["away_pts"]))
     return jsonify({"season": season, "posterior": label, "status": status, "summary": summ,
-                    "teams": sorted(post.teams) if post is not None else [],
-                    "games": json.loads(rows.to_json(orient="records", date_format="iso"))})
+                    "teams": sorted(t for t in post.teams if t != "Non-D1") if post is not None else [],
+                    "games": games})
 
 
 def _vs_espn(led: pd.DataFrame) -> dict | None:
@@ -583,8 +601,11 @@ def api_season_upcoming():
     if post is None:
         abort(404, "no posterior for this season yet")
     date = request.args.get("date") or None
-    return jsonify({"posterior": label, "games": season_mod.upcoming(season, post, start=date,
-                                                                     days=int(request.args.get("days", 1)))})
+    ranks = rank_map(season)
+    games = season_mod.upcoming(season, post, start=date, days=int(request.args.get("days", 1)))
+    for g in games:
+        g |= game_flags(g["home"], g["away"], g.get("p_home"), ranks)
+    return jsonify({"posterior": label, "games": games})
 
 
 @app.route("/api/live/scoreboard")
@@ -796,7 +817,7 @@ def teams_redirect():
 @app.route("/api/rankings")
 def api_rankings():
     """Teams ranked by overall (net), offense (ORtg) or defense (DRtg)."""
-    season = int(request.args.get("season", SEASON))
+    season = int(request.args.get("season", LIVE_SEASON))
     rows, label = ratings_for(season)
     d1 = set(data.d1_teams(season))
     rows = [r for r in rows if r["team"] != "Non-D1" and (not d1 or r["team"] in d1)]
@@ -833,7 +854,7 @@ def _end_of_data(season: int):
 
 @app.route("/api/team")
 def api_team():
-    season = int(request.args.get("season", SEASON))
+    season = int(request.args.get("season", LIVE_SEASON))
     name = request.args.get("name", "")
     post, label = season_post(season)
     if post is None or name not in post.teams:
@@ -890,6 +911,7 @@ def api_games():
         rows = sched[local == day]
     rows = rows.sort_values("date")
     post, label = season_post(season)
+    ranks = rank_map(season)
     led = season_mod.load_ledger(season)
     led = led.set_index("game_id") if len(led) else None
     upcoming_ids = {u["game_id"]: u for u in
@@ -908,6 +930,8 @@ def api_games():
             lr = led.loc[r.game_id]
             row |= {"p_home_pregame": float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home),
                     "unusualness": float(lr.unusualness)}
+        p = row.get("p_home_pregame", row.get("p_home"))
+        row |= game_flags(r.home, r.away, p, ranks, result=tuple(row["score"]) if row["score"] else None)
         out.append(row)
     local_dates = sorted(sched.date.dt.tz_convert("America/New_York").dt.strftime("%Y-%m-%d").unique())
     return jsonify({"season": season, "posterior": label, "games": out, "dates": local_dates})
@@ -982,8 +1006,176 @@ def api_game():
         state_ = LiveState(gid, [row.home, row.away], ["", ""], bool(row.neutral), "pre" if kind == "pre" else "post",
                            1, 20.0, {}, detail="Scheduled" if kind == "pre" else "Final")
     view = _model_view(post, state_) if post is not None else None
+    p_pre = meta.get("ledger", {}).get("p_home")
+    if p_pre is None and view is not None:
+        p_pre = float(view["pregame"]["p_win"][0])
+    res = None
+    if kind == "post" and state_ is not None and state_.box:
+        res = tuple(state_.box.get(t, {}).get("pts", 0) for t in (row.home, row.away))
+    meta |= game_flags(row.home, row.away, p_pre, rank_map(season), result=res)
+    if kind == "live" and view is not None and meta.get("underdog"):
+        p_live_dog = float(view["p_win"][0]) if meta["underdog"] == row.home else 1 - float(view["p_win"][0])
+        meta["p_underdog_live"] = p_live_dog
     return jsonify({"kind": kind, "meta": meta, "state": state_.to_json(), "model": view, "posterior": label,
                     "timeline": timeline})
+
+
+# ---------------------------------------------------------------------------
+# Rankings lookup, upset flags and the model dashboard
+# ---------------------------------------------------------------------------
+UPSET_GAP = 20          # ranking places between the teams before a game counts as favourite vs underdog
+UPSET_WATCH = 0.35      # the model gives the underdog at least this chance: "upset watch"
+
+
+@lru_cache(maxsize=4)
+def _rank_map(season: int, stamp: float) -> dict:
+    rows, _ = ratings_for(season)
+    d1 = data.d1_set(season)
+    rows = [r for r in rows if r["team"] != "Non-D1" and (not d1 or r["team"] in d1)]
+    return {r["team"]: i for i, r in enumerate(sorted(rows, key=lambda r: -r["net"]), 1)}
+
+
+def rank_map(season: int) -> dict:
+    """Current overall rank of every D1 team (1 = best)."""
+    try:
+        return _rank_map(season, _stamp(season))
+    except Exception:
+        return {}
+
+
+def game_flags(home: str, away: str, p_home, ranks: dict, result=None) -> dict:
+    """Both teams' current ranks and, when the ranking makes one team the clear underdog, its chance by the
+    model: "watch" at 35% or more, "pick" when the model favours it outright (e.g. at home). A non-D1 team
+    is always the underdog. With a result, whether the underdog won."""
+    rh, ra = ranks.get(home), ranks.get(away)
+    out = {"rank_home": rh, "rank_away": ra}
+    if p_home is None or p_home != p_home or (rh is None and ra is None):
+        return out
+    p_home = float(p_home)
+    if rh is None:
+        dog, fav, p_dog = home, away, p_home
+    elif ra is None:
+        dog, fav, p_dog = away, home, 1 - p_home
+    elif abs(rh - ra) < UPSET_GAP:
+        return out
+    elif rh < ra:
+        dog, fav, p_dog = away, home, 1 - p_home
+    else:
+        dog, fav, p_dog = home, away, p_home
+    out |= {"underdog": dog, "favorite": fav, "p_underdog": p_dog,
+            "upset_level": "pick" if p_dog >= 0.5 else "watch" if p_dog >= UPSET_WATCH else None}
+    if result:
+        out["upset"] = (dog == home) == (result[0] > result[1])
+    return out
+
+
+def _ledger_records(led: pd.DataFrame, ranks: dict) -> list:
+    recs = json.loads(led.to_json(orient="records", date_format="iso"))
+    for g in recs:
+        g |= game_flags(g["home"], g["away"], g.get("p_home"), ranks, result=(g["home_pts"], g["away_pts"]))
+        won = g["home_pts"] > g["away_pts"]
+        g["p_winner"] = g["p_home"] if won else 1 - g["p_home"]
+        e = g.get("espn_p_home")
+        g["espn_p_winner"] = None if e is None else (e if won else 1 - e)
+    return recs
+
+
+@app.route("/api/dashboard")
+def api_dashboard():
+    """Everything the model dashboard shows: out-of-sample performance, calibration, best and worst calls,
+    and how the Bayesian updates have moved the ratings and shrunk their uncertainty."""
+    season = int(request.args.get("season", LIVE_SEASON))
+    post, label = season_post(season)
+    path = model.artifact_dir(season) / "status.json"
+    out = {"season": season, "posterior": label, "status": json.loads(path.read_text()) if path.exists() else {}}
+    ranks = rank_map(season)
+    led = season_mod.load_ledger(season)
+    out["games"] = int(len(led))
+    if len(led):
+        led = led.sort_values("date")
+        won = (led.home_pts > led.away_pts).to_numpy()
+        p = led.p_home.astype(float).clip(1e-3, 1 - 1e-3).to_numpy()
+        pw = np.where(won, p, 1 - p)
+        ll = -np.log(pw)
+        u = led.unusualness.astype(float).to_numpy()
+        out["metrics"] = {"log_loss": float(ll.mean()), "brier": float(np.mean((p - won) ** 2)),
+                          "accuracy": float(np.mean(pw > 0.5)), "n": int(len(led)),
+                          "mean_conf": float(np.mean(np.maximum(p, 1 - p))),
+                          "share_unusual_05": float(np.mean(u < 0.05)), "median_unusual": float(np.median(u))}
+        # Calibration: how often the favourite won, by how strongly it was favoured.
+        fav = np.maximum(p, 1 - p)
+        edges = np.array([0.5, 0.6, 0.7, 0.8, 0.9, 1.0001])
+        out["calibration"] = [{"lo": float(edges[i]), "hi": float(min(edges[i + 1], 1)), "n": int(m.sum()),
+                               "predicted": float(fav[m].mean()) if m.any() else None,
+                               "actual": float((pw[m] > 0.5).mean()) if m.any() else None}
+                              for i in range(5) for m in [(fav >= edges[i]) & (fav < edges[i + 1])]]
+        out["unusual_hist"] = np.histogram(u, bins=10, range=(0, 1))[0].tolist()
+        days = led.date.dt.tz_convert("America/New_York").dt.strftime("%Y-%m-%d").to_numpy() \
+            if led.date.dt.tz is not None else led.date.dt.strftime("%Y-%m-%d").to_numpy()
+        n = np.arange(1, len(led) + 1)
+        cum_ll, cum_acc = np.cumsum(ll) / n, np.cumsum(pw > 0.5) / n
+        last = np.r_[days[1:] != days[:-1], True]
+        first = np.r_[True, days[1:] != days[:-1]]
+        starts = np.flatnonzero(first)
+        out["daily"] = [{"date": days[j], "games": int(n[j]), "day_games": int(j - starts[starts <= j][-1] + 1),
+                         "log_loss": float(cum_ll[j]), "accuracy": float(cum_acc[j]),
+                         "day_accuracy": float(np.mean(pw[starts[starts <= j][-1]:j + 1] > 0.5))}
+                        for j in np.flatnonzero(last)]
+        recs = _ledger_records(led, ranks)
+        for g, l in zip(recs, ll):
+            g["log_loss"] = float(l)
+        right = [g for g in recs if g["p_winner"] > 0.5]
+        out["best_calls"] = sorted(right, key=lambda g: -g["p_winner"])[:8]
+        vs = [g for g in right if g["espn_p_winner"] is not None and g["espn_p_winner"] < 0.5]
+        out["beat_espn"] = sorted(vs, key=lambda g: -(g["p_winner"] - g["espn_p_winner"]))[:8]
+        out["upsets_called"] = sorted([g for g in recs if g.get("upset") and g.get("upset_level")],
+                                      key=lambda g: -g["p_underdog"])[:8]
+        out["most_wrong"] = sorted([g for g in recs if g["p_winner"] < 0.5], key=lambda g: g["p_winner"])[:10]
+        out["most_unusual"] = sorted(recs, key=lambda g: g["unusualness"])[:8]
+        out["vs_espn"] = _vs_espn(led)
+    up = season_mod.load_updates(season)
+    d1 = data.d1_set(season)
+    if len(up):
+        up = up[up.team.isin(d1)] if d1 else up
+        up = up.sort_values(["date", "game_id"])
+        up["k"] = up.groupby("team").cumcount() + 1
+        # Uncertainty against games played: each team's sd before its first game, then after each one.
+        sd = [{"games": 0, "sd": float(up[up.k == 1].sd_before.mean()), "teams": int((up.k == 1).sum())}]
+        sd += [{"games": int(k), "sd": float(g.sd_after.mean()), "teams": int(len(g))}
+               for k, g in up.groupby("k") if len(g) >= 3]
+        out["uncertainty"] = sd
+        per = up.groupby("team").agg(first=("net_before", "first"), last=("net_after", "last"),
+                                     sd0=("sd_before", "first"), sd1=("sd_after", "last"), games=("k", "max"))
+        per["moved"] = per["last"] - per["first"]
+        mv = lambda df: [{"team": t, "moved": float(r.moved), "from": float(r["first"]), "to": float(r["last"]),
+                          "sd_from": float(r.sd0), "sd_to": float(r.sd1), "games": int(r.games),
+                          "rank": ranks.get(t)} for t, r in df.iterrows()]
+        out["risers"] = mv(per[per.moved > 0].sort_values("moved", ascending=False).head(8))
+        out["fallers"] = mv(per[per.moved < 0].sort_values("moved").head(8))
+        out["moves_hist"] = np.histogram(up.net_after - up.net_before, bins=24, range=(-12, 12))[0].tolist()
+        # The latest games' updates, both teams before and after.
+        recent = []
+        lp = {int(r.game_id): r for r in led.itertuples()} if len(led) else {}
+        for gid, g in list(up.groupby("game_id", sort=False))[::-1][:30]:
+            if len(g) != 2:
+                continue
+            l = lp.get(int(gid))
+            teams_ = [{"team": r.team, "pts": int(r.pts), "before": float(r.net_before), "sd_before": float(r.sd_before),
+                       "after": float(r.net_after), "sd_after": float(r.sd_after), "games": int(r.k),
+                       "rank": ranks.get(r.team)} for r in g.itertuples()]
+            p_first = None
+            if l is not None:
+                p_first = float(l.p_home) if l.home == teams_[0]["team"] else 1 - float(l.p_home)
+            recent.append({"game_id": int(gid), "date": str(g.date.iloc[0])[:10], "teams": teams_, "p_first": p_first,
+                           "source": g.source.iloc[0] if "source" in g else ""})
+        out["recent_updates"] = sorted(recent, key=lambda r: r["date"], reverse=True)
+        out["updates"] = int(len(up) // 2)
+    if ranks:
+        rows, _ = ratings_for(season)
+        by = {r["team"]: r for r in rows}
+        out["top"] = [{"team": t, "rank": k, "net": by[t]["net"], "net_lo": by[t]["net_lo"], "net_hi": by[t]["net_hi"]}
+                      for t, k in sorted(ranks.items(), key=lambda x: x[1])[:12]]
+    return jsonify(out)
 
 
 if __name__ == "__main__":
