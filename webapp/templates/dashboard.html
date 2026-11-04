@@ -78,6 +78,14 @@ called a result, how often it happened. <b>Recall</b>: of the games that ended t
     <div class="muted mini" id="win-note" style="margin-top:6px"></div></div>
 </div>
 
+<div class="panel" style="margin-top:12px"><div class="toolbar" style="margin:0"><b>ROC-AUC through the season: this model vs ESPN</b>
+    <span class="seg" id="auc-mode"><button data-m="rolling" class="on">Last 30 days</button><button data-m="cumulative">Season to date</button></span></div>
+  <div class="muted mini" style="margin:4px 0 6px">On the games where both made a pre-game call. "Last 30 days" shows how each is doing
+    now, so the lopsided November games stop counting once they are a month old; "season to date" accumulates everything.
+    Shaded bands: about ±1 standard error. The table only calls a gap "clear" when it is about twice its combined uncertainty (roughly 95% confidence).</div>
+  <div class="cols2"><div id="auc-chart"></div><div id="auc-summary"></div></div>
+</div>
+
 <h2 style="margin:22px 0 4px">Upset detection</h2>
 <p class="lede" style="margin-bottom:4px">Treating "will the underdog win?" as a yes/no prediction. A game counts when the
 ranking <em>before</em> it made one team the underdog (20+ places apart, or a non-D1 team); the model's score is its pre-game
@@ -116,6 +124,10 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
   const $ = (id) => document.getElementById(id);
   const empty = (msg) => `<div class="muted" style="padding:16px 0">${msg}</div>`;
   const gameLink = (g) => `<a href="/game/${g.game_id}?season=${$("season").value}">${g.neutral ? `${g.home} vs ${g.away}` : `${g.away} @ ${g.home}`}</a>`;
+  let aucData = null, aucMode = "rolling";
+  document.querySelectorAll("#auc-mode button").forEach((b) => (b.onclick = () => {
+    aucMode = b.dataset.m; document.querySelectorAll("#auc-mode button").forEach((x) => x.classList.toggle("on", x === b)); aucSeries(aucData);
+  }));
   $("season").onchange = load;
   await load();
 
@@ -149,6 +161,7 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     spreads(d.spreads || { n: 0, points: [] });
     upsets(d.upset_detection || { games: 0 });
     wins(d.win_detection || { games: 0 });
+    aucSeries(d.auc_series || { games: 0, rolling: [], cumulative: [] });
     games("called", d.upsets_called, (g) => fmtPct(g.p_underdog), "P(underdog)", "No flagged upsets have come in yet.");
     games("unusual", d.most_unusual, (g) => `<span class="nw">${g.unusualness.toFixed(3)}</span><div class="muted" style="text-align:right">${g.drivers || ""}</div>`, "unusualness");
     const n = (d.unusual_hist || []).reduce((a, b) => a + b, 0);
@@ -170,6 +183,45 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     s += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">${curves[0].xlabel || "false positive rate"}</text>
       <text x="11" y="${(T + H - B) / 2}" transform="rotate(-90 11 ${(T + H - B) / 2})" text-anchor="middle">${curves[0].ylabel || "true positive rate"}</text></svg>`;
     return s + (curves.length > 1 ? `<div class="muted mini">${curves.map((c) => `<span style="color:${c.color}">━</span> ${c.label}`).join(" &nbsp; ")}</div>` : "");
+  }
+
+  function aucSeries(a) {
+    aucData = a;
+    const pts = a[aucMode] || [], f3 = (v) => v.toFixed(3);
+    if (pts.length < 2) {
+      $("auc-chart").innerHTML = empty(a.games < a.min_games ? `The chart starts once ${a.min_games} games have a pre-game call from both (${a.games} so far).`
+        : "The chart starts after a second day with enough games.");
+    } else {
+      const W = 560, H = 260, L = 44, R = 14, T = 12, B = 30;
+      const t = pts.map((p) => new Date(p.date).getTime()), t0 = t[0], t1 = Math.max(t[t.length - 1], t0 + 864e5);
+      const vals = pts.flatMap((p) => [p.model - p.model_se, p.model + p.model_se, p.espn - p.espn_se, p.espn + p.espn_se]);
+      const y0 = Math.max(0.5, Math.floor((Math.min(...vals) - 0.02) * 20) / 20), y1 = Math.min(1, Math.ceil((Math.max(...vals) + 0.02) * 20) / 20);
+      const x = (v) => L + (v - t0) / (t1 - t0) * (W - L - R), y = (v) => H - B - (Math.max(y0, Math.min(y1, v)) - y0) / (y1 - y0) * (H - B - T);
+      let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+      for (let v = y0; v <= y1 + 1e-9; v += 0.05) s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 5}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(2)}</text>`;
+      const band = (k, col) => `<polygon points="${pts.map((p, i) => `${x(t[i])},${y(p[k] + p[k + "_se"])}`).join(" ")} ${pts.slice().reverse().map((p, j) => `${x(t[pts.length - 1 - j])},${y(p[k] - p[k + "_se"])}`).join(" ")}" fill="${col}" opacity=".14"/>`;
+      const lineOf = (k, col, dash) => `<polyline points="${pts.map((p, i) => `${x(t[i])},${y(p[k])}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2.5" ${dash ? 'stroke-dasharray="6 4"' : ""}/>`;
+      s += band("espn", "var(--ink)") + band("model", "var(--accent)") + lineOf("espn", "var(--muted)", true) + lineOf("model", "var(--accent)", false);
+      const jan = new Date(`${$("season").value}-01-01`).getTime();
+      if (jan > t0 && jan < t1) s += `<line x1="${x(jan)}" x2="${x(jan)}" y1="${T}" y2="${H - B}" stroke="var(--hl)" stroke-dasharray="3 3"/><text x="${x(jan) + 4}" y="${T + 12}">Jan 1</text>`;
+      s += pts.map((p, i) => `<rect x="${x(t[i]) - 5}" y="${T}" width="10" height="${H - B - T}" fill="transparent"><title>${p.date}${aucMode === "rolling" ? ` (last ${a.window_days} days)` : " (season to date)"}: ${p.games} games · this model ${f3(p.model)} ± ${f3(p.model_se)} · ESPN ${f3(p.espn)} ± ${f3(p.espn_se)}</title></rect>`).join("");
+      const fmt = (v) => new Date(v).toLocaleDateString([], { month: "short", day: "numeric" });
+      s += `<text x="${L}" y="${H - 8}">${fmt(t0)}</text><text x="${W - R}" y="${H - 8}" text-anchor="end">${fmt(t1)}</text></svg>`;
+      $("auc-chart").innerHTML = s + `<div class="muted mini"><span style="color:var(--accent)">━</span> this model &nbsp; <span>╍</span> ESPN · hover for the day</div>`;
+    }
+    const last = pts[pts.length - 1], cj = a.since_jan;
+    const verdict = (m, e, sm, se) => { const gap = m - e, s2 = Math.sqrt(sm * sm + se * se);
+      return Math.abs(gap) < 1.96 * s2 ? "within the noise: no clear difference" : gap > 0 ? "this model clearly ahead" : "ESPN clearly ahead"; };
+    let h = `<table class="data mini"><tr><th></th><th class="num">Games</th><th class="num">This model</th><th class="num">ESPN</th><th></th></tr>`;
+    if (last) h += `<tr><td>${aucMode === "rolling" ? `Last ${a.window_days} days` : "Season to date"}</td><td class="num">${last.games}</td>
+      <td class="num">${f3(last.model)}</td><td class="num">${f3(last.espn)}</td><td class="muted">${verdict(last.model, last.espn, last.model_se, last.espn_se)}</td></tr>`;
+    h += cj ? `<tr><td>Conference season (since Jan 1)</td><td class="num">${cj.games}</td><td class="num">${f3(cj.model)}</td><td class="num">${f3(cj.espn)}</td>
+      <td class="muted">${verdict(cj.model, cj.espn, cj.model_se, cj.espn_se)}</td></tr>`
+      : `<tr><td>Conference season (since Jan 1)</td><td class="muted" colspan="4">${a.since_jan_games ? `${a.since_jan_games} games so far; shown from ${a.min_games}` : "starts in January"}</td></tr>`;
+    h += `</table><div class="muted mini" style="margin-top:8px">ROC-AUC measures only how well each ranks likely winners above likely losers,
+      not whether its probabilities are the right size. Read it with the log-loss and calibration charts above. Conference games are
+      closer than November's, so expect both lines to drift down as the season goes on; what matters is the gap between them.</div>`;
+    $("auc-summary").innerHTML = h;
   }
 
   function wins(w) {

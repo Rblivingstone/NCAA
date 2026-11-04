@@ -809,3 +809,31 @@ def test_win_detection_over_all_games():
     assert abs(w["auc"] - 5 / 6) < 1e-9                      # winners .9 .7 .4 vs losers .6 .3: 5 of 6 pairs right
     assert w["espn"]["games"] == 4 and w["espn"]["auc"] == 0.75 and w["espn"]["model_auc_same_games"] == 1.0
     assert A._win_detection([]) == {"games": 0}
+
+
+def test_auc_time_series_model_vs_espn():
+    """Season-to-date and rolling ROC-AUC, model vs ESPN, one point per day once enough games have both calls,
+    with standard errors; a better-informed forecaster shows a higher curve."""
+    import numpy as np
+    import pandas as pd
+
+    import webapp.app as A
+
+    rng = np.random.default_rng(1)
+    days = pd.date_range("2026-11-03", "2027-02-28", freq="D")
+    recs = []
+    for d in days:
+        for _ in range(40):
+            truth = rng.normal(0, 1.5)
+            won = rng.random() < 1 / (1 + np.exp(-truth))
+            sig = lambda noise: float(1 / (1 + np.exp(-(truth + rng.normal(0, noise)))))
+            recs.append({"date": d.strftime("%Y-%m-%dT00:00:00Z"), "p_home": sig(1.2), "espn_p_home": sig(0.3),
+                         "home_pts": 70 if won else 60, "away_pts": 65})
+    s = A._auc_series(recs, 2027)
+    assert s["games"] == len(recs) and s["window_days"] == 30
+    assert len(s["cumulative"]) == len(days) and len(s["rolling"]) == len(days)
+    last = s["cumulative"][-1]
+    assert last["games"] == len(recs) and last["espn"] > last["model"] + 0.03 and 0 < last["model_se"] < 0.02
+    assert all(p["games"] <= 31 * 40 for p in s["rolling"])            # only the last 30 days
+    assert s["since_jan"]["games"] == sum(r["date"] >= "2027-01-01" for r in recs)
+    assert A._auc_series(recs[:10], 2027)["cumulative"] == []           # too few games yet

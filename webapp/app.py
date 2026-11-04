@@ -1129,12 +1129,55 @@ def _preseason_ranks(season: int) -> dict:
 
 
 def _auc(score: np.ndarray, label: np.ndarray) -> float | None:
-    """ROC-AUC: the chance a random upset got a higher pre-game score than a random non-upset (ties count half)."""
-    pos, neg = score[label], score[~label]
-    if not len(pos) or not len(neg):
+    """ROC-AUC: the chance a random positive got a higher score than a random negative (ties count half).
+    Computed from average ranks (Mann-Whitney), so it scales to a full season of games."""
+    score, label = np.asarray(score, dtype=float), np.asarray(label, dtype=bool)
+    n1 = int(label.sum()); n0 = len(label) - n1
+    if not n1 or not n0:
         return None
-    gt = (pos[:, None] > neg[None, :]).sum() + 0.5 * (pos[:, None] == neg[None, :]).sum()
-    return float(gt / (len(pos) * len(neg)))
+    _, inv, counts = np.unique(score, return_inverse=True, return_counts=True)
+    end = np.cumsum(counts); ranks = ((end - counts + 1 + end) / 2)[inv]      # average 1-based rank of ties
+    return float((ranks[label].sum() - n1 * (n1 + 1) / 2) / (n1 * n0))
+
+
+def _auc_se(auc: float, n1: int, n0: int) -> float:
+    """Standard error of an AUC (Hanley & McNeil, 1982)."""
+    q1, q2 = auc / (2 - auc), 2 * auc ** 2 / (1 + auc)
+    return float(np.sqrt(max(auc * (1 - auc) + (n1 - 1) * (q1 - auc ** 2) + (n0 - 1) * (q2 - auc ** 2), 0) / (n1 * n0)))
+
+
+def _auc_series(recs: list, season: int, window_days: int = 30, min_games: int = 40) -> dict:
+    """ROC-AUC of "first-listed team wins", this model vs ESPN, on the games where both made a pre-game call:
+    season to date and over a rolling window, one point per day, with standard errors; plus the conference
+    season (from January 1) on its own."""
+    rows = [g for g in recs if g.get("espn_p_home") is not None]
+    if len(rows) < min_games:
+        return {"games": len(rows), "min_games": min_games, "window_days": window_days, "cumulative": [], "rolling": []}
+    day = np.array([str(g["date"])[:10] for g in rows])
+    p = np.array([g["p_home"] for g in rows], dtype=float)
+    e = np.array([g["espn_p_home"] for g in rows], dtype=float)
+    y = np.array([g["home_pts"] > g["away_pts"] for g in rows])
+    order = np.argsort(day, kind="stable"); day, p, e, y = day[order], p[order], e[order], y[order]
+    stamp = pd.to_datetime(day).to_numpy()
+
+    def point(mask, d):
+        n1 = int(y[mask].sum()); n0 = int(mask.sum()) - n1
+        if mask.sum() < min_games or min(n1, n0) < 5:
+            return None
+        am, ae = _auc(p[mask], y[mask]), _auc(e[mask], y[mask])
+        return {"date": d, "games": int(mask.sum()), "model": am, "espn": ae,
+                "model_se": _auc_se(am, n1, n0), "espn_se": _auc_se(ae, n1, n0)}
+
+    cum, roll = [], []
+    for d in np.unique(day):
+        t = np.datetime64(d)
+        c = point(day <= d, d)
+        r = point((stamp <= t) & (stamp > t - np.timedelta64(window_days, "D")), d)
+        if c: cum.append(c)
+        if r: roll.append(r)
+    conf = point(day >= f"{season}-01-01", f"{season}-01-01")
+    return {"games": len(rows), "min_games": min_games, "window_days": window_days, "cumulative": cum, "rolling": roll,
+            "since_jan": conf, "since_jan_games": int((day >= f"{season}-01-01").sum())}
 
 
 def _roc_points(p: np.ndarray, y: np.ndarray, max_points: int = 200) -> list:
@@ -1308,6 +1351,7 @@ def api_dashboard():
         # Blowouts of non-D1 schools would fill these lists, so they show D1-vs-D1 games only.
         out["best_calls"] = sorted([g for g in right if g["d1_game"]], key=lambda g: -g["p_winner"])[:8]
         out["win_detection"] = _win_detection(recs)
+        out["auc_series"] = _auc_series(recs, season)
         vs = [g for g in right if g["espn_p_winner"] is not None and g["espn_p_winner"] < 0.5]
         out["beat_espn"] = sorted(vs, key=lambda g: -(g["p_winner"] - g["espn_p_winner"]))[:8]
         # The honest mirror: games ESPN called right and this model called wrong.
