@@ -30,7 +30,7 @@ from .simulate import estimate_lead_beta
 
 LEDGER_COLUMNS = ["game_id", "date", "home", "away", "neutral", "kind", "home_pts", "away_pts",
                   "p_home", "pred_margin", "margin_percentile", "unusualness", "drivers", "model",
-                  "espn_p_home", "espn_checked"]
+                  "espn_p_home", "espn_checked", "margin_lo", "margin_hi", "line_margin", "line_checked"]
 
 
 def ledger_path(season: int):
@@ -47,6 +47,10 @@ def load_ledger(season: int) -> pd.DataFrame:
     if "espn_checked" not in led:
         led["espn_checked"] = False
     led["espn_checked"] = led.espn_checked.fillna(False).astype(bool)
+    for c in ("margin_lo", "margin_hi", "line_margin"):
+        if c not in led:
+            led[c] = np.nan
+    led["line_checked"] = (led.line_checked if "line_checked" in led else pd.Series(False, index=led.index)).fillna(False).astype(bool)
     return led
 
 
@@ -64,6 +68,20 @@ def _espn_for_row(row, raw: dict) -> float:
     return np.nan                                  # names don't line up (e.g. a pooled non-D1 opponent)
 
 
+def _line_for_row(row, raw: dict) -> float:
+    """The betting line's expected margin for the first-listed ledger team, or NaN."""
+    from .live import betting_line
+
+    ln = betting_line(raw)
+    if ln is None:
+        return np.nan
+    if row.home == ln["home"] or row.away == ln["away"]:
+        return ln["home_margin"]
+    if row.home == ln["away"] or row.away == ln["home"]:
+        return -ln["home_margin"]
+    return np.nan
+
+
 def fill_espn(season: int, feed=None, raws: dict | None = None, log=print) -> int:
     """Record ESPN's pre-game win probability next to ours for every ledger game that doesn't have it.
 
@@ -74,7 +92,7 @@ def fill_espn(season: int, feed=None, raws: dict | None = None, log=print) -> in
 
     with season_lock(season):
         led = load_ledger(season)
-        todo = led.index[~led.espn_checked]
+        todo = led.index[~led.espn_checked | ~led.line_checked]
         filled = 0
         for i in todo:
             row = led.loc[i]
@@ -89,6 +107,8 @@ def fill_espn(season: int, feed=None, raws: dict | None = None, log=print) -> in
                 continue
             led.loc[i, "espn_p_home"] = _espn_for_row(row, raw)
             led.loc[i, "espn_checked"] = True
+            led.loc[i, "line_margin"] = _line_for_row(row, raw)        # the betting line ESPN shows, if any
+            led.loc[i, "line_checked"] = True
             filled += int(not np.isnan(led.loc[i, "espn_p_home"]))
         if len(todo):
             led.to_csv(ledger_path(season), index=False)
@@ -239,7 +259,8 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
             show_b = r.opponent if b == data.OTHER_TEAM else b
             rows.append({"game_id": int(r.game_id), "date": r.date, "home": show_a, "away": show_b, "neutral": home == 0,
                          "kind": getattr(r, "kind", "regular season"), "home_pts": int(r.pts), "away_pts": int(r.opp_pts),
-                         "p_home": p_first, "pred_margin": np.nan, "margin_percentile": u["margin_percentile"],
+                         "p_home": p_first, "pred_margin": u["pred_margin"], "margin_lo": u["margin_lo"],
+                         "margin_hi": u["margin_hi"], "margin_percentile": u["margin_percentile"],
                          "unusualness": u["p_value"],
                          "drivers": "; ".join(f"{[a, b][d['team'] == 'b']} {d['stat']}" for d in u["drivers"]
                                               if d["share"] > 0.1),

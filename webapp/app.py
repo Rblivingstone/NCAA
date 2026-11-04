@@ -1090,6 +1090,50 @@ def _ledger_records(led: pd.DataFrame, ranks: dict) -> list:
     return recs
 
 
+MARGIN_SD = 11.5      # typical sd of a simulated game margin, for ledger rows written before margins were kept
+
+
+def _spreads(recs: list) -> dict:
+    """Predicted vs realized point spread (first-listed team's margin) for every scored game, with the
+    betting line where ESPN showed one. Rows from before the ledger kept the predicted margin get an
+    approximate one, recovered from where the real margin fell in the simulated distribution."""
+    from statistics import NormalDist
+
+    z90 = NormalDist().inv_cdf(0.95)
+    pts = []
+    for g in recs:
+        actual = g["home_pts"] - g["away_pts"]
+        pred, lo, hi, approx = g.get("pred_margin"), g.get("margin_lo"), g.get("margin_hi"), False
+        if pred is None:
+            q = g.get("margin_percentile")
+            if q is None:
+                continue
+            q = min(max(q, 0.005), 0.995)
+            pred = actual - MARGIN_SD * NormalDist().inv_cdf(q)
+            lo, hi, approx = pred - z90 * MARGIN_SD, pred + z90 * MARGIN_SD, True
+        pts.append({"game_id": g["game_id"], "date": g["date"][:10], "home": g["home"], "away": g["away"],
+                    "neutral": g["neutral"], "pred": pred, "lo": lo, "hi": hi, "actual": actual,
+                    "line": g.get("line_margin"), "approx": approx})
+    if not pts:
+        return {"n": 0, "points": []}
+    pred = np.array([p["pred"] for p in pts]); act = np.array([p["actual"] for p in pts])
+    res = act - pred
+    inside = np.array([p["lo"] <= p["actual"] <= p["hi"] for p in pts])
+    out = {"n": len(pts), "approx": int(sum(p["approx"] for p in pts)), "points": pts,
+           "mae": float(np.abs(res).mean()), "rmse": float(np.sqrt((res ** 2).mean())), "bias": float(res.mean()),
+           "coverage90": float(inside.mean()), "residual_sd": float(res.std(ddof=1)) if len(res) > 1 else None,
+           "hist": np.histogram(np.clip(res, -39.9, 39.9), bins=20, range=(-40, 40))[0].tolist(),
+           "pred_hist": np.histogram(np.clip(pred, -39.9, 39.9), bins=20, range=(-40, 40))[0].tolist(),
+           "actual_hist": np.histogram(np.clip(act, -39.9, 39.9), bins=20, range=(-40, 40))[0].tolist()}
+    lined = [p for p in pts if p["line"] is not None]
+    if lined:
+        a = np.array([p["actual"] for p in lined])
+        out["vs_line"] = {"games": len(lined),
+                          "model_mae": float(np.abs(a - np.array([p["pred"] for p in lined])).mean()),
+                          "line_mae": float(np.abs(a - np.array([p["line"] for p in lined])).mean())}
+    return out
+
+
 @app.route("/api/dashboard")
 def api_dashboard():
     """Everything the model dashboard shows: out-of-sample performance, calibration, best and worst calls,
@@ -1138,6 +1182,16 @@ def api_dashboard():
         out["best_calls"] = sorted(right, key=lambda g: -g["p_winner"])[:8]
         vs = [g for g in right if g["espn_p_winner"] is not None and g["espn_p_winner"] < 0.5]
         out["beat_espn"] = sorted(vs, key=lambda g: -(g["p_winner"] - g["espn_p_winner"]))[:8]
+        # The honest mirror: games ESPN called right and this model called wrong.
+        lost = [g for g in recs if g["p_winner"] < 0.5 and g["espn_p_winner"] is not None and g["espn_p_winner"] > 0.5]
+        out["espn_beat_us"] = sorted(lost, key=lambda g: -(g["espn_p_winner"] - g["p_winner"]))[:8]
+        both = [g for g in recs if g["espn_p_winner"] is not None]
+        out["head_to_head"] = {"games": len(both),
+                               "both_right": sum(g["p_winner"] > 0.5 and g["espn_p_winner"] > 0.5 for g in both),
+                               "only_ours": sum(g["p_winner"] > 0.5 >= g["espn_p_winner"] for g in both),
+                               "only_espn": sum(g["espn_p_winner"] > 0.5 >= g["p_winner"] for g in both),
+                               "both_wrong": sum(g["p_winner"] <= 0.5 and g["espn_p_winner"] <= 0.5 for g in both)}
+        out["spreads"] = _spreads(recs)
         out["upsets_called"] = sorted([g for g in recs if g.get("upset") and g.get("upset_level")],
                                       key=lambda g: -g["p_underdog"])[:8]
         out["most_wrong"] = sorted([g for g in recs if g["p_winner"] < 0.5], key=lambda g: g["p_winner"])[:10]

@@ -282,6 +282,22 @@ def espn_pregame(d: dict) -> dict | None:
     return None
 
 
+def betting_line(d: dict) -> dict | None:
+    """The pre-game point spread ESPN's summary shows (its first odds provider): the home team's expected
+    margin, i.e. minus the quoted home spread. None when there is no line."""
+    comp = d["header"]["competitions"][0]
+    order = sorted(comp["competitors"], key=lambda c: c["homeAway"] != "home")
+    home, away = (c["team"]["location"] for c in order)
+    for pc in d.get("pickcenter") or []:
+        try:
+            spread = float(pc.get("spread"))
+        except (TypeError, ValueError):
+            continue
+        return {"home_margin": -spread, "home": home, "away": away, "details": pc.get("details", ""),
+                "provider": (pc.get("provider") or {}).get("name", "")}
+    return None
+
+
 def summary_at(d: dict, minute: float) -> dict:
     """A finished game's summary cut off ``minute`` into the game, shaped like the live feed's summary then:
     plays and win probabilities so far, status in progress, no final box score."""
