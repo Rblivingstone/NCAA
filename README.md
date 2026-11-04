@@ -1,8 +1,11 @@
-# NCAA Bayesian bracket simulator
+# NCAA Bayesian Basketball
 
-A generative Bayesian model of NCAA men's basketball games, a Monte Carlo
-tournament simulator built on it, and a Flask app to explore the resulting
-**distribution bracket** and to score a real bracket against the model.
+A generative Bayesian model of NCAA men's basketball that follows the current
+season (2026–27) live: every team's rating is updated by Bayes' rule after each
+game, every game is forecast before tip-off and tracked in-game, and a dashboard
+shows how the model is doing. Built on the same model: a Monte Carlo tournament
+simulator, with the 2026 **distribution bracket** and a tool to score a real
+bracket against it.
 
 ## The model (`ncaa/model.py`)
 
@@ -343,6 +346,33 @@ rest of the tournament from any day.
 **Pages:** *Season* (status, upcoming-game forecasts, the out-of-sample
 ledger) and *Live* (ESPN live with 20-second refresh, or replay any 2026
 tournament game with a slider and play button).
+
+## The web app
+
+The front page is the **model dashboard** for the season being tracked (2026–27 by default):
+
+* **Performance:** out-of-sample log-loss, Brier score, how often the favourite won, and the comparison with ESPN.
+* **Running performance and calibration:** log-loss through the season, and how often a 60/70/80/90% favourite actually won.
+* **Bayesian updates:** each game's prior → posterior for both teams, how a team's uncertainty shrinks with the games it plays, the biggest risers and fallers, and how far one game moves a rating.
+* **Calls:** the most confident calls that came in, the worst misses, wins where ESPN was wrong, upsets the model flagged, and the most unusual box scores.
+
+The navigation puts the current season first: Dashboard, Live, Games, Season, Rankings and Simulate a game, then the
+2026 tournament pages (the distribution bracket, now at `/bracket`, and Score a bracket). Every page starts on the
+current season.
+
+The Season and Games tables filter as you type a team name and sort by clicking a column: date, unusualness,
+probabilities or team ranking. Game links open the game page.
+
+**Upset flags** compare the two teams' current rankings. A game is flagged when they are at least 20 places apart
+(a non-D1 team is always the underdog):
+
+| Flag | When |
+| --- | --- |
+| upset watch | the lower-ranked team has at least a 35% chance |
+| upset pick | the model favours the lower-ranked team, e.g. at home |
+| upset | the lower-ranked team won |
+
+A live game shows "upset in progress" once the underdog's live chance passes 50%.
 
 ## Running it
 

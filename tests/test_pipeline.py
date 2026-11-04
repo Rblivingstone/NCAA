@@ -709,3 +709,35 @@ def test_non_d1_school_gets_its_own_rating_that_moves_with_its_games(tmp_path, m
     assert np.allclose(st.mean[i], pooled_only.mean[j]) and np.allclose(st.mean[st.index("Non-D1")],
                                                                         pooled_only.mean[pooled_only.index("Non-D1")])
     assert tiny[0] > pooled0[0] + 10                                     # well above the pool after 3 close games
+
+
+def test_upset_flags_follow_the_ranking():
+    """The lower-ranked team is the underdog; it is flagged at 35%+ ("watch") or when favoured ("pick"),
+    a non-D1 team is always the underdog, close rankings are never flagged, and a result says who won."""
+    from webapp.app import game_flags
+
+    ranks = {"Big": 10, "Small": 200, "Near": 15}
+    assert game_flags("Small", "Big", 0.40, ranks)["upset_level"] == "watch"          # home underdog at 40%
+    assert game_flags("Small", "Big", 0.55, ranks)["upset_level"] == "pick"
+    assert game_flags("Big", "Small", 0.80, ranks)["upset_level"] is None              # 20% is no alert
+    assert "underdog" not in game_flags("Big", "Near", 0.5, ranks)                      # 5 places apart
+    f = game_flags("Big", "Tiny College", 0.97, ranks, result=(60, 62))
+    assert f["underdog"] == "Tiny College" and f["upset"] and f["rank_away"] is None
+    assert game_flags("Small", "Big", 0.40, ranks, result=(70, 60))["upset"]
+    assert not game_flags("Small", "Big", 0.40, ranks, result=(60, 70))["upset"]
+
+
+def test_dashboard_api_shape():
+    """The dashboard endpoint answers for the live season, with or without games scored yet."""
+    import webapp.app as A
+
+    if not (model.artifact_dir(A.SEASON) / "summary.json").exists():
+        pytest.skip("needs the built tournament season")
+    r = A.app.test_client().get("/api/dashboard")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["season"] == A.LIVE_SEASON and "posterior" in d and "games" in d
+    if d["games"]:
+        assert {"metrics", "calibration", "daily", "most_wrong", "best_calls"} <= set(d)
+        assert all(g["p_winner"] < 0.5 for g in d["most_wrong"])
+        assert sum(b["n"] for b in d["calibration"]) == d["games"]

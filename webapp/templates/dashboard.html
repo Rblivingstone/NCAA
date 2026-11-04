@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Season dashboard{% endblock %}
+{% block content %}
+<div class="toolbar" style="margin-bottom:2px">
+  <h1 style="margin:0">{{ season_label }} season dashboard</h1>
+  <label>Season <select id="season"><option>{{ live_season }}</option><option>{{ season }}</option></select></label>
+  <span class="muted" id="model"></span>
+</div>
+<p class="lede">How the Bayesian model is reading the {{ season_label }} season, scored only on forecasts made <em>before</em> each game. Every finished
+game also updates both teams' ratings by Bayes' rule, so the ratings move with the evidence and grow more certain as
+games come in.</p>
+<div class="stats" id="tiles"></div>
+
+<div class="dash-grid">
+  <div class="panel"><b>Performance through the season</b>
+    <div class="muted mini">Running log-loss (lower is better; a coin flip scores 0.693) and how often the model's favourite won.</div>
+    <div id="running"></div></div>
+  <div class="panel"><b>Calibration</b>
+    <div class="muted mini">When the model makes a team a 70% favourite, that team should win about 70% of the time. Bars: how often the favourite actually won; ticks: what the model said.</div>
+    <div id="calib"></div></div>
+</div>
+
+<h2 style="margin:22px 0 4px">Bayesian updates</h2>
+<p class="lede" style="margin-bottom:4px">After each final, the box score updates both teams' 22 latent skills: the prior (the belief
+before the game) times the likelihood of that box score gives the posterior. Net rating = expected points per 100 possessions
+against an average D1 team.</p>
+<div class="dash-grid">
+  <div class="panel"><b>Latest updates: prior → posterior</b>
+    <div class="toolbar mini" style="margin:4px 0"><select id="upd-game"></select></div>
+    <div id="update"></div></div>
+  <div class="panel"><b>Uncertainty shrinks with every game</b>
+    <div class="muted mini">Average standard deviation of a team's net rating, by how many games it has played this season.</div>
+    <div id="uncert"></div></div>
+  <div class="panel"><b>Biggest risers</b><div class="muted mini">Change in net rating from this season's updates.</div><table class="data mini" id="risers"></table></div>
+  <div class="panel"><b>Biggest fallers</b><div class="muted mini">&nbsp;</div><table class="data mini" id="fallers"></table></div>
+  <div class="panel"><b>How far one game moves a rating</b>
+    <div class="muted mini">Every update so far: the change in a team's net rating from a single game.</div>
+    <div id="moves"></div></div>
+  <div class="panel"><b>Top of the rankings</b><div class="muted mini">Net rating with 90% credible interval. <a href="/rankings">All teams →</a></div><div id="top"></div></div>
+</div>
+
+<h2 style="margin:22px 0 4px">Calls</h2>
+<div class="dash-grid">
+  <div class="panel"><b>Most confident calls that came in</b><table class="data mini" id="best"></table></div>
+  <div class="panel"><b>Most wrong</b><div class="muted mini">Games the model's favourite lost, by the lowest chance it gave the winner.</div><table class="data mini" id="wrong"></table></div>
+  <div class="panel"><b>Right where ESPN was wrong</b><table class="data mini" id="beat"></table></div>
+  <div class="panel"><b>Upsets it flagged</b><div class="muted mini">The lower-ranked team won after the model gave it at least 35%.</div><table class="data mini" id="called"></table></div>
+  <div class="panel"><b>Most unusual box scores</b><div class="muted mini">Whole box score against the model's simulations of the game (share of simulated games at least this unusual).</div><table class="data mini" id="unusual"></table></div>
+  <div class="panel"><b>Is the whole box score calibrated?</b>
+    <div class="muted mini">Unusualness of every game. A calibrated model spreads these evenly (dashed line).</div>
+    <div id="uhist"></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const empty = (msg) => `<div class="muted" style="padding:16px 0">${msg}</div>`;
+  const gameLink = (g) => `<a href="/game/${g.game_id}?season=${$("season").value}">${g.neutral ? `${g.home} vs ${g.away}` : `${g.away} @ ${g.home}`}</a>`;
+  $("season").onchange = load;
+  await load();
+
+  async function load() {
+    const d = await (await fetch(`/api/dashboard?season=${$("season").value}`)).json();
+    const st = d.status || {};
+    $("model").textContent = `model: ${d.posterior}` + (st.updated ? ` · last nightly update ${new Date(st.updated).toLocaleString()}` : "");
+    const m = d.metrics, v = d.vs_espn;
+    const tile = (val, k) => `<div class="stat"><div class="v">${val}</div><div class="k">${k}</div></div>`;
+    $("tiles").innerHTML = tile(d.games, "games scored out of sample") +
+      (m ? tile(m.log_loss.toFixed(3), "log-loss (coin flip 0.693)") + tile(m.brier.toFixed(3), "Brier score (coin flip 0.250)") +
+        tile(fmtPct(m.accuracy), "favourite won") + tile(fmtPct(m.mean_conf), "average confidence in the favourite") : "") +
+      (v && v.games ? tile((v.diff > 0 ? "+" : "") + v.diff.toFixed(3), `log-loss vs ESPN on ${v.games} games (${v.diff > 0 ? "ESPN" : "model"} ahead)`) : "") +
+      tile(d.updates || 0, "games folded into the ratings");
+    running(d.daily || []);
+    calibration(d.calibration || []);
+    updates(d.recent_updates || []);
+    uncertainty(d.uncertainty || []);
+    movers("risers", d.risers || []); movers("fallers", d.fallers || []);
+    histogram($("moves"), d.moves_hist || [], -12, 12, "change in net rating", null);
+    forest(d.top || []);
+    games("best", d.best_calls, (g) => fmtPct(g.p_winner), "P(winner)");
+    games("wrong", d.most_wrong, (g) => `<span style="color:var(--upset)">${fmtPct(g.p_winner)}</span>`, "P(winner)", "The model's favourite hasn't lost yet.");
+    games("beat", d.beat_espn, (g) => `${fmtPct(g.p_winner)} <span class="muted">vs ESPN ${fmtPct(g.espn_p_winner)}</span>`, "P(winner)",
+      "No game yet where ESPN made a pre-game call the model beat.");
+    games("called", d.upsets_called, (g) => fmtPct(g.p_underdog), "P(underdog)", "No flagged upsets have come in yet.");
+    games("unusual", d.most_unusual, (g) => `${g.unusualness.toFixed(3)} <span class="muted">${g.drivers || ""}</span>`, "unusualness");
+    const n = (d.unusual_hist || []).reduce((a, b) => a + b, 0);
+    histogram($("uhist"), d.unusual_hist || [], 0, 1, "0 = unusual · 1 = typical", n / 10);
+  }
+
+  function games(id, list, cell, label, none) {
+    $(id).innerHTML = list && list.length ? `<tr><th>Date</th><th>Game</th><th class="num">Score</th><th class="num">${label}</th></tr>` +
+      list.map((g) => `<tr><td>${g.date.slice(5, 10)}</td><td>${gameLink(g)} ${upsetBadge(g, true)}</td>
+        <td class="num">${g.home_pts}–${g.away_pts}</td><td class="num">${cell(g)}</td></tr>`).join("")
+      : `<tr><td class="muted">${none || "No finished games scored yet."}</td></tr>`;
+  }
+
+  function line(el, pts, series, yfmt, yfix) {
+    if (pts.length < 2) { el.innerHTML = empty("The chart starts after a second day of games."); return; }
+    const W = 520, H = 200, L = 40, P = 20;
+    const ys = pts.flatMap((p) => series.map((s) => p[s.key]).filter((v) => v != null));
+    const y0 = yfix ? yfix[0] : Math.min(...ys), y1 = yfix ? yfix[1] : Math.max(...ys);
+    const x = (i) => L + i / (pts.length - 1) * (W - L - P), y = (v) => H - P - (v - y0) / ((y1 - y0) || 1) * (H - 2 * P);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    [y0, (y0 + y1) / 2, y1].forEach((t) => (s += `<line x1="${L}" x2="${W - P}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${yfmt(t)}</text>`));
+    for (const sr of series) {
+      if (sr.ref != null) s += `<line x1="${L}" x2="${W - P}" y1="${y(sr.ref)}" y2="${y(sr.ref)}" stroke="${sr.color}" stroke-dasharray="3 4" opacity=".6"/>`;
+      s += `<polyline points="${pts.map((p, i) => `${x(i)},${y(p[sr.key])}`).join(" ")}" fill="none" stroke="${sr.color}" stroke-width="2"/>`;
+    }
+    s += pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p[series[0].key])}" r="7" fill="transparent"><title>${p.date}: ${p.games} games · ${series.map((sr) => `${sr.label} ${sr.fmt(p[sr.key])}`).join(" · ")}</title></circle>`).join("");
+    s += `<text x="${L}" y="${H - 4}">${pts[0].date.slice(5)}</text><text x="${W - P}" y="${H - 4}" text-anchor="end">${pts[pts.length - 1].date.slice(5)}</text></svg>`;
+    el.innerHTML = s + `<div class="muted mini">${series.map((sr) => `<span style="color:${sr.color}">━</span> ${sr.label}`).join(" &nbsp; ")}</div>`;
+  }
+
+  function running(daily) {
+    if (!daily.length) { $("running").innerHTML = empty("No finished games scored yet."); return; }
+    const ll = daily.map((p) => p.log_loss);
+    line($("running"), daily, [{ key: "log_loss", label: "running log-loss", color: "var(--accent)", fmt: (v) => v.toFixed(3), ref: 0.693 }],
+      (v) => v.toFixed(2), [Math.min(0.4, ...ll) - 0.02, Math.max(0.75, ...ll) + 0.02]);
+    $("running").innerHTML += `<div class="muted mini">Dashed: a coin flip. Favourite won ${daily.map((p) => fmtPct(p.accuracy)).slice(-1)[0]} of games so far.</div>`;
+  }
+
+  function calibration(bins) {
+    const W = 520, H = 200, L = 36, P = 20, n = bins.reduce((a, b) => a + b.n, 0);
+    if (!n) { $("calib").innerHTML = empty("No finished games scored yet."); return; }
+    const bw = (W - L - P) / bins.length, y = (v) => H - P - v * (H - 2 * P);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    [0, 0.5, 1].forEach((t) => (s += `<line x1="${L}" x2="${W - P}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${Math.round(t * 100)}%</text>`));
+    bins.forEach((b, i) => {
+      const x0 = L + i * bw + 6, w = bw - 12;
+      if (b.n) {
+        s += `<rect x="${x0}" y="${y(b.actual)}" width="${w}" height="${H - P - y(b.actual)}" rx="3" fill="var(--accent)" opacity=".55"><title>${b.n} games · favourite won ${fmtPct(b.actual)} · model said ${fmtPct(b.predicted)}</title></rect>`;
+        s += `<line x1="${x0 - 3}" x2="${x0 + w + 3}" y1="${y(b.predicted)}" y2="${y(b.predicted)}" stroke="var(--ink)" stroke-width="2"/>`;
+      }
+      s += `<text x="${x0 + w / 2}" y="${H - 6}" text-anchor="middle">${Math.round(b.lo * 100)}–${Math.round(b.hi * 100)}%</text>
+        <text x="${x0 + w / 2}" y="${y(b.n ? Math.max(b.actual, b.predicted) : 0) - 4}" text-anchor="middle" class="muted">${b.n ? "n=" + b.n : ""}</text>`;
+    });
+    $("calib").innerHTML = s + `</svg><div class="muted mini">x: how strongly the model favoured the favourite. ${n < 100 ? `Only ${n} games so far, so the bars are noisy.` : ""}</div>`;
+  }
+
+  function updates(list) {
+    const sel = $("upd-game");
+    if (!list.length) { sel.hidden = true; $("update").innerHTML = empty("No games folded into the ratings yet."); return; }
+    sel.hidden = false;
+    sel.innerHTML = list.map((u, i) => `<option value="${i}">${u.date.slice(5)} · ${u.teams[0].team} ${u.teams[0].pts}–${u.teams[1].pts} ${u.teams[1].team}</option>`).join("");
+    sel.onchange = () => draw(list[+sel.value]);
+    draw(list[0]);
+    function draw(u) {
+      const all = u.teams.flatMap((t) => [t.before - 1.645 * t.sd_before, t.before + 1.645 * t.sd_before, t.after - 1.645 * t.sd_after, t.after + 1.645 * t.sd_after]);
+      const lo = Math.floor(Math.min(...all) - 1), hi = Math.ceil(Math.max(...all) + 1), W = 340, H = 46;
+      const x = (v) => 6 + (v - lo) / (hi - lo) * (W - 12);
+      const bar = (c, sd, yy, col, op) => `<line x1="${x(c - 1.645 * sd)}" x2="${x(c + 1.645 * sd)}" y1="${yy}" y2="${yy}" stroke="${col}" stroke-width="7" stroke-linecap="round" opacity="${op}"/>
+        <circle cx="${x(c)}" cy="${yy}" r="4.5" fill="${col}"/>`;
+      const row = (t) => {
+        const moved = t.after - t.before;
+        return `<div class="pp"><div class="name"><b>${t.team}</b> <span class="rank">${t.rank ? "#" + t.rank : ""}</span><br>
+          <span class="muted mini">${t.pts} pts · game ${t.games}</span></div>
+          <svg viewBox="0 0 ${W} ${H}" width="100%"><line x1="${x(0)}" x2="${x(0)}" y1="2" y2="${H - 2}" stroke="var(--line)"/>
+          ${bar(t.before, t.sd_before, 14, "var(--muted)", 0.45)}${bar(t.after, t.sd_after, 32, "var(--accent)", 0.55)}
+          <title>prior ${t.before.toFixed(1)} ± ${(1.645 * t.sd_before).toFixed(1)} → posterior ${t.after.toFixed(1)} ± ${(1.645 * t.sd_after).toFixed(1)}</title></svg>
+          <div class="mini" style="width:70px;text-align:right;color:${moved > 0 ? "var(--win)" : "var(--upset)"}">${moved > 0 ? "+" : ""}${moved.toFixed(1)}</div></div>`;
+      };
+      const [a, b] = u.teams;
+      $("update").innerHTML = row(a) + row(b) +
+        `<div class="muted mini">Grey: prior before the game · blue: posterior after it (dots: mean, bars: 90% interval; axis ${lo} to ${hi} pts/100, line at 0 = average D1).
+        ${u.p_first != null ? `Pre-game the model gave ${a.team} ${fmtPct(u.p_first)}. ` : ""}Each interval narrows because the game is new evidence;
+        each mean moves toward what the box score implies. <a href="/game/${u.game_id}?season=${$("season").value}">Open the game →</a></div>`;
+    }
+  }
+
+  function uncertainty(pts) {
+    if (pts.length < 2) { $("uncert").innerHTML = empty("Appears once teams have played."); return; }
+    const W = 520, H = 200, L = 40, P = 20, k1 = pts[pts.length - 1].games, s0 = Math.max(...pts.map((p) => p.sd));
+    const x = (k) => L + k / (k1 || 1) * (W - L - P), y = (v) => H - P - v / (s0 * 1.1) * (H - 2 * P);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    [0, s0 / 2, s0].forEach((t) => (s += `<line x1="${L}" x2="${W - P}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${t.toFixed(1)}</text>`));
+    s += `<polyline points="${pts.map((p) => `${x(p.games)},${y(p.sd)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
+    s += pts.map((p) => `<circle cx="${x(p.games)}" cy="${y(p.sd)}" r="4" fill="var(--accent)"><title>${p.games} games played: sd ${p.sd.toFixed(2)} (${p.teams} teams)</title></circle>`).join("");
+    s += `<text x="${L}" y="${H - 4}">0 games</text><text x="${W - P}" y="${H - 4}" text-anchor="end">${k1} games</text></svg>`;
+    $("uncert").innerHTML = s + `<div class="muted mini">From ±${(1.645 * pts[0].sd).toFixed(1)} before a team's first game to ±${(1.645 * pts[pts.length - 1].sd).toFixed(1)} after ${k1} (90% interval of net rating). Hover a point for details.</div>`;
+  }
+
+  function movers(id, list) {
+    $(id).innerHTML = list.length ? `<tr><th>Team</th><th class="num">Games</th><th class="num">Before → now</th><th class="num">Moved</th></tr>` +
+      list.map((t) => `<tr><td><a href="/team/${encodeURIComponent(t.team)}?season=${$("season").value}">${t.team}</a> ${rankTag(t.rank)}</td>
+        <td class="num">${t.games}</td><td class="num">${t.from.toFixed(1)} → ${t.to.toFixed(1)} <span class="muted">±${(1.645 * t.sd_to).toFixed(1)}</span></td>
+        <td class="num" style="color:${t.moved > 0 ? "var(--win)" : "var(--upset)"}">${t.moved > 0 ? "+" : ""}${t.moved.toFixed(1)}</td></tr>`).join("")
+      : `<tr><td class="muted">No updates yet.</td></tr>`;
+  }
+
+  function histogram(el, counts, lo, hi, xlabel, even) {
+    const total = counts.reduce((a, b) => a + b, 0);
+    if (!total) { el.innerHTML = empty("Nothing to show yet."); return; }
+    const W = 520, H = 170, P = 22, max = Math.max(...counts, even || 0), bw = (W - 2 * P) / counts.length;
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    counts.forEach((c, i) => {
+      const h = c / max * (H - 2 * P), x0 = P + i * bw, v0 = lo + (hi - lo) * i / counts.length;
+      s += `<rect x="${x0 + 1}" y="${H - P - h}" width="${bw - 2}" height="${h}" rx="2" fill="var(--accent)" opacity=".55"><title>${v0.toFixed(2)} to ${(v0 + (hi - lo) / counts.length).toFixed(2)}: ${c}</title></rect>`;
+    });
+    if (even) s += `<line x1="${P}" x2="${W - P}" y1="${H - P - even / max * (H - 2 * P)}" y2="${H - P - even / max * (H - 2 * P)}" stroke="var(--muted)" stroke-dasharray="4 3"/>`;
+    s += `<text x="${P}" y="${H - 6}">${lo}</text><text x="${W / 2}" y="${H - 6}" text-anchor="middle">${xlabel}</text><text x="${W - P}" y="${H - 6}" text-anchor="end">${hi}</text></svg>`;
+    el.innerHTML = s;
+  }
+
+  function forest(top) {
+    if (!top.length) { $("top").innerHTML = empty("No ratings yet."); return; }
+    const lo = Math.min(...top.map((t) => t.net_lo)) - 1, hi = Math.max(...top.map((t) => t.net_hi)) + 1, W = 300;
+    const x = (v) => 4 + (v - lo) / (hi - lo) * (W - 8);
+    $("top").innerHTML = `<table class="data mini">` + top.map((t) => `<tr><td class="num">${t.rank}</td>
+      <td><a href="/team/${encodeURIComponent(t.team)}?season=${$("season").value}">${t.team}</a></td><td class="num">${t.net.toFixed(1)}</td>
+      <td style="width:55%"><svg viewBox="0 0 ${W} 12" width="100%"><line x1="${x(t.net_lo)}" x2="${x(t.net_hi)}" y1="6" y2="6" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" opacity=".45"/>
+        <circle cx="${x(t.net)}" cy="6" r="4" fill="var(--accent)"/></svg></td></tr>`).join("") + `</table>`;
+  }
+})();
+</script>
+{% endblock %}

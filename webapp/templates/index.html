@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Distribution bracket{% endblock %}
+{% block title %}{{ season }} distribution bracket{% endblock %}
 {% block content %}
-<h1>Distribution bracket</h1>
+<h1>{{ season }} tournament: distribution bracket</h1>
 <p class="lede">Each line shows the team most likely to occupy that spot across <b id="nsims">…</b> simulated tournaments;
 the shading is that probability. Hover a game for the full distribution of who gets there and who wins.
 Click a team to follow it through the bracket (click again to clear).</p>

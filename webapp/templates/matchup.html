@@ -2,10 +2,11 @@
 {% block title %}Simulate a game{% endblock %}
 {% block content %}
 <h1>Simulate a game</h1>
-<p class="lede">Every simulated game draws a posterior sample of both teams' latent skills, the night's shooting /
+<p class="lede">Uses the current {{ live_season - 1 }}–{{ live_season % 100 }} ratings by default (switch to the {{ season }} tournament model to compare with real tournament games). Every simulated game draws a posterior sample of both teams' latent skills, the night's shooting /
 turnover / rebounding rates, a possession count, and then plays out every possession. The score is whatever the
 simulated box score adds up to.</p>
 <div class="toolbar">
+  <label>Season <select id="season"><option value="{{ live_season }}">{{ live_season - 1 }}–{{ live_season % 100 }} (current model)</option><option value="{{ season }}">{{ season }} tournament model</option></select></label>
   <select id="a"></select> <span>vs</span> <select id="b"></select>
   <select id="home"><option value="0">Neutral court</option><option value="1">First team at home</option><option value="-1">Second team at home</option></select>
   <select id="n"><option>1000</option><option selected>5000</option><option>20000</option></select>
@@ -24,11 +25,20 @@ simulated box score adds up to.</p>
 {% block scripts %}
 <script>
 (async () => {
-  const teams = await (await fetch("/api/team_list")).json();
-  const a = document.getElementById("a"), b = document.getElementById("b");
-  for (const t of teams) { a.add(new Option(t)); b.add(new Option(t)); }
+  const a = document.getElementById("a"), b = document.getElementById("b"), seasonSel = document.getElementById("season");
   const q = new URLSearchParams(location.search);
-  a.value = q.get("a") || "Michigan"; b.value = q.get("b") || "UConn";
+  if (q.get("season")) seasonSel.value = q.get("season");
+  const TOURNEY = "{{ season }}";
+  async function loadTeams() {
+    const keep = [a.value || q.get("a") || "Michigan", b.value || q.get("b") || "UConn"];
+    const teams = await (await fetch(`/api/team_list?season=${seasonSel.value}`)).json();
+    a.innerHTML = b.innerHTML = "";
+    for (const t of teams) { a.add(new Option(t)); b.add(new Option(t)); }
+    a.value = teams.includes(keep[0]) ? keep[0] : teams[0]; b.value = teams.includes(keep[1]) ? keep[1] : teams[1];
+    document.getElementById("tourney").hidden = seasonSel.value !== TOURNEY;
+  }
+  seasonSel.onchange = async () => { await loadTeams(); await loadMeetings(); run(); };
+  await loadTeams();
   const LABELS = { pts: "Points", fgm: "FGM", fga: "FGA", fg3m: "3PM", fg3a: "3PA", ftm: "FTM", fta: "FTA",
     oreb: "Off reb", dreb: "Def reb", tov: "Turnovers", ast: "Assists", stl: "Steals", blk: "Blocks", pf: "Fouls", poss: "Possessions" };
   const meetSel = document.getElementById("meeting"), homeSel = document.getElementById("home");
@@ -36,8 +46,9 @@ simulated box score adds up to.</p>
   // Real games between the two teams: a tournament game is out of sample; a
   // regular-season one was part of the data the model was fit to.
   async function loadMeetings() {
-    meetings = await (await fetch(`/api/meetings?a=${encodeURIComponent(a.value)}&b=${encodeURIComponent(b.value)}`)).json();
-    meetSel.innerHTML = `<option value="">${meetings.length ? "—" : "none: these teams didn't play"}</option>` +
+    meetings = seasonSel.value === TOURNEY
+      ? await (await fetch(`/api/meetings?a=${encodeURIComponent(a.value)}&b=${encodeURIComponent(b.value)}`)).json() : [];
+    meetSel.innerHTML = `<option value="">${meetings.length ? "—" : seasonSel.value === TOURNEY ? "none: these teams didn't play" : "real-game comparison: tournament model only"}</option>` +
       meetings.map((g) => `<option value="${g.game_id}">${g.kind === "tournament" ? "Tournament" : "Regular season (in training data)"} · ${g.date} · ${g.score[0]}–${g.score[1]}${g.ot ? " OT" : ""}</option>`).join("");
     meetSel.disabled = !meetings.length;
     const t = meetings.find((g) => g.kind === "tournament");
@@ -59,7 +70,7 @@ simulated box score adds up to.</p>
   async function run() {
     const out = document.getElementById("out");
     out.innerHTML = `<div class="muted">Simulating…</div>`;
-    const r = await fetch(`/api/matchup?a=${encodeURIComponent(a.value)}&b=${encodeURIComponent(b.value)}&n=${document.getElementById("n").value}&home=${homeSel.value}${meetSel.value ? `&game_id=${meetSel.value}` : ""}`);
+    const r = await fetch(`/api/matchup?season=${seasonSel.value}&a=${encodeURIComponent(a.value)}&b=${encodeURIComponent(b.value)}&n=${document.getElementById("n").value}&home=${homeSel.value}${meetSel.value ? `&game_id=${meetSel.value}` : ""}`);
     if (!r.ok) { out.innerHTML = `<div class="muted">${await r.text()}</div>`; return; }
     const m = await r.json();
     const [A, B] = m.teams;
@@ -163,7 +174,7 @@ simulated box score adds up to.</p>
         <td class="num">${fmtPct(g.p_winner)}</td>
         <td class="muted">${g.drivers.filter((d) => d.share > 0.1).map((d) => `${d.team} ${STATNAME[d.stat]}`).join(", ")}</td></tr>`).join("");
     tbl.querySelectorAll("tr[data-a]").forEach((tr) => (tr.onclick = async () => {
-      a.value = tr.dataset.a; b.value = tr.dataset.b; await loadMeetings(); run(); window.scrollTo({ top: 0, behavior: "smooth" });
+      seasonSel.value = TOURNEY; await loadTeams(); a.value = tr.dataset.a; b.value = tr.dataset.b; await loadMeetings(); run(); window.scrollTo({ top: 0, behavior: "smooth" });
     }));
   })();
 

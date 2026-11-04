@@ -8,6 +8,7 @@ unusual the whole box score was), and refits. Until games are played the model i
 shrunk toward average. Upcoming games are forecast from the latest posterior.</p>
 <div class="toolbar">
   <label>Season <select id="season"><option>{{ live_season }}</option><option>{{ season }}</option></select></label>
+  <input class="search" id="q" list="teamlist" placeholder="Filter by team…" autocomplete="off"><datalist id="teamlist"></datalist>
   <span class="muted" id="status"></span>
 </div>
 <div class="stats" id="summary"></div>
@@ -25,7 +26,8 @@ shrunk toward average. Upcoming games are forecast from the latest posterior.</p
 </div>
 <div class="panel" style="margin-top:12px">
   <div class="toolbar" style="margin:0"><b>Results, scored out of sample</b>
-    <select id="team"><option value="">All teams</option></select></div>
+    <span class="muted mini">Click a column to sort; the search box above filters both tables.</span>
+    <span class="muted" id="led-note"></span></div>
   <div class="scroll" style="margin-top:6px; max-height:520px"><table class="data" id="ledger"></table></div>
 </div>
 {% endblock %}
@@ -33,30 +35,64 @@ shrunk toward average. Upcoming games are forecast from the latest posterior.</p
 <script>
 (async () => {
   const $ = (id) => document.getElementById(id);
+  const season = () => $("season").value;
+  const gameLink = (g, label) => `<a href="/game/${g.game_id}?season=${season()}">${label}</a>`;
+  const teamText = (g) => `${g.home} ${g.away}`;
+  const upsetLost = (g) => g.p_home != null && (g.p_home > 0.5) !== (g.home_pts > g.away_pts);
+
+  const ledger = DataTable($("ledger"), [
+    { key: "date", label: "Date", sort: (g) => g.date, dir: -1, render: (g) => g.date.slice(0, 10) },
+    { key: "game", label: "Game", render: (g) => `${gameLink(g, g.neutral ? `${g.home} vs ${g.away}` : `${g.away} @ ${g.home}`)} ${upsetBadge(g, true)}` },
+    { key: "rank", label: "Ranks", num: true, sort: bestRank, dir: 1, title: "current overall rank of each team; sorts by the better-ranked team",
+      render: (g) => `${rankTag(g.neutral ? g.rank_home : g.rank_away)} · ${rankTag(g.neutral ? g.rank_away : g.rank_home)}` },
+    { key: "p", label: "Pre-game P(first team)", num: true, sort: (g) => g.p_home, render: (g) => fmtPct(g.p_home) },
+    { key: "espn", label: "ESPN", num: true, sort: (g) => g.espn_p_home, render: (g) => `<span class="muted">${g.espn_p_home != null ? fmtPct(g.espn_p_home) : ""}</span>` },
+    { key: "res", label: "Result", num: true, render: (g) => `<span style="color:${upsetLost(g) ? "var(--upset)" : "inherit"}">${g.home_pts}–${g.away_pts}</span>` },
+    { key: "u", label: "Unusualness", num: true, sort: (g) => g.unusualness, dir: 1,
+      render: (g) => `<span style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness.toFixed(3)}</span>` },
+    { key: "drv", label: "Driven by", render: (g) => `<span class="muted">${g.drivers || ""}</span>` },
+  ], { sortKey: "date", dir: -1, text: teamText,
+       empty: "No finished games scored yet. They appear here as games go final.",
+       onDraw: (rows) => ($("led-note").textContent = `${rows.length} games`) });
+
+  const upcoming = DataTable($("upcoming"), [
+    { key: "date", label: "When", sort: (g) => g.date, dir: 1,
+      render: (g) => new Date(g.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) },
+    { key: "game", label: "Game", render: (g) => `${gameLink(g, `${g.away} ${g.neutral ? "vs" : "@"} ${g.home}`)}${g.neutral ? " <span class='muted'>(neutral)</span>" : ""} ${upsetBadge(g, false)}` },
+    { key: "rank", label: "Ranks", num: true, sort: bestRank, dir: 1, title: "away · home; sorts by the better-ranked team",
+      render: (g) => `${rankTag(g.rank_away)} · ${rankTag(g.rank_home)}` },
+    { key: "p", label: "P(home wins)", num: true, sort: (g) => g.p_home, render: (g) => g.p_home != null ? fmtPct(g.p_home) : "<span class='muted'>—</span>" },
+    { key: "dog", label: "P(underdog)", num: true, sort: (g) => g.p_underdog, title: "the lower-ranked team's chance, when the ranking separates them",
+      render: (g) => g.p_underdog != null ? fmtPct(g.p_underdog) : "" },
+    { key: "proj", label: "Projected score", num: true, render: (g) => g.pred_score ? `${g.pred_score[1]}–${g.pred_score[0]}` : "" },
+  ], { sortKey: "date", dir: 1, text: teamText, empty: "No games scheduled in this window." });
+
+  $("q").oninput = () => { ledger.filter($("q").value); upcoming.filter($("q").value); };
   $("season").onchange = () => { loadStatus(); loadUpcoming(); };
-  $("team").onchange = loadStatus; $("date").onchange = loadUpcoming; $("days").onchange = loadUpcoming;
+  $("date").onchange = loadUpcoming; $("days").onchange = loadUpcoming;
   $("date").value = new Date().toISOString().slice(0, 10);
   await loadStatus(); loadUpcoming();
 
   async function loadStatus() {
-    const r = await (await fetch(`/api/season/status?season=${$("season").value}&team=${encodeURIComponent($("team").value)}`)).json();
+    const r = await (await fetch(`/api/season/status?season=${season()}`)).json();
     const st = r.status || {};
     $("status").textContent = `model: ${r.posterior}` + (st.updated ? ` · last update ${new Date(st.updated).toLocaleString()}` : " · not updated yet");
-    if ($("team").options.length <= 1) for (const t of r.teams) $("team").add(new Option(t));
+    $("teamlist").innerHTML = r.teams.map((t) => `<option value="${t}">`).join("");
     const s = r.summary, stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
     $("summary").innerHTML = stat(s.games, "games scored out of sample") + (s.games ? stat(s.log_loss.toFixed(3), "log-loss (coin flip 0.693)") +
       stat(s.brier.toFixed(3), "Brier score") + stat(fmtPct(s.accuracy), "favorite won") +
       stat(fmtPct(s.share_unusual_05), "of games 'very unusual' (p<0.05; 5% if calibrated)") : "");
     drawEspn(s.vs_espn);
-    $("ledger").innerHTML = r.games.length ? `<tr><th>Date</th><th>Game</th><th class="num">Pre-game P(first team)</th><th class="num">ESPN</th><th class="num">Result</th>
-      <th class="num">Unusualness</th><th>Driven by</th></tr>` + r.games.map((g) => {
-        const won = g.home_pts > g.away_pts, p = g.p_home, upset = (p > 0.5) !== won;
-        return `<tr><td>${g.date.slice(0, 10)}</td><td><a href="/matchup?a=${encodeURIComponent(g.home)}&b=${encodeURIComponent(g.away)}">${g.neutral ? `${g.home} vs ${g.away}` : `${g.away} @ ${g.home}`}</a></td>
-          <td class="num">${fmtPct(p)}</td><td class="num muted">${g.espn_p_home != null ? fmtPct(g.espn_p_home) : ""}</td>
-          <td class="num" style="color:${upset ? "var(--upset)" : "inherit"}">${g.home_pts}–${g.away_pts}</td>
-          <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness.toFixed(3)}</td>
-          <td class="muted">${g.drivers || ""}</td></tr>`; }).join("")
-      : `<tr><td class="muted">No finished games scored yet — they appear here after the first nightly update with box scores.</td></tr>`;
+    ledger.set(r.games);
+  }
+
+  async function loadUpcoming() {
+    const r = await fetch(`/api/season/upcoming?season=${season()}&date=${$("date").value}&days=${$("days").value}`);
+    if (!r.ok) { $("upcoming").innerHTML = `<tr><td class="muted">${await r.text()}</td></tr>`; return; }
+    const d = await r.json();
+    const flagged = d.games.filter((g) => g.upset_level).length;
+    $("up-note").textContent = `${d.games.length} games${flagged ? ` · ${flagged} upset alert${flagged > 1 ? "s" : ""}` : ""} · forecasts from the ${d.posterior} posterior`;
+    upcoming.set(d.games);
   }
 
   function drawEspn(v) {
@@ -84,19 +120,6 @@ shrunk toward average. Upcoming games are forecast from the latest posterior.</p
     $("espn-chart").innerHTML = s + `<div class="muted"><span style="color:var(--accent)">━</span> this model &nbsp; <span>╍</span> ESPN — running log-loss through the season (hover for the day)</div>`;
   }
 
-  async function loadUpcoming() {
-    const r = await fetch(`/api/season/upcoming?season=${$("season").value}&date=${$("date").value}&days=${$("days").value}`);
-    if (!r.ok) { $("upcoming").innerHTML = `<tr><td class="muted">${await r.text()}</td></tr>`; return; }
-    const d = await r.json();
-    $("up-note").textContent = `${d.games.length} games · forecasts from the ${d.posterior} posterior`;
-    $("upcoming").innerHTML = d.games.length ? `<tr><th>When</th><th>Away</th><th>Home</th><th class="num">P(home wins)</th><th class="num">Projected score</th><th></th></tr>` +
-      d.games.map((g) => `<tr><td>${new Date(g.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
-        <td>${g.away}</td><td>${g.home}${g.neutral ? " <span class='muted'>(neutral)</span>" : ""}</td>
-        <td class="num">${g.p_home != null ? fmtPct(g.p_home) : "<span class='muted'>team not modelled</span>"}</td>
-        <td class="num">${g.pred_score ? `${g.pred_score[1]}–${g.pred_score[0]}` : ""}</td>
-        <td>${g.p_home != null ? `<a href="/matchup?a=${encodeURIComponent(g.home)}&b=${encodeURIComponent(g.away)}">simulate</a>` : ""}</td></tr>`).join("")
-      : `<tr><td class="muted">No games scheduled in this window.</td></tr>`;
-  }
 })();
 </script>
 {% endblock %}
