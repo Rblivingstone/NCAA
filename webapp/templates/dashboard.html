@@ -13,7 +13,8 @@ games come in.</p>
 
 <div class="dash-grid">
   <div class="panel"><b>Performance through the season</b>
-    <div class="muted mini">Running log-loss (lower is better; a coin flip scores 0.693) and how often the model's favourite won.</div>
+    <div class="muted mini">Log-loss, lower is better (a coin flip scores 0.693). Bars: each day's games on their own. Line: the
+      season so far, once enough games are in to be meaningful.</div>
     <div id="running"></div></div>
   <div class="panel"><b>Calibration</b>
     <div class="muted mini">When the model makes a team a 70% favourite, that team should win about 70% of the time. Bars: how often the favourite actually won; ticks: what the model said.</div>
@@ -44,18 +45,37 @@ against an average D1 team.</p>
 other's) against the margin that happened, with the betting line ESPN showed for comparison.</p>
 <div class="stats" id="spread-tiles"></div>
 <div class="dash-grid">
-  <div class="panel"><b>Every game</b>
-    <div class="muted mini">Dots: the model's predicted margin (x) vs the real margin (y), with the model's 90% interval. On the
-      diagonal = exactly right. ◇ the betting line for the same game. Hover for the game.</div>
+  <div class="panel"><b>Predicted vs real margin</b>
+    <div class="muted mini">Faint dots: one per game. Blue points: the average real margin of the games in each band of
+      predictions, with a bar for the middle half of them. A well-calibrated model keeps the points on the dashed diagonal.
+      Hover a point for the band, or a dot for the game.</div>
     <div id="spread-scatter"></div></div>
   <div class="panel"><b>Distribution of the miss</b>
     <div class="muted mini">Real margin minus predicted margin. A well-calibrated model centres on 0, with a spread like the
       dashed curve (the model's own expected spread of outcomes).</div>
     <div id="spread-resid"></div>
-    <b style="display:block;margin-top:10px">Predicted vs realized margins</b>
-    <div class="muted mini">How the spread of predictions compares with the spread of results: predictions should be narrower,
-      because no forecast can see a game's luck.</div>
+    <b style="display:block;margin-top:10px">How the predictions and the results are spread</b>
+    <div class="muted mini">The share of games at each margin. Predictions should be narrower than results, because no forecast
+      can see a game's luck, but centred in the same place.</div>
     <div id="spread-dist"></div></div>
+</div>
+
+<h2 style="margin:22px 0 4px">Win/loss prediction: every game</h2>
+<p class="lede" style="margin-bottom:4px">Every game as a yes/no prediction of "the first-listed team wins" (the home team, or the
+first one named at a neutral site), called for whichever side the model gave more than 50%. <b>Precision</b>: when the model
+called a result, how often it happened. <b>Recall</b>: of the games that ended that way, how many the model called.
+<b>ROC-AUC</b>: the chance a random winner got a higher pre-game score than a random loser (0.5 = no skill, 1 = perfect).</p>
+<div class="stats" id="win-tiles"></div>
+<div class="dash-grid">
+  <div class="panel"><b>ROC curve</b>
+    <div class="muted mini">Every possible threshold for calling a win, model vs ESPN (on the games where ESPN made a pre-game
+      call). Further toward the top left is better; the diagonal is guessing.</div>
+    <div id="win-roc"></div></div>
+  <div class="panel"><b>Calls at 50%</b>
+    <div class="muted mini">Rows: what the model called. Columns: what happened.</div>
+    <table class="data mini" id="win-confusion"></table>
+    <table class="data mini" id="win-pr" style="margin-top:10px"></table>
+    <div class="muted mini" id="win-note" style="margin-top:6px"></div></div>
 </div>
 
 <h2 style="margin:22px 0 4px">Upset detection</h2>
@@ -77,14 +97,14 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
 
 <h2 style="margin:22px 0 4px">Calls</h2>
 <div class="dash-grid">
-  <div class="panel"><b>Most confident calls that came in</b><table class="data mini" id="best"></table></div>
+  <div class="panel"><b>Most confident calls that came in</b><div class="muted mini">D1-vs-D1 games only (blowouts of non-D1 schools would fill the list).</div><table class="data mini" id="best"></table></div>
   <div class="panel"><b>Most wrong</b><div class="muted mini">Games the model's favourite lost, by the lowest chance it gave the winner.</div><table class="data mini" id="wrong"></table></div>
   <div class="panel"><b>Right where ESPN was wrong</b><table class="data mini" id="beat"></table></div>
   <div class="panel"><b>Wrong where ESPN was right</b>
     <div class="muted mini">The other side of the ledger: games where ESPN's pre-game favourite won and this model's lost.</div>
     <table class="data mini" id="espnbeat"></table><div class="muted mini" id="h2h"></div></div>
   <div class="panel"><b>Upsets it flagged</b><div class="muted mini">The lower-ranked team won after the model gave it at least 35%.</div><table class="data mini" id="called"></table></div>
-  <div class="panel"><b>Most unusual box scores</b><div class="muted mini">Whole box score against the model's simulations of the game (share of simulated games at least this unusual).</div><table class="data mini" id="unusual"></table></div>
+  <div class="panel"><b>Most unusual box scores</b><div class="muted mini">D1-vs-D1 games whose whole box score was least like the model's simulations of the game (the share of simulated games at least this unusual).</div><table class="data mini" id="unusual"></table></div>
   <div class="panel"><b>Is the whole box score calibrated?</b>
     <div class="muted mini">Unusualness of every game. A calibrated model spreads these evenly (dashed line).</div>
     <div id="uhist"></div></div>
@@ -108,7 +128,7 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     $("tiles").innerHTML = tile(d.games, "games scored out of sample") +
       (m ? tile(m.log_loss.toFixed(3), "log-loss (coin flip 0.693)") + tile(m.brier.toFixed(3), "Brier score (coin flip 0.250)") +
         tile(fmtPct(m.accuracy), "favourite won") + tile(fmtPct(m.mean_conf), "average confidence in the favourite") : "") +
-      (v && v.games ? tile((v.diff > 0 ? "+" : "") + v.diff.toFixed(3), `log-loss vs ESPN on ${v.games} games (${v.diff > 0 ? "ESPN" : "model"} ahead)`) : "") +
+      (v && v.games ? tile(`${v.ours.log_loss.toFixed(3)} vs ${v.espn.log_loss.toFixed(3)}`, `log-loss: this model vs ESPN, same ${v.games} games (${v.diff > 0 ? "ESPN" : "this model"} better)`) : "") +
       tile(d.updates || 0, "games folded into the ratings");
     running(d.daily || []);
     calibration(d.calibration || []);
@@ -128,10 +148,54 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
       only ESPN ${h.only_espn}, both wrong ${h.both_wrong}.` : "";
     spreads(d.spreads || { n: 0, points: [] });
     upsets(d.upset_detection || { games: 0 });
+    wins(d.win_detection || { games: 0 });
     games("called", d.upsets_called, (g) => fmtPct(g.p_underdog), "P(underdog)", "No flagged upsets have come in yet.");
-    games("unusual", d.most_unusual, (g) => `${g.unusualness.toFixed(3)} <span class="muted">${g.drivers || ""}</span>`, "unusualness");
+    games("unusual", d.most_unusual, (g) => `<span class="nw">${g.unusualness.toFixed(3)}</span><div class="muted" style="text-align:right">${g.drivers || ""}</div>`, "unusualness");
     const n = (d.unusual_hist || []).reduce((a, b) => a + b, 0);
     histogram($("uhist"), d.unusual_hist || [], 0, 1, "0 = unusual · 1 = typical", n / 10);
+  }
+
+  function rocSvg(curves, marks) {
+    const W = 360, H = 300, L = 36, B = 28, T = 8, R = 10;
+    const x = (v) => L + v * (W - L - R), y = (v) => H - B - v * (H - B - T);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:460px">`;
+    [0, 0.5, 1].forEach((t) => (s += `<line x1="${x(t)}" x2="${x(t)}" y1="${y(0)}" y2="${y(1)}" stroke="var(--line)"/><line x1="${x(0)}" x2="${x(1)}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
+      <text x="${x(t)}" y="${H - B + 14}" text-anchor="middle">${t}</text><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${t}</text>`));
+    s += `<line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="var(--muted)" stroke-dasharray="5 4"/>`;
+    for (const c of curves)
+      s += `<polyline points="${c.roc.map((p) => `${x(p.fpr)},${y(p.tpr)}`).join(" ")}" fill="none" stroke="${c.color}" stroke-width="2.5" ${c.dash ? 'stroke-dasharray="6 4"' : ""}/>`;
+    for (const m of marks || [])
+      s += `<circle cx="${x(m.fpr)}" cy="${y(m.tpr)}" r="5" fill="var(--hl)" stroke="var(--ink)"><title>${m.title}</title></circle>
+        <text x="${x(m.fpr) + 8}" y="${m.tpr > 0.85 ? y(m.tpr) + 16 : y(m.tpr) - 7}" style="fill:var(--ink)">${m.label}</text>`;
+    s += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">${curves[0].xlabel || "false positive rate"}</text>
+      <text x="11" y="${(T + H - B) / 2}" transform="rotate(-90 11 ${(T + H - B) / 2})" text-anchor="middle">${curves[0].ylabel || "true positive rate"}</text></svg>`;
+    return s + (curves.length > 1 ? `<div class="muted mini">${curves.map((c) => `<span style="color:${c.color}">━</span> ${c.label}`).join(" &nbsp; ")}</div>` : "");
+  }
+
+  function wins(w) {
+    const tile = (val, k) => `<div class="stat"><div class="v">${val}</div><div class="k">${k}</div></div>`;
+    const pct = (v) => (v == null ? "—" : fmtPct(v));
+    if (!w.games) { $("win-tiles").innerHTML = ""; $("win-roc").innerHTML = empty("No finished games scored yet.");
+      ["win-confusion", "win-pr"].forEach((id) => ($(id).innerHTML = "")); $("win-note").textContent = ""; return; }
+    const e = w.espn;
+    $("win-tiles").innerHTML = tile(pct(w.accuracy), `games called correctly (${w.confusion.called_win_won + w.confusion.called_loss_lost} of ${w.games})`) +
+      tile(w.auc == null ? "—" : w.auc.toFixed(3), "ROC-AUC (0.5 = no skill)") +
+      tile(pct(w.win.precision), "precision, first-listed team wins") + tile(pct(w.win.recall), "recall, first-listed team wins") +
+      (e ? tile(`${e.model_auc_same_games.toFixed(3)} vs ${e.auc.toFixed(3)}`, `ROC-AUC: this model vs ESPN, same ${e.games} games`) : "");
+    const curves = [{ roc: w.roc, color: "var(--accent)", label: `this model, all ${w.games} games (AUC ${w.auc != null ? w.auc.toFixed(3) : "—"})`,
+                      xlabel: "share of losers it would call winners", ylabel: "share of winners it calls winners" }];
+    if (e) curves.push({ roc: e.roc, color: "var(--muted)", dash: true, label: `ESPN, ${e.games} games (AUC ${e.auc.toFixed(3)})` });
+    const c = w.confusion, n0 = c.called_win_lost + c.called_loss_lost, n1 = c.called_win_won + c.called_loss_won;
+    $("win-roc").innerHTML = rocSvg(curves, [{ fpr: n0 ? c.called_win_lost / n0 : 0, tpr: n1 ? c.called_win_won / n1 : 0, label: "50%", title: "calling the side above 50%" }]);
+    $("win-confusion").innerHTML = `<tr><th></th><th class="num">First team won</th><th class="num">First team lost</th></tr>
+      <tr><td>Model called a first-team win</td><td class="num"><b>${c.called_win_won}</b></td><td class="num" style="color:var(--upset)">${c.called_win_lost}</td></tr>
+      <tr><td>Model called a first-team loss</td><td class="num" style="color:var(--upset)">${c.called_loss_won}</td><td class="num"><b>${c.called_loss_lost}</b></td></tr>`;
+    $("win-pr").innerHTML = `<tr><th>Result</th><th class="num">Precision</th><th class="num">Recall</th></tr>
+      <tr><td>First-listed team wins</td><td class="num">${pct(w.win.precision)}</td><td class="num">${pct(w.win.recall)}</td></tr>
+      <tr><td>First-listed team loses</td><td class="num">${pct(w.loss.precision)}</td><td class="num">${pct(w.loss.recall)}</td></tr>`;
+    $("win-note").textContent = `The first-listed team won ${pct(w.first_team_won)} of these games, so precision and recall for "loses" rest on far fewer games.` +
+      (e ? ` On the ${e.games} games ESPN also called, it got ${pct(e.accuracy)} right and this model ${pct(e.model_accuracy_same_games)}.` : "") +
+      (w.games < 300 ? " Early in the season these numbers move quickly." : "");
   }
 
   function upsets(u) {
@@ -144,29 +208,17 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
       tile(pct(w.recall), `recall of the 35% flag (${w.tp} of ${u.upsets} upsets flagged)`) +
       tile(u.auc == null ? "—" : u.auc.toFixed(3), "upset ROC-AUC (0.5 = no skill)") +
       tile(pct(u.base_rate), `upset rate (${u.upsets} of ${u.games} games with an underdog)`);
-    // ROC curve
-    const W = 360, H = 300, L = 36, B = 28, T = 8, R = 10;
-    const x = (v) => L + v * (W - L - R), y = (v) => H - B - v * (H - B - T);
-    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:460px">`;
-    [0, 0.5, 1].forEach((t) => (s += `<line x1="${x(t)}" x2="${x(t)}" y1="${y(0)}" y2="${y(1)}" stroke="var(--line)"/><line x1="${x(0)}" x2="${x(1)}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
-      <text x="${x(t)}" y="${H - B + 14}" text-anchor="middle">${t}</text><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${t}</text>`));
-    s += `<line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="var(--muted)" stroke-dasharray="5 4"/>`;
-    s += `<polyline points="${u.roc.map((p) => `${x(p.fpr)},${y(p.tpr)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
-    for (const t of u.thresholds) {
-      const n = u.games - u.upsets, fpr = n ? t.fp / n : 0, tpr = u.upsets ? t.tp / u.upsets : 0;
-      s += `<circle cx="${x(fpr)}" cy="${y(tpr)}" r="5" fill="var(--hl)" stroke="var(--ink)"><title>${Math.round(t.threshold * 100)}% flag: ${t.tp} upsets caught, ${t.fp} false alarms</title></circle>
-        <text x="${x(fpr) + 7}" y="${y(tpr) - 6}">${Math.round(t.threshold * 100)}%</text>`;
-    }
-    s += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">false alarm rate</text>
-      <text x="11" y="${(T + H - B) / 2}" transform="rotate(-90 11 ${(T + H - B) / 2})" text-anchor="middle">share of upsets caught</text></svg>`;
-    $("upset-roc").innerHTML = s;
+    const nn = u.games - u.upsets;
+    $("upset-roc").innerHTML = rocSvg([{ roc: u.roc, color: "var(--accent)", label: "upsets", xlabel: "false alarm rate", ylabel: "share of upsets caught" }],
+      u.thresholds.map((t) => ({ fpr: nn ? t.fp / nn : 0, tpr: u.upsets ? t.tp / u.upsets : 0, label: `${Math.round(t.threshold * 100)}%`,
+                                 title: `${Math.round(t.threshold * 100)}% flag: ${t.tp} upsets caught, ${t.fp} false alarms` })));
     $("upset-table").innerHTML = `<tr><th>Flag</th><th class="num">Flagged</th><th class="num">Upsets caught</th><th class="num">False alarms</th>
       <th class="num">Missed</th><th class="num">Precision</th><th class="num">Recall</th></tr>` + u.thresholds.map((t) =>
       `<tr><td>${t.name} (≥${Math.round(t.threshold * 100)}%)</td><td class="num">${t.flagged}</td><td class="num">${t.tp}</td><td class="num">${t.fp}</td>
         <td class="num">${t.fn}</td><td class="num">${pct(t.precision)}</td><td class="num">${pct(t.recall)}</td></tr>`).join("");
     $("upset-note").textContent = `For scale: always guessing "no upset" would be right ${pct(1 - u.base_rate)} of the time but catch none.` +
       (u.games < 100 ? ` Only ${u.games} games so far, so these numbers will move a lot.` : "") +
-      (u.current_ranks_used ? ` ${u.current_ranks_used} game${u.current_ranks_used > 1 ? "s" : ""} predate the first ranking snapshot and use the current ranking.` : "");
+      (u.preseason_ranks_used ? ` ${u.preseason_ranks_used} game${u.preseason_ranks_used > 1 ? "s" : ""} came before the first daily ranking snapshot, so the underdog there comes from the preseason ranking.` : "");
     const row = (r) => `<tr><td>${r.date.slice(5, 10)}</td><td><a href="/game/${r.game_id}?season=${$("season").value}">${r.underdog} vs ${r.favorite}</a></td>
       <td class="num">${r.underdog === r.home ? `${r.home_pts}–${r.away_pts}` : `${r.away_pts}–${r.home_pts}`}</td><td class="num">${fmtPct(r.p)}</td></tr>`;
     const head = `<tr><th>Date</th><th>Underdog vs favourite</th><th class="num">Score (underdog first)</th><th class="num">P(underdog)</th></tr>`;
@@ -174,58 +226,91 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     $("upset-false").innerHTML = (u.false_alarms || []).length ? head + u.false_alarms.map(row).join("") : `<tr><td class="muted">None yet.</td></tr>`;
   }
 
+  function quantile(sorted, q) {
+    if (!sorted.length) return null;
+    const i = (sorted.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+  }
+  function kdeLine(vals, grid, bw) {
+    const k = 1 / (vals.length * bw * Math.sqrt(2 * Math.PI));
+    return grid.map((g) => vals.reduce((a, v) => a + Math.exp(-0.5 * ((g - v) / bw) ** 2), 0) * k);
+  }
+
   function spreads(s) {
     const tile = (val, k) => `<div class="stat"><div class="v">${val}</div><div class="k">${k}</div></div>`;
     if (!s.n) { $("spread-tiles").innerHTML = ""; $("spread-scatter").innerHTML = empty("No finished games scored yet."); $("spread-resid").innerHTML = ""; $("spread-dist").innerHTML = ""; return; }
     const pm = (v) => (v > 0 ? "+" : "") + v.toFixed(1);
-    $("spread-tiles").innerHTML = tile(s.mae.toFixed(1), "average miss (points)") + tile(s.rmse.toFixed(1), "root-mean-square miss") +
-      tile(pm(s.bias), "average real − predicted (bias)") + tile(fmtPct(s.coverage90), "inside the model's 90% interval (90% if calibrated)") +
-      (s.vs_line ? tile(`${s.vs_line.model_mae.toFixed(1)} vs ${s.vs_line.line_mae.toFixed(1)}`, `average miss: model vs betting line, ${s.vs_line.games} games`) : "");
-    // scatter
-    const P = s.points, W = 520, H = 360, L = 40, B = 30, T = 10, R = 10;
-    const vals = P.flatMap((p) => [p.lo, p.hi, p.actual, p.line].filter((v) => v != null));
-    const m = Math.ceil(Math.max(15, ...vals.map(Math.abs)) / 5) * 5;
-    const x = (v) => L + (v + m) / (2 * m) * (W - L - R), y = (v) => H - B - (v + m) / (2 * m) * (H - B - T);
+    const P = s.points;
+    $("spread-tiles").innerHTML = tile(`${s.mae.toFixed(1)} pts`, "average miss") +
+      tile(pm(s.bias), s.bias > 0 ? "average real − predicted: first-listed teams did better than predicted" : "average real − predicted: first-listed teams did worse than predicted") +
+      tile(fmtPct(s.coverage90), "of results inside the model's 90% range (90% if calibrated)") +
+      (s.vs_line ? tile(`${s.vs_line.model_mae.toFixed(1)} vs ${s.vs_line.line_mae.toFixed(1)}`, `average miss in points: this model vs the betting line, same ${s.vs_line.games} games`) : "");
+    // --- scatter: faint dots + binned averages with the middle half
+    const xs = P.map((p) => p.pred).sort((a, b) => a - b), ys = P.map((p) => p.actual).sort((a, b) => a - b);
+    const lo = Math.floor(Math.min(quantile(xs, 0.01), quantile(ys, 0.01)) / 10) * 10, hi = Math.ceil(Math.max(quantile(xs, 0.99), quantile(ys, 0.99)) / 10) * 10;
+    const W = 520, H = 380, L = 44, B = 34, T = 10, R = 12;
+    const clip = (v) => Math.max(lo, Math.min(hi, v));
+    const x = (v) => L + (clip(v) - lo) / (hi - lo) * (W - L - R), y = (v) => H - B - (clip(v) - lo) / (hi - lo) * (H - B - T);
     let g = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
-    for (let t = -m; t <= m; t += m / 2) g += `<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H - B}" stroke="var(--line)"/><line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
-      <text x="${x(t)}" y="${H - B + 14}" text-anchor="middle">${t > 0 ? "+" + t : t}</text><text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${t > 0 ? "+" + t : t}</text>`;
-    g += `<line x1="${x(-m)}" y1="${y(-m)}" x2="${x(m)}" y2="${y(m)}" stroke="var(--muted)" stroke-dasharray="5 4"/>`;
+    const step = (hi - lo) > 80 ? 20 : 10;
+    for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) g += `<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H - B}" stroke="var(--line)"/><line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
+      <text x="${x(t)}" y="${H - B + 15}" text-anchor="middle">${t > 0 ? "+" + t : t}</text><text x="${L - 5}" y="${y(t) + 4}" text-anchor="end">${t > 0 ? "+" + t : t}</text>`;
+    g += `<line x1="${x(lo)}" y1="${y(lo)}" x2="${x(hi)}" y2="${y(hi)}" stroke="var(--ink)" stroke-dasharray="5 4" opacity=".5"/>`;
     for (const p of P) {
       const name = p.neutral ? `${p.home} vs ${p.away}` : `${p.away} @ ${p.home}`;
-      const tip = `<title>${p.date} ${name}: predicted ${pm(p.pred)} (90%: ${pm(p.lo)} to ${pm(p.hi)})${p.approx ? " [approx.]" : ""}, real ${pm(p.actual)}${p.line != null ? `, line ${pm(p.line)}` : ""}</title>`;
-      g += `<line x1="${x(p.lo)}" x2="${x(p.hi)}" y1="${y(p.actual)}" y2="${y(p.actual)}" stroke="var(--accent)" opacity=".25" stroke-width="2"/>`;
-      if (p.line != null) g += `<path d="M${x(p.line)},${y(p.actual) - 5}l5,5l-5,5l-5,-5z" fill="none" stroke="var(--muted)">${tip}</path>`;
-      g += `<a href="/game/${p.game_id}?season=${$("season").value}"><circle cx="${x(p.pred)}" cy="${y(p.actual)}" r="5" fill="${p.approx ? "none" : "var(--accent)"}" stroke="var(--accent)" stroke-width="2">${tip}</circle></a>`;
+      g += `<a href="/game/${p.game_id}?season=${$("season").value}"><circle cx="${x(p.pred)}" cy="${y(p.actual)}" r="3" fill="var(--muted)" opacity=".28">
+        <title>${p.date} ${name}: predicted ${pm(p.pred)}${p.approx ? " (approx.)" : ""}, real ${pm(p.actual)}${p.line != null ? `, line ${pm(p.line)}` : ""}</title></circle></a>`;
     }
-    g += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">predicted margin</text>
+    const bw = (hi - lo) > 80 ? 10 : 5, bins = [];
+    for (let b0 = lo; b0 < hi; b0 += bw) {
+      const inb = P.filter((p) => p.pred >= b0 && p.pred < b0 + bw);
+      if (inb.length < 3) continue;
+      const act = inb.map((p) => p.actual).sort((a, b) => a - b);
+      bins.push({ x: inb.reduce((a, p) => a + p.pred, 0) / inb.length, mean: act.reduce((a, v) => a + v, 0) / act.length,
+                  q1: quantile(act, 0.25), q3: quantile(act, 0.75), n: inb.length, b0 });
+    }
+    for (const bn of bins)
+      g += `<line x1="${x(bn.x)}" x2="${x(bn.x)}" y1="${y(bn.q1)}" y2="${y(bn.q3)}" stroke="var(--accent)" stroke-width="3" opacity=".6"/>
+        <circle cx="${x(bn.x)}" cy="${y(bn.mean)}" r="5.5" fill="var(--accent)" stroke="var(--panel)" stroke-width="1.5">
+        <title>Predicted ${pm(bn.b0)} to ${pm(bn.b0 + bw)} (${bn.n} games): real margin averaged ${pm(bn.mean)}; middle half ${pm(bn.q1)} to ${pm(bn.q3)}</title></circle>`;
+    if (bins.length > 1) g += `<polyline points="${bins.map((bn) => `${x(bn.x)},${y(bn.mean)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+    g += `<text x="${(L + W - R) / 2}" y="${H - 3}" text-anchor="middle">predicted margin (first-listed team)</text>
       <text x="12" y="${(T + H - B) / 2}" transform="rotate(-90 12 ${(T + H - B) / 2})" text-anchor="middle">real margin</text></svg>`;
-    $("spread-scatter").innerHTML = g + (s.approx ? `<div class="muted mini">Hollow dots (${s.approx}): games logged before the ledger kept the predicted margin; their prediction is recovered from where the real margin fell in the model's simulations, so it is approximate.</div>` : "");
-    // residual histogram with the model's expected spread
-    const sd = 11.5, counts = s.hist, bw = 80 / counts.length, n = s.n;
-    const curve = (v) => n * bw * Math.exp(-0.5 * (v / sd) ** 2) / (sd * Math.sqrt(2 * Math.PI));
-    const RW = 520, RH = 170, RP = 22, max = Math.max(...counts, curve(0));
-    const rx = (v) => RP + (v + 40) / 80 * (RW - 2 * RP), ry = (c) => RH - RP - c / max * (RH - 2 * RP);
+    const above = bins.filter((bn) => bn.mean > bn.x + 2).length, below = bins.filter((bn) => bn.mean < bn.x - 2).length;
+    const verdict = bins.length < 2 ? "" : above > bins.length / 2 ? "Real margins mostly ran above the predictions: the model has been underestimating how much the first-listed team wins by. "
+      : below > bins.length / 2 ? "Real margins mostly ran below the predictions: the model has been overestimating the first-listed team. " : "The bands sit close to the diagonal. ";
+    $("spread-scatter").innerHTML = g + `<div class="muted mini">${verdict}${s.approx ? `${s.approx} of ${s.n} games were logged before the predicted margin was kept; their prediction is reconstructed from where the real margin fell in the model's simulations, so it is approximate. New games are exact.` : ""}</div>`;
+    // --- miss histogram over the data's own range, with the spread the model expects
+    const res = P.map((p) => p.actual - p.pred), rlim = Math.ceil(Math.max(20, ...res.map((v) => Math.abs(v)).sort((a, b) => a - b).slice(0, Math.ceil(res.length * 0.99))) / 5) * 5;
+    const sds = P.filter((p) => !p.approx && p.hi != null).map((p) => (p.hi - p.lo) / 3.29), sd = sds.length ? sds.reduce((a, v) => a + v, 0) / sds.length : 11.5;
+    const nb = Math.round(2 * rlim / 4), counts = new Array(nb).fill(0), rbw = 2 * rlim / nb;
+    res.forEach((v) => { counts[Math.min(nb - 1, Math.max(0, Math.floor((v + rlim) / rbw)))]++; });
+    const curve = (v) => res.length * rbw * Math.exp(-0.5 * (v / sd) ** 2) / (sd * Math.sqrt(2 * Math.PI));
+    const RW = 520, RH = 180, RP = 26, max = Math.max(...counts, curve(0));
+    const rx = (v) => RP + (v + rlim) / (2 * rlim) * (RW - 2 * RP), ry = (c) => RH - RP - c / max * (RH - 2 * RP - 6);
     let r = `<svg viewBox="0 0 ${RW} ${RH}" width="100%">`;
-    counts.forEach((c, i) => { const v0 = -40 + i * bw; r += `<rect x="${rx(v0) + 1}" y="${ry(c)}" width="${rx(v0 + bw) - rx(v0) - 2}" height="${RH - RP - ry(c)}" rx="2" fill="var(--accent)" opacity=".55"><title>${v0} to ${v0 + bw}: ${c} games</title></rect>`; });
-    const cv = []; for (let v = -40; v <= 40; v += 1) cv.push(`${rx(v)},${ry(curve(v))}`);
-    r += `<polyline points="${cv.join(" ")}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3"/>
+    counts.forEach((c, i) => { const v0 = -rlim + i * rbw; r += `<rect x="${rx(v0) + 1}" y="${ry(c)}" width="${rx(v0 + rbw) - rx(v0) - 2}" height="${RH - RP - ry(c)}" rx="2" fill="var(--accent)" opacity=".55"><title>missed by ${pm(v0)} to ${pm(v0 + rbw)}: ${c} games</title></rect>`; });
+    const cv = []; for (let v = -rlim; v <= rlim; v += 1) cv.push(`${rx(v)},${ry(curve(v))}`);
+    r += `<polyline points="${cv.join(" ")}" fill="none" stroke="var(--ink)" stroke-dasharray="4 3" opacity=".6"/>
       <line x1="${rx(0)}" x2="${rx(0)}" y1="${RP / 2}" y2="${RH - RP}" stroke="var(--ink)" opacity=".4"/>
-      <text x="${RP}" y="${RH - 6}">−40</text><text x="${rx(0)}" y="${RH - 6}" text-anchor="middle">0 (exact)</text><text x="${RW - RP}" y="${RH - 6}" text-anchor="end">+40</text></svg>`;
-    $("spread-resid").innerHTML = r + `<div class="muted mini">Spread of the misses: ${s.residual_sd != null ? s.residual_sd.toFixed(1) : "—"} points (the model expects about ${sd}).</div>`;
-    // predicted vs realized distributions
-    const PW = 520, PH = 150, pmax = Math.max(...s.pred_hist, ...s.actual_hist) || 1;
-    const px = (i) => RP + i / s.pred_hist.length * (PW - 2 * RP), py = (c) => PH - RP - c / pmax * (PH - 2 * RP), pw = (PW - 2 * RP) / s.pred_hist.length;
-    let d = `<svg viewBox="0 0 ${PW} ${PH}" width="100%">`;
-    s.actual_hist.forEach((c, i) => (d += `<rect x="${px(i) + 1}" y="${py(c)}" width="${pw - 2}" height="${PH - RP - py(c)}" rx="2" fill="var(--hl)" opacity=".45"><title>real margin ${-40 + i * 4} to ${-36 + i * 4}: ${c}</title></rect>`));
-    s.pred_hist.forEach((c, i) => (d += `<rect x="${px(i) + pw * 0.25}" y="${py(c)}" width="${pw * 0.5}" height="${PH - RP - py(c)}" rx="2" fill="var(--accent)" opacity=".8"><title>predicted margin ${-40 + i * 4} to ${-36 + i * 4}: ${c}</title></rect>`));
-    d += `<text x="${RP}" y="${PH - 6}">−40</text><text x="${PW / 2}" y="${PH - 6}" text-anchor="middle">0</text><text x="${PW - RP}" y="${PH - 6}" text-anchor="end">+40</text></svg>`;
-    $("spread-dist").innerHTML = d + `<div class="muted mini"><span style="color:var(--accent)">■</span> predicted margins &nbsp; <span style="color:var(--hl)">■</span> real margins</div>`;
+      <text x="${RP}" y="${RH - 8}">−${rlim}</text><text x="${rx(0)}" y="${RH - 8}" text-anchor="middle">0 = exact</text><text x="${RW - RP}" y="${RH - 8}" text-anchor="end">+${rlim}</text></svg>`;
+    $("spread-resid").innerHTML = r + `<div class="muted mini">The misses spread ${s.residual_sd != null ? s.residual_sd.toFixed(1) : "—"} points either way; the model expects about ${sd.toFixed(1)}. Centre ${pm(s.bias)}.</div>`;
+    // --- predicted vs real margin densities
+    const dlo = Math.min(lo, -10), dhi = hi, grid = []; for (let v = dlo; v <= dhi; v += 1) grid.push(v);
+    const kp = kdeLine(P.map((p) => p.pred), grid, 4), ka = kdeLine(P.map((p) => p.actual), grid, 4), km = Math.max(...kp, ...ka) || 1;
+    const DW = 520, DH = 160, DP = 26, dx = (v) => DP + (v - dlo) / (dhi - dlo) * (DW - 2 * DP), dy = (v) => DH - DP - v / km * (DH - 2 * DP);
+    const path = (k) => grid.map((v, i) => `${dx(v)},${dy(k[i])}`).join(" ");
+    let d = `<svg viewBox="0 0 ${DW} ${DH}" width="100%"><line x1="${dx(0)}" x2="${dx(0)}" y1="${DP / 2}" y2="${DH - DP}" stroke="var(--line)"/>
+      <polygon points="${dx(dlo)},${dy(0)} ${path(ka)} ${dx(dhi)},${dy(0)}" fill="var(--hl)" opacity=".3"/><polyline points="${path(ka)}" fill="none" stroke="var(--hl)" stroke-width="2"/>
+      <polyline points="${path(kp)}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+      <text x="${DP}" y="${DH - 8}">${dlo}</text><text x="${dx(0)}" y="${DH - 8}" text-anchor="middle">0</text><text x="${DW - DP}" y="${DH - 8}" text-anchor="end">+${dhi}</text></svg>`;
+    $("spread-dist").innerHTML = d + `<div class="muted mini"><span style="color:var(--accent)">━</span> predicted margins &nbsp; <span style="color:var(--hl)">━</span> real margins (first-listed team)</div>`;
   }
 
   function games(id, list, cell, label, none) {
     $(id).innerHTML = list && list.length ? `<tr><th>Date</th><th>Game</th><th class="num">Score</th><th class="num">${label}</th></tr>` +
       list.map((g) => `<tr><td>${g.date.slice(5, 10)}</td><td>${gameLink(g)} ${upsetBadge(g, true)}</td>
-        <td class="num">${g.home_pts}–${g.away_pts}</td><td class="num">${cell(g)}</td></tr>`).join("")
+        <td class="num nw">${g.home_pts}–${g.away_pts}</td><td class="num">${cell(g)}</td></tr>`).join("")
       : `<tr><td class="muted">${none || "No finished games scored yet."}</td></tr>`;
   }
 
@@ -248,10 +333,23 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
 
   function running(daily) {
     if (!daily.length) { $("running").innerHTML = empty("No finished games scored yet."); return; }
-    const ll = daily.map((p) => p.log_loss);
-    line($("running"), daily, [{ key: "log_loss", label: "running log-loss", color: "var(--accent)", fmt: (v) => v.toFixed(3), ref: 0.693 }],
-      (v) => v.toFixed(2), [Math.min(0.4, ...ll) - 0.02, Math.max(0.75, ...ll) + 0.02]);
-    $("running").innerHTML += `<div class="muted mini">Dashed: a coin flip. Favourite won ${daily.map((p) => fmtPct(p.accuracy)).slice(-1)[0]} of games so far.</div>`;
+    const W = 520, H = 210, L = 40, R = 12, T = 10, B = 28, MIN = 20;
+    const vals = daily.flatMap((p) => [p.day_log_loss, p.games >= MIN ? p.log_loss : null]).filter((v) => v != null);
+    const y1 = Math.max(0.75, ...vals) + 0.03, y = (v) => H - B - v / y1 * (H - B - T);
+    const n = daily.length, bw = (W - L - R) / n, x = (i) => L + (i + 0.5) * bw;
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    [0, 0.35, 0.693].forEach((t) => (s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" ${t === 0.693 ? 'stroke-dasharray="4 3"' : ""}/><text x="${L - 4}" y="${y(t) + 4}" text-anchor="end">${t === 0.693 ? "0.69" : t.toFixed(2)}</text>`));
+    s += `<text x="${W - R}" y="${y(0.693) - 4}" text-anchor="end" class="muted">coin flip</text>`;
+    daily.forEach((p, i) => (s += `<rect x="${x(i) - Math.min(18, bw * 0.35)}" y="${y(p.day_log_loss)}" width="${Math.min(36, bw * 0.7)}" height="${H - B - y(p.day_log_loss)}" rx="2" fill="var(--accent)" opacity="${Math.min(0.6, 0.15 + p.day_games / 60)}">
+      <title>${p.date}: ${p.day_games} games, log-loss ${p.day_log_loss.toFixed(3)}, favourite won ${fmtPct(p.day_accuracy)}</title></rect>`));
+    const cum = daily.map((p, i) => ({ i, v: p.log_loss, ok: p.games >= MIN })).filter((c) => c.ok);
+    if (cum.length > 1) s += `<polyline points="${cum.map((c) => `${x(c.i)},${y(c.v)}`).join(" ")}" fill="none" stroke="var(--ink)" stroke-width="2"/>`;
+    cum.forEach((c) => (s += `<circle cx="${x(c.i)}" cy="${y(c.v)}" r="3.5" fill="var(--ink)"><title>${daily[c.i].date}: season so far ${daily[c.i].games} games, log-loss ${c.v.toFixed(3)}</title></circle>`));
+    const lab = Math.max(1, Math.ceil(n / 8));
+    daily.forEach((p, i) => { if (i % lab === 0 || i === n - 1) s += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${p.date.slice(5)}</text>`; });
+    const last = daily[daily.length - 1];
+    $("running").innerHTML = s + `</svg><div class="muted mini"><span style="color:var(--accent)">■</span> each day &nbsp; <span>━</span> season so far ·
+      after ${last.games} games: log-loss ${last.log_loss.toFixed(3)}, favourite won ${fmtPct(last.accuracy)}. Hover a bar for the day.</div>`;
   }
 
   function calibration(bins) {
@@ -269,7 +367,11 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
       s += `<text x="${x0 + w / 2}" y="${H - 6}" text-anchor="middle">${Math.round(b.lo * 100)}–${Math.round(b.hi * 100)}%</text>
         <text x="${x0 + w / 2}" y="${y(b.n ? Math.max(b.actual, b.predicted) : 0) - 4}" text-anchor="middle" class="muted">${b.n ? "n=" + b.n : ""}</text>`;
     });
-    $("calib").innerHTML = s + `</svg><div class="muted mini">x: how strongly the model favoured the favourite. ${n < 100 ? `Only ${n} games so far, so the bars are noisy.` : ""}</div>`;
+    const said = bins.reduce((a, b) => a + (b.n ? b.predicted * b.n : 0), 0) / n, won = bins.reduce((a, b) => a + (b.n ? b.actual * b.n : 0), 0) / n;
+    const verdict = won - said > 0.03 ? `<b>Underconfident so far:</b> favourites won ${fmtPct(won)} of games against the ${fmtPct(said)} the model expected. Its forecasts have been too cautious, which is typical early in a season when every team's rating is still pulled toward average.`
+      : said - won > 0.03 ? `<b>Overconfident so far:</b> favourites won ${fmtPct(won)} of games against the ${fmtPct(said)} the model expected.`
+      : `<b>Well calibrated so far:</b> favourites won ${fmtPct(won)} of games; the model expected ${fmtPct(said)}.`;
+    $("calib").innerHTML = s + `</svg><div class="mini" style="margin-top:4px">${verdict}</div><div class="muted mini">x: how strongly the model favoured the favourite; n = games in each band. ${n < 100 ? `Only ${n} games so far, so the bars are noisy.` : ""}</div>`;
   }
 
   function updates(list) {

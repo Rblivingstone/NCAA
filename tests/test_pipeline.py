@@ -792,3 +792,20 @@ def test_upset_precision_recall_and_auc(monkeypatch):
     assert (pick["tp"], pick["fp"]) == (1, 0) and pick["precision"] == 1.0
     assert u["auc"] == 0.75                                          # upsets at .55, .20 vs non-upsets at .40, .10
     assert u["roc"][0] == {"fpr": 0.0, "tpr": 0.0, "t": 1.0} and u["roc"][-1]["fpr"] == 1.0 == u["roc"][-1]["tpr"]
+
+
+def test_win_detection_over_all_games():
+    """Every game as "first-listed team wins": accuracy, precision/recall for both outcomes at 50%, and
+    ROC-AUC for the model and (on the games ESPN called) for ESPN."""
+    import webapp.app as A
+
+    g = lambda p, won, e=None: {"p_home": p, "home_pts": 80 if won else 60, "away_pts": 70, "espn_p_home": e}
+    recs = [g(0.9, True, 0.8), g(0.7, True, 0.6), g(0.6, False, 0.7), g(0.3, False, 0.2), g(0.4, True)]
+    w = A._win_detection(recs)
+    assert w["games"] == 5 and w["accuracy"] == 0.6
+    assert w["confusion"] == {"called_win_won": 2, "called_win_lost": 1, "called_loss_won": 1, "called_loss_lost": 1}
+    assert abs(w["win"]["precision"] - 2 / 3) < 1e-9 and abs(w["win"]["recall"] - 2 / 3) < 1e-9
+    assert w["loss"]["precision"] == 0.5 and w["loss"]["recall"] == 0.5
+    assert abs(w["auc"] - 5 / 6) < 1e-9                      # winners .9 .7 .4 vs losers .6 .3: 5 of 6 pairs right
+    assert w["espn"]["games"] == 4 and w["espn"]["auc"] == 0.75 and w["espn"]["model_auc_same_games"] == 1.0
+    assert A._win_detection([]) == {"games": 0}

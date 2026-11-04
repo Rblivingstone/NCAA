@@ -1091,8 +1091,9 @@ def _ledger_records(led: pd.DataFrame, ranks: dict) -> list:
 
 
 def _pregame_rankers(season: int):
-    """A function date -> {team: rank} giving the D1 ranking as it stood before that day's games: the latest
-    nightly snapshot dated before the game (so the game's own result can't leak in), else the current one."""
+    """A function date -> ({team: rank}, source) giving the D1 ranking as it stood before that day's games:
+    the latest nightly snapshot dated before the game, else the preseason ranking (the season's starting
+    ratings, before any game was folded in). Either way the game's own result can't leak in."""
     hist = season_mod.load_ratings_history(season)
     d1 = data.d1_set(season)
     snaps = {}
@@ -1101,12 +1102,30 @@ def _pregame_rankers(season: int):
             g = g[(g.team != "Non-D1") & (g.team.isin(d1) if d1 else True)].sort_values("net", ascending=False)
             snaps[str(day)[:10]] = {t: i for i, t in enumerate(g.team, 1)}
     days = sorted(snaps)
-    now = rank_map(season)
+    preseason = _preseason_ranks(season)
 
     def at(date: str):
         earlier = [d for d in days if d < date[:10]]
-        return (snaps[earlier[-1]], True) if earlier else (now, False)
+        return (snaps[earlier[-1]], "snapshot") if earlier else (preseason, "preseason")
     return at
+
+
+@lru_cache(maxsize=4)
+def _preseason_ranks_cached(season: int, stamp: float) -> dict:
+    base, _ = season_mod.base_posterior(season)
+    if base is None:
+        return {}
+    d1 = data.d1_set(season)
+    rows = [r for r in team_ratings(base) if r["team"] != "Non-D1" and (not d1 or r["team"] in d1)]
+    return {r["team"]: i for i, r in enumerate(sorted(rows, key=lambda r: -r["net"]), 1)}
+
+
+def _preseason_ranks(season: int) -> dict:
+    """The D1 ranking from the season's starting ratings (last season's, carried over), before any game."""
+    try:
+        return _preseason_ranks_cached(season, _stamp(season))
+    except Exception:
+        return {}
 
 
 def _auc(score: np.ndarray, label: np.ndarray) -> float | None:
@@ -1118,6 +1137,46 @@ def _auc(score: np.ndarray, label: np.ndarray) -> float | None:
     return float(gt / (len(pos) * len(neg)))
 
 
+def _roc_points(p: np.ndarray, y: np.ndarray, max_points: int = 200) -> list:
+    """ROC curve (false-positive rate, true-positive rate) sweeping the threshold from high to low."""
+    order = np.argsort(-p, kind="stable")
+    P, N = int(y.sum()), int((~y).sum())
+    tp = np.cumsum(y[order]); fp = np.cumsum(~y[order])
+    pts = [{"fpr": 0.0, "tpr": 0.0, "t": 1.0}] + [{"fpr": float(fp[i] / N) if N else 0.0, "tpr": float(tp[i] / P) if P else 0.0,
+                                                   "t": float(p[order[i]])} for i in range(len(p))]
+    if len(pts) > max_points:                       # thin the curve for the page, keeping both ends
+        keep = np.unique(np.r_[np.linspace(0, len(pts) - 1, max_points).astype(int), len(pts) - 1])
+        pts = [pts[i] for i in keep]
+    return pts
+
+
+def _win_detection(recs: list) -> dict:
+    """Every game as a yes/no prediction of "the first-listed team wins" (the home team, or the first one named
+    at a neutral site). Score: the model's pre-game P(first team wins). At a 50% threshold: accuracy, and
+    precision and recall for both outcomes; plus the ROC curve and ROC-AUC, for the model and, on the games
+    where ESPN made a pre-game call, for ESPN too."""
+    if not recs:
+        return {"games": 0}
+    p = np.array([g["p_home"] for g in recs], dtype=float)
+    y = np.array([g["home_pts"] > g["away_pts"] for g in recs])
+    call = p > 0.5
+    def pr(pred, truth):
+        tp = int((pred & truth).sum()); fp = int((pred & ~truth).sum()); fn = int((~pred & truth).sum())
+        return {"tp": tp, "fp": fp, "fn": fn, "precision": tp / (tp + fp) if tp + fp else None, "recall": tp / (tp + fn) if tp + fn else None}
+    out = {"games": len(recs), "first_team_won": float(y.mean()), "accuracy": float((call == y).mean()),
+           "auc": _auc(p, y), "roc": _roc_points(p, y),
+           "win": pr(call, y), "loss": pr(~call, ~y),
+           "confusion": {"called_win_won": int((call & y).sum()), "called_win_lost": int((call & ~y).sum()),
+                         "called_loss_won": int((~call & y).sum()), "called_loss_lost": int((~call & ~y).sum())}}
+    e = np.array([g.get("espn_p_home") if g.get("espn_p_home") is not None else np.nan for g in recs], dtype=float)
+    m = ~np.isnan(e)
+    if m.sum() >= 2:
+        out["espn"] = {"games": int(m.sum()), "auc": _auc(e[m], y[m]), "model_auc_same_games": _auc(p[m], y[m]),
+                       "accuracy": float(((e[m] > 0.5) == y[m]).mean()), "model_accuracy_same_games": float((call[m] == y[m]).mean()),
+                       "roc": _roc_points(e[m], y[m])}
+    return out
+
+
 def _upset_detection(recs: list, season: int) -> dict:
     """How well the model's pre-game chance for the ranking underdog separates upsets from non-upsets.
 
@@ -1127,13 +1186,15 @@ def _upset_detection(recs: list, season: int) -> dict:
     ranker = _pregame_rankers(season)
     rows, fallback = [], 0
     for g in recs:
-        ranks, pre = ranker(g["date"])
-        fallback += not pre
+        ranks, source = ranker(g["date"])
+        fallback += source == "preseason"
         f = game_flags(g["home"], g["away"], g["p_home"], ranks, result=(g["home_pts"], g["away_pts"]))
         if f.get("underdog"):
             rows.append({**{k: g[k] for k in ("game_id", "date", "home", "away", "neutral", "home_pts", "away_pts")},
                          "underdog": f["underdog"], "favorite": f["favorite"], "p": f["p_underdog"], "upset": bool(f["upset"])})
-    out = {"games": len(rows), "upsets": sum(r["upset"] for r in rows), "current_ranks_used": fallback}
+    out = {"games": len(rows), "upsets": sum(r["upset"] for r in rows), "preseason_ranks_used": fallback,
+           "called": sorted([{**r, "p_underdog": r["p"], "upset_level": "pick" if r["p"] >= 0.5 else "watch"}
+                             for r in rows if r["upset"] and r["p"] >= UPSET_WATCH], key=lambda r: -r["p"])[:8]}
     if not rows:
         return out
     p = np.array([r["p"] for r in rows]); y = np.array([r["upset"] for r in rows])
@@ -1146,14 +1207,7 @@ def _upset_detection(recs: list, season: int) -> dict:
         out["thresholds"].append({"threshold": t, "name": name, "flagged": int(flag.sum()), "tp": tp, "fp": fp, "fn": fn,
                                   "tn": int((~flag & ~y).sum()),
                                   "precision": tp / (tp + fp) if tp + fp else None, "recall": tp / (tp + fn) if tp + fn else None})
-    # ROC curve: sweep the threshold from high to low.
-    order = np.argsort(-p, kind="stable")
-    P, N = int(y.sum()), int((~y).sum())
-    roc, tp, fp = [{"fpr": 0.0, "tpr": 0.0, "t": 1.0}], 0, 0
-    for i in order:
-        tp += y[i]; fp += not y[i]
-        roc.append({"fpr": fp / N if N else 0.0, "tpr": tp / P if P else 0.0, "t": float(p[i])})
-    out["roc"] = roc
+    out["roc"] = _roc_points(p, y)
     out["missed"] = sorted([r for r in rows if r["upset"] and r["p"] < UPSET_WATCH], key=lambda r: r["p"])[:6]
     out["false_alarms"] = sorted([r for r in rows if not r["upset"] and r["p"] >= UPSET_WATCH], key=lambda r: -r["p"])[:6]
     return out
@@ -1242,13 +1296,18 @@ def api_dashboard():
         starts = np.flatnonzero(first)
         out["daily"] = [{"date": days[j], "games": int(n[j]), "day_games": int(j - starts[starts <= j][-1] + 1),
                          "log_loss": float(cum_ll[j]), "accuracy": float(cum_acc[j]),
-                         "day_accuracy": float(np.mean(pw[starts[starts <= j][-1]:j + 1] > 0.5))}
+                         "day_accuracy": float(np.mean(pw[starts[starts <= j][-1]:j + 1] > 0.5)),
+                         "day_log_loss": float(np.mean(ll[starts[starts <= j][-1]:j + 1]))}
                         for j in np.flatnonzero(last)]
         recs = _ledger_records(led, ranks)
+        d1 = data.d1_set(season)
         for g, l in zip(recs, ll):
             g["log_loss"] = float(l)
+            g["d1_game"] = bool(d1) and g["home"] in d1 and g["away"] in d1
         right = [g for g in recs if g["p_winner"] > 0.5]
-        out["best_calls"] = sorted(right, key=lambda g: -g["p_winner"])[:8]
+        # Blowouts of non-D1 schools would fill these lists, so they show D1-vs-D1 games only.
+        out["best_calls"] = sorted([g for g in right if g["d1_game"]], key=lambda g: -g["p_winner"])[:8]
+        out["win_detection"] = _win_detection(recs)
         vs = [g for g in right if g["espn_p_winner"] is not None and g["espn_p_winner"] < 0.5]
         out["beat_espn"] = sorted(vs, key=lambda g: -(g["p_winner"] - g["espn_p_winner"]))[:8]
         # The honest mirror: games ESPN called right and this model called wrong.
@@ -1262,10 +1321,9 @@ def api_dashboard():
                                "both_wrong": sum(g["p_winner"] <= 0.5 and g["espn_p_winner"] <= 0.5 for g in both)}
         out["spreads"] = _spreads(recs)
         out["upset_detection"] = _upset_detection(recs, season)
-        out["upsets_called"] = sorted([g for g in recs if g.get("upset") and g.get("upset_level")],
-                                      key=lambda g: -g["p_underdog"])[:8]
+        out["upsets_called"] = out["upset_detection"].get("called", [])
         out["most_wrong"] = sorted([g for g in recs if g["p_winner"] < 0.5], key=lambda g: g["p_winner"])[:10]
-        out["most_unusual"] = sorted(recs, key=lambda g: g["unusualness"])[:8]
+        out["most_unusual"] = sorted([g for g in recs if g["d1_game"]], key=lambda g: g["unusualness"])[:8]
         out["vs_espn"] = _vs_espn(led)
     up = season_mod.load_updates(season)
     d1 = data.d1_set(season)
