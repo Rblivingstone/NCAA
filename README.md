@@ -1,8 +1,11 @@
-# NCAA Bayesian bracket simulator
+# NCAA Bayesian Basketball
 
-A generative Bayesian model of NCAA men's basketball games, a Monte Carlo
-tournament simulator built on it, and a Flask app to explore the resulting
-**distribution bracket** and to score a real bracket against the model.
+A generative Bayesian model of NCAA men's basketball that follows the current
+season (2026–27) live: every team's rating is updated by Bayes' rule after each
+game, every game is forecast before tip-off and tracked in-game, and a dashboard
+shows how the model is doing. Built on the same model: a Monte Carlo tournament
+simulator, with the 2026 **distribution bracket** and a tool to score a real
+bracket against it.
 
 ## The model (`ncaa/model.py`)
 

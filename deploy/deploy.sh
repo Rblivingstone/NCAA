@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot deploy of the NCAA Bayesian bracket to a Linux VPS (Ubuntu/Debian), with HTTPS.
+# One-shot deploy of NCAA Bayesian Basketball to a Linux VPS (Ubuntu/Debian), with HTTPS.
 #
 #   First time (from a clone of the repo):
 #     sudo ./deploy/deploy.sh ncaa.example.com you@example.com
@@ -141,7 +141,7 @@ if [ "$mode" = host ]; then
         echo "keeping the existing $conf"
       else
         cat > "$conf" <<NGINX
-# NCAA Bayesian bracket (written by deploy/deploy.sh)
+# NCAA Bayesian Basketball (written by deploy/deploy.sh)
 server {
     listen 80;
 $v6listen

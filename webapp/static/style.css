@@ -251,3 +251,6 @@ table.data th.sorted { color: var(--ink); }
 .pp { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .pp .name { width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp svg { flex: 1; }
+
+nav a.brand { color: var(--ink); text-decoration: none; }
+nav .brand-season { font-weight: 500; color: var(--muted); margin-left: 4px; }

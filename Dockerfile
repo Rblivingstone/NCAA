@@ -1,4 +1,4 @@
-# NCAA Bayesian bracket: one image for the web app and the background worker.
+# NCAA Bayesian Basketball: one image for the web app and the background worker.
 FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 \

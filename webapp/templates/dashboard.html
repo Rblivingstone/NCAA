@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Model dashboard{% endblock %}
+{% block title %}Season dashboard{% endblock %}
 {% block content %}
 <div class="toolbar" style="margin-bottom:2px">
-  <h1 style="margin:0">Model dashboard</h1>
+  <h1 style="margin:0">{{ season_label }} season dashboard</h1>
   <label>Season <select id="season"><option>{{ live_season }}</option><option>{{ season }}</option></select></label>
   <span class="muted" id="model"></span>
 </div>
-<p class="lede">How the model is doing this season, scored only on forecasts made <em>before</em> each game. Every finished
+<p class="lede">How the Bayesian model is reading the {{ season_label }} season, scored only on forecasts made <em>before</em> each game. Every finished
 game also updates both teams' ratings by Bayes' rule, so the ratings move with the evidence and grow more certain as
 games come in.</p>
 <div class="stats" id="tiles"></div>

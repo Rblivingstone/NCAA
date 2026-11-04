@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}NCAA Bayesian Model{% endblock %}</title>
+<title>{% block title %}Dashboard{% endblock %} · {{ site_name }} {{ season_label }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <nav>
-  <span class="brand">🏀 NCAA Bayesian Model · {{ live_season - 1 if live_season else season }}–{{ (live_season or season) % 100 }}</span>
+  <a href="/" class="brand">🏀 {{ site_name }} <span class="brand-season">{{ season_label }} season</span></a>
   <a href="/" class="{{ 'active' if page == 'dashboard' }}">Dashboard</a>
   <a href="/live" class="{{ 'active' if page == 'live' }}">Live</a>
   <a href="/games" class="{{ 'active' if page == 'games' }}">Games</a>

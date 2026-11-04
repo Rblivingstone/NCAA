@@ -53,8 +53,9 @@ def _building():
     if request.path.startswith(("/static", "/healthz")) or (model.artifact_dir(SEASON) / "summary.json").exists():
         return None
     return ("<!doctype html><meta http-equiv='refresh' content='60'><body style='font-family:system-ui;padding:40px'>"
-            "<h2>Building the models…</h2><p>The first start downloads the season's data, fits the model and simulates "
-            "the tournament. This takes 20–90 minutes depending on the server; the page refreshes itself.</p>", 503)
+            "<h1>NCAA Bayesian Basketball</h1><h2>Building the models…</h2><p>The first start downloads the data, "
+            "fits the model and simulates last season's tournament, then follows this season live. This takes "
+            "20–90 minutes depending on the server; the page refreshes itself.</p>", 503)
 
 
 @app.route("/")
@@ -480,6 +481,15 @@ from ncaa.ingame import SHIFT_LEVEL, forecast as live_forecast, live_unusualness
 from ncaa.live import FallbackFeed, ReplayFeed, parse_summary
 
 LIVE_SEASON = int(os.environ.get("NCAA_LIVE_SEASON", 2027))
+SITE_NAME = "NCAA Bayesian Basketball"
+
+
+@app.context_processor
+def _site():
+    """The site's name and the season it follows, for every page."""
+    return {"site_name": SITE_NAME, "season_label": f"{LIVE_SEASON - 1}\u2013{LIVE_SEASON % 100:02d}"}
+
+
 _espn, _replay = FallbackFeed(), ReplayFeed()   # ESPN, or the game archive once a game is final
 _lock = threading.Lock()
 _forecasters: dict = {}
