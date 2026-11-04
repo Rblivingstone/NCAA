@@ -59,7 +59,7 @@ expected over the same number of possessions.</p>
     const r = await (await fetch(`/api/live/scoreboard?date=${$("date").value}`)).json();
     $("espn-game").innerHTML = r.games.map((g) =>
       `<option value="${g.game_id}">${g.status === "in" ? "● " : ""}${g.teams[1]} @ ${g.teams[0]} — ${g.detail}</option>`).join("");
-    $("msg").textContent = r.error ? `${r.error}. Live mode needs network access to site.api.espn.com; replay works offline from the archive.` :
+    $("msg").textContent = r.error ? `ESPN's live scoreboard can't be reached right now, so this list comes from the schedule. Games still load once they finish; you can also replay a {{ season }} tournament game.` :
       (r.games.length ? "" : "No games on this date.");
     if (r.games.length) refresh(); else $("live").innerHTML = "";
   }
