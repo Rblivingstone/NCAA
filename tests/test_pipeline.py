@@ -1144,3 +1144,44 @@ def test_conditional_bracket_and_path_clearing():
     gains = [r["gain"] for r in pc["eliminations"]]
     assert gains == sorted(gains, reverse=True) and all(r["p_out_if_champion"] > r["p_out"] for r in pc["eliminations"])
     assert all(r["team"] != m for r in pc["eliminations"])
+
+
+def test_backtest_pieces():
+    """Backtest building blocks: exact advancement chances add up, the efficiency rating ranks a dominant team
+    first, Vegas lines lose the bookmaker's margin, and the summary compares each source on shared games."""
+    import numpy as np
+    import pandas as pd
+
+    from ncaa import backtest as bt
+    from ncaa import data
+    from ncaa.bracket import Bracket
+
+    br = Bracket(data.load_bracket(2026))
+    T = len(br.teams)
+    rng = np.random.default_rng(0)
+    s = rng.normal(size=T)
+    P = 1 / (1 + np.exp(-(s[:, None] - s[None, :])))
+    A = bt.advancement(br, P)
+    assert np.allclose(A.sum(1), 1) and A[br.gidx["R6"]].argmax() == s.argmax()
+    assert np.allclose(bt.seed_matrix(br, 0.15) + bt.seed_matrix(br, 0.15).T, 1)
+    # a team that beats everyone by 20 rates highest
+    rows = []
+    teams = [f"T{i}" for i in range(8)]
+    for i, a in enumerate(teams):
+        for b in teams[i + 1:]:
+            for home in (1, -1):
+                pa = 90 if a == "T0" else 70
+                pb = 70
+                box = dict(fga=60, oreb=10, tov=12, fta=20, opp_fga=60, opp_oreb=10, opp_tov=12, opp_fta=20)
+                rows.append({"team": a, "opponent": b, "home": home, "pts": pa, "opp_pts": pb, **box})
+                rows.append({"team": b, "opponent": a, "home": -home, "pts": pb, "opp_pts": pa, **box})
+    e = bt.efficiency_ratings(pd.DataFrame(rows))
+    assert e.sort_values("em").team.iloc[-1] == "T0"
+    p = bt._vegas_p_home({"homeTeamOdds": {"moneyLine": -200}, "awayTeamOdds": {"moneyLine": 170}})
+    assert 0.62 < p < 0.66                                               # 66.7% and 37.0% implied, margin removed
+    assert abs(bt._vegas_p_home({"spread": 0.0}) - 0.5) < 1e-9
+    g = lambda m, v: {"model": m, "seed": 0.5, "efficiency": 0.6, "bpi": v, "vegas": None, "first_four": False}
+    res = [{"season": 2030, "champion": "X", "games": [g(0.8, 0.9), g(0.6, None)], "brackets": {}}]
+    S = bt.summary(res)
+    assert S["games"]["all"]["bpi"]["n"] == 1 and abs(S["games"]["all"]["bpi"]["model_log_loss"] + np.log(0.8)) < 1e-9
+    assert S["coverage"]["bpi"] == [2030] and S["coverage"]["vegas"] == []

@@ -292,7 +292,9 @@ def load_all() -> list[dict]:
 
 def summary(results: list[dict]) -> dict:
     """Totals per source: game-level accuracy on the games every source covers, brackets, head-to-head."""
-    out = {"seasons": [r["season"] for r in results], "sources": SOURCES, "games": {}, "brackets": {}, "by_season": []}
+    out = {"seasons": [r["season"] for r in results], "sources": SOURCES, "games": {}, "brackets": {}, "by_season": [],
+           "coverage": {src: [r["season"] for r in results if any(g.get(src) is not None for g in r["games"])]
+                        for src in SOURCES}}
     allg = [g for r in results for g in r["games"]]
     for scope, keep in (("all", lambda g: True), ("no_first_four", lambda g: not g["first_four"])):
         gs = [g for g in allg if keep(g)]

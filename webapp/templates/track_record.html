@@ -44,7 +44,8 @@ be recovered.</p>
     <li><b>Efficiency margin</b>: a KenPom-style rating (opponent- and venue-adjusted points per 100 possessions)
       rebuilt here from the same box scores the model sees. It is not KenPom's own numbers.</li>
     <li><b>ESPN BPI</b> and <b>Vegas</b> (the consensus line, moneylines with the bookmaker's margin removed): read from
-      ESPN's archived game files.</li>
+      ESPN's archived game files, which keep them for some years only (the Years column). Each is compared with the model
+      on the games it covers.</li>
     <li><b>Not included</b>, because their historical forecasts can't be recovered:
       <ul style="margin:2px 0 0 16px; padding:0">
         <li>KenPom itself: its archive is behind a subscription;</li>
@@ -78,14 +79,15 @@ be recovered.</p>
   function drawGames(scope) {
     const G = S.games[scope];
     const rows = Object.keys(names).filter((k) => G[k]);
-    $("games").innerHTML = `<tr><th>Source</th><th class="num">Games</th><th class="num">Log loss</th><th class="num">Brier</th>
+    const yrs = (k) => { const c = S.coverage[k] || []; return c.length === years.length ? "every year" : c.join(", "); };
+    $("games").innerHTML = `<tr><th>Source</th><th>Years</th><th class="num">Games</th><th class="num">Log loss</th><th class="num">Brier</th>
       <th class="num">Picked the winner</th><th class="num">Model on the same games</th><th class="num">Difference</th></tr>` +
       rows.map((k) => { const r = G[k], diff = r.log_loss - r.model_log_loss, se = r.ll_diff_se;
         const sig = k !== "model" && se && Math.abs(diff) > 2 * se;
         const verdict = k === "model" ? "" : `${diff > 0 ? "+" : ""}${f3(diff)}${se ? ` ± ${f3(2 * se)}` : ""} ` +
           `<span class="muted">${diff > 0 ? "model better" : "source better"}${sig ? "" : ", within noise"}</span>`;
         return `<tr${k === "model" ? ' style="font-weight:600"' : ""}><td><span style="color:${colour[k]}">■</span> ${names[k]}</td>
-          <td class="num">${r.n}</td><td class="num">${f3(r.log_loss)}</td><td class="num">${f3(r.brier)}</td>
+          <td class="muted">${yrs(k)}</td><td class="num">${r.n}</td><td class="num">${f3(r.log_loss)}</td><td class="num">${f3(r.brier)}</td>
           <td class="num">${fmtPct(r.accuracy)}</td><td class="num">${k === "model" ? "" : `${f3(r.model_log_loss)} / ${f3(r.model_brier)}`}</td>
           <td class="num">${verdict}</td></tr>`; }).join("");
   }
