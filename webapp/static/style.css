@@ -258,3 +258,5 @@ nav .brand-season { font-weight: 500; color: var(--muted); margin-left: 4px; }
 /* dashboard charts: readable text, tables that don't wrap dates or scores */
 .dash-grid svg text { font-size: 13.5px; fill: var(--muted); }
 .mini td:first-child, .mini .nw { white-space: nowrap; }
+
+nav { gap: 16px; }

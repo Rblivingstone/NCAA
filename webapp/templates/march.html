@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Road to March{% endblock %}
+{% block content %}
+<div class="toolbar" style="margin-bottom:2px">
+  <h1 style="margin:0">Road to March</h1>
+  <span class="muted" id="meta"></span>
+</div>
+<p class="lede">The rest of the {{ season_label }} season, simulated thousands of times from the current ratings. Each simulation
+plays every remaining game, every conference tournament, picks the NCAA field and plays the tournament, with the
+uncertainty in every team's rating carried through. The odds below are the share of simulations in which each thing
+happened. They are refreshed every night.</p>
+<div class="stats" id="tiles"></div>
+
+<div class="dash-grid">
+  <div class="panel" style="grid-column:1 / -1"><b>Championship odds</b>
+    <div class="muted mini">Chance to win the national title, with the chance to reach the Final Four and to make the field
+      behind it. Hover a bar for the numbers.</div>
+    <div id="champ"></div></div>
+  <div class="panel" style="grid-column:1 / -1"><b>Bubble watch</b>
+    <div class="muted mini">Teams whose tournament chances are genuinely in doubt, and how much their next game swings them:
+      the chance of making the field if they win it, against if they lose it.</div>
+    <table class="data mini" id="bubble"></table></div>
+</div>
+
+<div class="panel" style="margin-top:12px">
+  <div class="toolbar" style="margin:0"><b>Every team</b>
+    <input class="search" id="q" list="teamlist" placeholder="Filter by team or conference…" autocomplete="off"><datalist id="teamlist"></datalist>
+    <span class="muted mini">Click a column to sort.</span></div>
+  <div class="scroll" style="margin-top:6px; max-height:640px"><table class="data" id="all"></table></div>
+</div>
+
+<div class="panel" style="margin-top:12px"><b>Most likely field</b>
+  <div class="muted mini">The 68 teams most likely to be selected, in order of their average projected seed. Real seeding also
+    follows rules this doesn't model (conference separation, geography), so treat lines as approximate.</div>
+  <div id="field" class="cols2" style="margin-top:6px"></div></div>
+
+<div class="panel" style="margin-top:12px"><b>How it works, and what it simplifies</b>
+  <ul class="mini" style="margin:6px 0 0 18px; padding:0">
+    <li>Every game is a full simulated game from the model, the same one the rest of the site uses, with home court where it
+      applies. Each simulation uses one sample of every team's skills, so a team the model is unsure about gets
+      appropriately wide odds.</li>
+    <li>Conference tournaments: every member, seeded by simulated conference record, single elimination on a neutral floor,
+      top seeds getting byes (the Ivy League takes its top four). Real formats vary a little.</li>
+    <li>Selection: conference tournament champions get the automatic bids. The remaining at-large places go to the best other
+      teams by a résumé score that weighs strength and winning percentage equally. That's a stand-in for the selection
+      committee, which can't be modelled exactly.</li>
+    <li>Seeding: down an S-curve by the same score, with the First Four for the four lowest automatic bids and the last four
+      at-large teams. Conference-separation and geographic rules are not modelled.</li>
+  </ul></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const d = await (await fetch(`/api/march?season={{ live_season }}`)).json();
+  if (d.missing || !d.teams.length) {
+    $("tiles").innerHTML = `<div class="muted">The first projection hasn't run yet. It runs after each nightly update, so check back tomorrow.</div>`;
+    return;
+  }
+  const pct = (v) => (v == null ? "—" : v < 0.001 && v > 0 ? "<0.1%" : v >= 0.999 && v < 1 ? ">99.9%" : fmtPct(v));
+  const rec = (w, l) => `${Math.round(w)}–${Math.round(l)}`;
+  const team = (r) => `<a href="/team/${encodeURIComponent(r.team)}?season={{ live_season }}">${r.team}</a> ${rankTag(r.rank)}`;
+  const T = d.teams;
+  $("meta").textContent = `${d.n_sims.toLocaleString()} simulations · ${d.games_left.toLocaleString()} regular-season games left · model: ${d.posterior} · updated ${new Date(d.updated).toLocaleString()}`;
+  const byChamp = T.slice().sort((a, b) => b.reach.Champion - a.reach.Champion);
+  const fav = byChamp[0];
+  const tile = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+  const nCont = T.filter((r) => r.reach.Champion >= 0.01).length;
+  $("tiles").innerHTML = tile(`${fav.team} ${pct(fav.reach.Champion)}`, "favourite to win the title") +
+    tile(nCont, "teams with at least a 1% title chance") +
+    tile(T.filter((r) => r.p_field >= 0.95).length, "teams very likely to make the field (95%+)") +
+    tile(T.filter((r) => r.p_field >= 0.2 && r.p_field <= 0.8).length, "teams on the bubble (20–80%)");
+
+  // championship odds: top 20, title chance with Final Four and field behind it
+  const top = byChamp.slice(0, 20), W = 900, rowH = 22, L = 170, R = 60, H = top.length * rowH + 24;
+  const x = (v) => L + v * (W - L - R);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+  [0, 0.25, 0.5, 0.75, 1].forEach((t) => (s += `<line x1="${x(t)}" x2="${x(t)}" y1="0" y2="${H - 20}" stroke="var(--line)"/><text x="${x(t)}" y="${H - 6}" text-anchor="middle">${Math.round(t * 100)}%</text>`));
+  top.forEach((r, i) => {
+    const y = i * rowH + 3;
+    s += `<text x="${L - 8}" y="${y + 14}" text-anchor="end" style="fill:var(--ink)">${r.team}</text>
+      <rect x="${x(0)}" y="${y}" width="${x(r.p_field) - x(0)}" height="${rowH - 6}" rx="3" fill="var(--accent)" opacity=".12"/>
+      <rect x="${x(0)}" y="${y}" width="${x(r.reach["Final Four"]) - x(0)}" height="${rowH - 6}" rx="3" fill="var(--accent)" opacity=".3"/>
+      <rect x="${x(0)}" y="${y}" width="${Math.max(1, x(r.reach.Champion) - x(0))}" height="${rowH - 6}" rx="3" fill="var(--accent)"/>
+      <text x="${x(r.p_field) + 6}" y="${y + 14}">${pct(r.reach.Champion)}</text>
+      <rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent"><title>${r.team}: champion ${pct(r.reach.Champion)} · Final Four ${pct(r.reach["Final Four"])} · makes the field ${pct(r.p_field)} · average seed ${r.avg_seed ? r.avg_seed.toFixed(1) : "—"}</title></rect>`;
+  });
+  $("champ").innerHTML = s + `</svg><div class="muted mini"><span style="color:var(--accent)">■</span> wins the title &nbsp;
+    <span style="color:var(--accent);opacity:.5">■</span> reaches the Final Four &nbsp; <span style="color:var(--accent);opacity:.25">■</span> makes the field · label: title chance</div>`;
+
+  // bubble watch
+  const bub = T.filter((r) => r.p_field >= 0.2 && r.p_field <= 0.8 && r.next_game)
+    .map((r) => ({ ...r, swing: (r.next_game.p_field_if_win ?? r.p_field) - (r.next_game.p_field_if_loss ?? r.p_field) }))
+    .sort((a, b) => b.swing - a.swing).slice(0, 14);
+  $("bubble").innerHTML = bub.length ? `<tr><th>Team</th><th class="num">Field</th><th>Next game</th><th class="num">If W</th><th class="num">If L</th></tr>` +
+    bub.map((r) => { const g = r.next_game, opp = g.home === r.team ? g.away : g.home;
+      return `<tr><td>${team(r)}</td><td class="num">${pct(r.p_field)}</td>
+        <td><a href="/game/${g.game_id}?season={{ live_season }}">${g.home === r.team ? "vs" : "@"} ${opp}</a> <span class="muted">${g.date.slice(5)} · ${pct(g.p_win)} to win</span></td>
+        <td class="num" style="color:var(--win)">${pct(g.p_field_if_win)}</td><td class="num" style="color:var(--upset)">${pct(g.p_field_if_loss)}</td></tr>`; }).join("")
+    : `<tr><td class="muted">No team is between 20% and 80% with a game left.</td></tr>`;
+
+  // every team
+  $("teamlist").innerHTML = [...new Set(T.map((r) => r.team).concat(T.map((r) => r.conference)))].sort().map((t) => `<option value="${t}">`).join("");
+  const table = DataTable($("all"), [
+    { key: "team", label: "Team", sort: (r) => r.team, dir: 1, render: team },
+    { key: "conf", label: "Conference", sort: (r) => r.conference, dir: 1, render: (r) => `<span class="muted">${r.conference}</span>` },
+    { key: "now", label: "Now", num: true, sort: (r) => r.wins_now - r.losses_now, render: (r) => rec(r.wins_now, r.losses_now) },
+    { key: "proj", label: "Projected", num: true, sort: (r) => r.wins, title: "average final regular-season record; 80% range of wins",
+      render: (r) => `${rec(r.wins, r.losses)} <span class="muted">(${Math.round(r.wins_lo)}–${Math.round(r.wins_hi)} W)</span>` },
+    { key: "creg", label: "Conf. title", num: true, sort: (r) => r.p_conf_regular, title: "wins (or shares) the regular-season conference title", render: (r) => pct(r.p_conf_regular) },
+    { key: "ctour", label: "Conf. tourney", num: true, sort: (r) => r.p_conf_tourney, render: (r) => pct(r.p_conf_tourney) },
+    { key: "field", label: "Makes field", num: true, sort: (r) => r.p_field, render: (r) => pct(r.p_field) },
+    { key: "seed", label: "Avg seed", num: true, sort: (r) => r.avg_seed, dir: 1, render: (r) => (r.avg_seed ? r.avg_seed.toFixed(1) : "") },
+    { key: "s16", label: "Sweet 16", num: true, sort: (r) => r.reach["Sweet 16"], render: (r) => pct(r.reach["Sweet 16"]) },
+    { key: "f4", label: "Final Four", num: true, sort: (r) => r.reach["Final Four"], render: (r) => pct(r.reach["Final Four"]) },
+    { key: "champ", label: "Champion", num: true, sort: (r) => r.reach.Champion, render: (r) => `<b>${pct(r.reach.Champion)}</b>` },
+  ], { sortKey: "champ", dir: -1, text: (r) => `${r.team} ${r.conference}` });
+  table.set(T);
+  $("q").oninput = () => table.filter($("q").value);
+
+  // most likely field
+  const field = T.filter((r) => r.avg_seed).sort((a, b) => b.p_field - a.p_field).slice(0, 68).sort((a, b) => a.avg_seed - b.avg_seed);
+  const half = Math.ceil(field.length / 2);
+  const ft = (rows, start) => `<table class="data mini"><tr><th class="num">#</th><th>Team</th><th class="num">Avg seed</th><th class="num">Makes field</th></tr>` +
+    rows.map((r, i) => `<tr><td class="num">${start + i + 1}</td><td>${team(r)}</td><td class="num">${r.avg_seed.toFixed(1)}</td><td class="num">${pct(r.p_field)}</td></tr>`).join("") + `</table>`;
+  $("field").innerHTML = ft(field.slice(0, half), 0) + ft(field.slice(half), half);
+})();
+</script>
+{% endblock %}

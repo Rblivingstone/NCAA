@@ -457,7 +457,9 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
           <div class="mini" style="width:70px;text-align:right;color:${moved > 0 ? "var(--win)" : "var(--upset)"}">${moved > 0 ? "+" : ""}${moved.toFixed(1)}</div></div>`;
       };
       const [a, b] = u.teams;
-      $("update").innerHTML = row(a) + row(b) +
+      const why = u.teams.filter((t) => t.headline).map((t) => `<div class="mini" style="margin-top:4px"><b>${t.team}:</b> ${t.headline}
+        ${t.evidence && t.evidence.length ? `<span class="muted">${t.evidence[0]}.</span>` : ""}</div>`).join("");
+      $("update").innerHTML = row(a) + row(b) + why +
         `<div class="muted mini">Grey: prior before the game · blue: posterior after it (dots: mean, bars: 90% interval; axis ${lo} to ${hi} pts/100, line at 0 = average D1).
         ${u.p_first != null ? `Pre-game the model gave ${a.team} ${fmtPct(u.p_first)}. ` : ""}Each interval narrows because the game is new evidence;
         each mean moves toward what the box score implies. <a href="/game/${u.game_id}?season=${$("season").value}">Open the game →</a></div>`;

@@ -381,6 +381,44 @@ probabilities or team ranking. Game links open the game page.
 
 A live game shows "upset in progress" once the underdog's live chance passes 50%.
 
+## Road to March (`ncaa/projection.py`)
+
+Every night after the update, the worker simulates the rest of the season 1,000 times (`PROJECT_SIMS`). Each
+simulation uses one sample of every team's skills from the current posterior, so the ratings' uncertainty carries
+through. It then plays four stages:
+
+1. **The rest of the regular season,** with home court.
+2. **Every conference tournament:** members seeded by simulated conference record, single elimination on a
+   neutral floor, top seeds getting byes. The Ivy League takes its top four.
+3. **Selection:** conference champions get the automatic bids, and the at-large places go to the best other
+   teams by a résumé score that weighs strength and winning percentage equally. This is a stand-in for the
+   committee.
+4. **The NCAA tournament:** seeded down an S-curve, with a First Four for the four lowest automatic bids and the
+   last four at-large teams.
+
+The **Road to March** page shows each team's projected record, conference regular-season and tournament title
+chances, its chance to make the field, its average seed, and its chance to reach each round up to the national
+title. It also has a championship-odds chart, a bubble watch showing each bubble team's chances if it wins or
+loses its next game, and the most likely field. Each team page gets a Road to March panel: those odds, the seed
+distribution, how far the team goes, and its odds over time from the nightly history.
+
+Cost: 1,000 simulations is about 6 million simulated games. That took 4 minutes and 0.7 GB here; expect roughly
+5–10 minutes on a 2-CPU server. Each run writes `projection.json` and appends to `projection_history.csv`.
+
+## Why did the rating move? (`ncaa/explain.py`)
+
+When a game updates a team, the update also records an explanation in `explanations.jsonl`:
+
+* **The skills behind the change:** each skill's share of the net-rating change, found by moving that skill
+  alone from its pre-game to its post-game value. The shares add up to the total.
+* **The box-score evidence:** for each rate the model tracks, the count it expected given the attempts and both
+  teams' pre-game skills, against what happened. The biggest surprises are the reasons.
+
+For example: *"Rating +2.5. Up most on defending 2-point shooting (+2.2), free-throw shooting (+1.9); down on
+3-point shooting (−1.7). UConn offensive rebounds: 22 of 47 (47%), where the model expected 15.0 (32%)."* These
+explanations appear on the team page, the game page, and the dashboard's latest-updates panel. They start with
+the games folded in after this change; earlier updates didn't keep the skill-level detail needed to explain them.
+
 ## Running it
 
 ```bash
