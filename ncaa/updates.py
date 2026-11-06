@@ -232,8 +232,18 @@ def apply_game(season: int, st: TeamState, base: Posterior, game_id: int, date, 
         if t not in st.teams:
             st.add_team(t, prior_cov)
     before = {t: net_rating(st, base, t) for t in (a, b)}
+    z_before = {t: st.mean[st.index(t)].copy() for t in (a, b)}
     laplace_update(st, base, a, b, home, box_a, box_b, minutes)
     after = {t: net_rating(st, base, t) for t in (a, b)}
+    try:                                         # "Why did the rating move?" (never blocks the update)
+        from . import explain
+
+        g = _game_arrays(box_a, box_b, minutes)
+        expl = explain.explain_update(a, b, z_before[a], st.mean[st.index(a)], z_before[b], st.mean[st.index(b)],
+                                      base, home, g["k"], g["n"], dnets={t: after[t][0] - before[t][0] for t in (a, b)})
+        explain.record(season, game_id, date, expl)
+    except Exception:
+        pass
     st.applied.append(int(game_id))
     rows = [{"game_id": int(game_id), "date": pd.Timestamp(date).isoformat(), "team": t, "opponent": o,
              "pts": box_a["pts"] if t == a else box_b["pts"], "opp_pts": box_b["pts"] if t == a else box_a["pts"],

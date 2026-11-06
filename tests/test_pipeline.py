@@ -913,3 +913,84 @@ def test_results_reach_every_page_before_the_nightly_schedule(tmp_path, monkeypa
     assert len(up) == 1 and up.source.iloc[0] == "nightly box scores" and up.net_after.iloc[0] == 2.5
     pd.concat([pd.DataFrame([row("live feed", 2.0)])] * 2).to_csv(updates_path(2027), index=False)   # an old duplicated log
     assert len(load_updates(2027)) == 1
+
+
+def test_road_to_march_projection_accounting(monkeypatch):
+    """The season projection plays out consistently: 68 in the field, exactly 64 in the round of 64 and one
+    champion per simulation, one tournament champion per conference, and odds that are probabilities."""
+    import numpy as np
+    import pandas as pd
+
+    from ncaa import data, projection
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    post = model.load_posterior(2026)
+    teams = [t for t in post.teams if t != "Non-D1"][:96]
+    conf = {t: 100 + i // 8 for i, t in enumerate(teams)}                    # 12 conferences of 8
+    monkeypatch.setattr(data, "d1_set", lambda s: frozenset(teams))
+    rng = np.random.default_rng(0)
+    rows, gid = [], 0
+    now = pd.Timestamp.now(tz="UTC")
+    for k in range(20):
+        order = rng.permutation(teams)
+        for a, b in zip(order[::2], order[1::2]):
+            gid += 1
+            done = k < 8
+            rows.append({"game_id": gid, "date": now + pd.Timedelta(days=k - 8), "home": a, "away": b, "neutral": False,
+                         "home_conf": conf[a], "away_conf": conf[b], "completed": done, "tournament": False, "no_result": False,
+                         "home_score": int(rng.integers(55, 90)) if done else 0, "away_score": int(rng.integers(55, 90)) if done else 0})
+    out = projection.project(2027, post, pd.DataFrame(rows), n_sims=60, log=lambda *_: None)
+    T = out["teams"]
+    assert len(T) == 96 and out["games_left"] == 12 * 48
+    assert abs(sum(r["p_field"] for r in T) - 68) < 1e-9
+    assert abs(sum(r["reach"]["Round of 64"] for r in T) - 64) < 1e-9 and abs(sum(r["reach"]["First Four"] for r in T) - 8) < 1e-9
+    assert abs(sum(r["reach"]["Champion"] for r in T) - 1) < 1e-9 and abs(sum(r["reach"]["Final Four"] for r in T) - 4) < 1e-9
+    assert abs(sum(r["p_conf_tourney"] for r in T) - 12) < 1e-9 and abs(sum(r["p_conf_regular"] for r in T) - 12) < 1e-9
+    for r in T:
+        assert 0 <= r["reach"]["Champion"] <= r["reach"]["Final Four"] <= r["reach"]["Sweet 16"] <= r["p_field"] <= 1
+        assert r["wins_now"] + r["losses_now"] == 8 and abs(r["wins"] + r["losses"] - 20) < 1e-9
+        assert abs(sum(r["seed_dist"]) - r["p_field"]) < 1e-3
+    best = max(T, key=lambda r: r["reach"]["Champion"])
+    assert best["p_field"] > 0.9 and best["avg_seed"] < 4
+
+
+def test_why_did_the_rating_move(tmp_path, monkeypatch):
+    """Each update's explanation: skill shares that add up to the rating change, the box-score evidence
+    against expectation, and a headline; recorded when the update runs, latest line per game and team."""
+    import json
+    from pathlib import Path
+
+    import numpy as np
+
+    from ncaa import explain, updates
+    from ncaa.live import parse_summary
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior (python -m ncaa build --season 2026)")
+    post = model.load_posterior(2026)
+    final = parse_summary(json.loads((Path(__file__).parent / "fixtures" / "401856600.json").read_text()))
+    a, b = final.teams
+    st = updates.init_state(post, "2026")
+    st.cov = st.cov * 25                                            # a wide prior, so the game moves things
+    za0, zb0 = st.mean[st.index(a)].copy(), st.mean[st.index(b)].copy()
+    updates.laplace_update(st, post, a, b, 0.0, final.box[a], final.box[b])
+    g = updates._game_arrays(final.box[a], final.box[b], 40.0)
+    ex = explain.explain_update(a, b, za0, st.mean[st.index(a)], zb0, st.mean[st.index(b)], post, 0.0, g["k"], g["n"])
+    for t, z0 in ((a, za0), (b, zb0)):
+        shares = explain.skill_shares(z0, st.mean[st.index(t)], post.mu.mean(0))
+        assert abs(sum(s["points"] for s in shares) - ex[t]["dnet"]) < 0.1 * max(1.0, abs(ex[t]["dnet"]))
+        assert ex[t]["headline"].startswith("Rating") and len(ex[t]["evidence"]) == 3
+    assert any("offensive rebounds: 22 of 47" in e for e in ex[a]["evidence"] + ex[b]["evidence"])   # UConn crashed the glass
+
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    explain.record(2027, 7, "2026-11-05", {"Utah": {"opponent": "Towson", "dnet": 1.0, "headline": "old", "evidence": []}})
+    explain.record(2027, 7, "2026-11-05", {"Utah": {"opponent": "Towson", "dnet": 1.5, "headline": "new", "evidence": []}})
+    got = explain.load(2027, team="Utah")
+    assert len(got) == 1 and got[(7, "Utah")]["headline"] == "new"
+    st2 = updates.init_state(post, "2026")
+    updates.apply_game(2027, st2, post, 401856600, "2026-04-07", a, b, 0.0, final.box[a], final.box[b], 40.0,
+                       np.eye(st2.mean.shape[1]), "test")
+    assert {k[1] for k in explain.load(2027, game_id=401856600)} == {a, b}          # recorded by the update itself

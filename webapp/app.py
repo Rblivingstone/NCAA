@@ -813,6 +813,26 @@ def ratings_for(season: int):
     return _ratings(season, _stamp(season))
 
 
+@app.route("/march")
+def march_page():
+    return render_template("march.html", season=SEASON, live_season=LIVE_SEASON, page="march")
+
+
+@app.route("/api/march")
+def api_march():
+    """Road to March: the latest projection of the rest of the season (see ncaa.projection)."""
+    from ncaa import projection
+
+    season = int(request.args.get("season", LIVE_SEASON))
+    out = projection.load(season)
+    if out is None:
+        return jsonify({"season": season, "teams": [], "missing": True})
+    ranks = rank_map(season)
+    for r in out["teams"]:
+        r["rank"] = ranks.get(r["team"])
+    return jsonify(out)
+
+
 @app.route("/rankings")
 def rankings_page():
     return render_template("rankings.html", season=SEASON, live_season=LIVE_SEASON, seasons=SEASONS, page="rankings",
@@ -894,6 +914,25 @@ def _streak_for(season: int, name: str) -> dict | None:
     return {**s, "games_list": games, "slope": lg["slope"], "resid_sd": lg["resid_sd"], "league_teams": lg["n"]}
 
 
+def _march_for(season: int, name: str) -> dict | None:
+    from ncaa import projection
+
+    out = projection.load(season)
+    row = next((r for r in (out or {}).get("teams", []) if r["team"] == name), None)
+    if row is None:
+        return None
+    hist = projection.load_history(season)
+    hist = hist[hist.team == name].sort_values("date").to_dict("records") if len(hist) else []
+    return {**row, "history": hist, "n_sims": out["n_sims"], "updated": out["updated"]}
+
+
+def _explanations_for(season: int, name: str) -> list:
+    from ncaa import explain
+
+    ex = sorted(explain.load(season, team=name).values(), key=lambda e: (e["date"], e["game_id"]), reverse=True)
+    return [{k: e[k] for k in ("game_id", "date", "opponent", "dnet", "headline", "evidence")} for e in ex]
+
+
 @app.route("/api/team")
 def api_team():
     season = int(request.args.get("season", LIVE_SEASON))
@@ -929,7 +968,8 @@ def api_team():
                     "assessment": teams_mod.assessment(profile, styles, rating, tempo),
                     "profile": profile, "styles": styles, "tempo": tempo,
                     "form": teams_mod.form_history(post, name, _end_of_data(season)),
-                    "history": hist, "updates": per_game, "games": games, "streaks": _streak_for(season, name)})
+                    "history": hist, "updates": per_game, "games": games, "streaks": _streak_for(season, name),
+                    "march": _march_for(season, name), "explanations": _explanations_for(season, name)})
 
 
 @app.route("/games")
@@ -1058,6 +1098,11 @@ def api_game():
     if kind == "post" and state_ is not None and state_.box:
         res = tuple(state_.box.get(t, {}).get("pts", 0) for t in (row.home, row.away))
     meta |= game_flags(row.home, row.away, p_pre, rank_map(season), result=res)
+    from ncaa import explain
+
+    ex = explain.load(season, game_id=gid)
+    if ex:
+        meta["explanations"] = {t: {k: e[k] for k in ("dnet", "headline", "evidence")} for (g_, t), e in ex.items()}
     if kind == "live" and view is not None and meta.get("underdog"):
         p_live_dog = float(view["p_win"][0]) if meta["underdog"] == row.home else 1 - float(view["p_win"][0])
         meta["p_underdog_live"] = p_live_dog
@@ -1439,6 +1484,14 @@ def api_dashboard():
                 p_first = float(l.p_home) if l.home == teams_[0]["team"] else 1 - float(l.p_home)
             recent.append({"game_id": int(gid), "date": str(g.date.iloc[0])[:10], "teams": teams_, "p_first": p_first,
                            "source": g.source.iloc[0] if "source" in g else ""})
+        from ncaa import explain
+
+        ex = explain.load(season)
+        for r in recent:
+            for t in r["teams"]:
+                e = ex.get((r["game_id"], t["team"]))
+                if e:
+                    t["headline"], t["evidence"] = e["headline"], e["evidence"]
         out["recent_updates"] = sorted(recent, key=lambda r: r["date"], reverse=True)
         from ncaa import streaks as streaks_mod
 

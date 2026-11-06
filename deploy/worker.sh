@@ -12,6 +12,7 @@ FIT="${BOOTSTRAP_FIT:-vi}"          # vi: ~10 min; nuts: ~1-3 h (exact MCMC)
 NIGHTLY_FIT="${NIGHTLY_FIT:-vi}"
 HOUR="${NIGHTLY_HOUR:-10}"
 WATCH_EVERY="${WATCH_EVERY:-60}"
+PROJECT_SIMS="${PROJECT_SIMS:-1000}"   # Road to March: ~4 min here per 1000 (about 0.7 GB)
 
 log() { echo "[$(date -u +%FT%TZ)] $*"; }
 
@@ -25,6 +26,7 @@ fi
 
 log "catching up the $LIVE season"
 python -m ncaa update --season "$LIVE" --refit none || log "catch-up failed (will retry tonight)"
+python -m ncaa project --season "$LIVE" --project-sims "$PROJECT_SIMS" || log "Road to March projection failed (will retry tonight)"
 
 # Live updates all day; restart the watcher if it ever exits.
 ( while true; do python -m ncaa watch --season "$LIVE" --every "$WATCH_EVERY"; log "watcher exited; restarting"; sleep 30; done ) &
@@ -37,4 +39,6 @@ while true; do
   sleep $((next - now))
   log "nightly update ($NIGHTLY_FIT)"
   python -m ncaa update --season "$LIVE" --refit "$NIGHTLY_FIT" || log "nightly update failed"
+  log "Road to March projection ($PROJECT_SIMS simulations)"
+  python -m ncaa project --season "$LIVE" --project-sims "$PROJECT_SIMS" || log "Road to March projection failed"
 done

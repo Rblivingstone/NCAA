@@ -28,6 +28,7 @@ services:
       NIGHTLY_FIT: ${NIGHTLY_FIT:-vi}
       NIGHTLY_HOUR: ${NIGHTLY_HOUR:-10}
       WATCH_EVERY: ${WATCH_EVERY:-60}
+      PROJECT_SIMS: ${PROJECT_SIMS:-1000}
     volumes:
       - artifacts:/app/artifacts
       - data:/app/data

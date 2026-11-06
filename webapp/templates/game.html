@@ -7,6 +7,7 @@
 </div>
 <p class="lede" id="explain"></p>
 <div id="upset"></div>
+<div id="why"></div>
 <div class="muted" id="note"></div>
 <div id="game"><div class="muted">Loading…</div></div>
 {% endblock %}
@@ -55,6 +56,10 @@
     else if (d.kind === "post") notes.push("This game has no pre-game ledger entry, so the prior shown comes from the current model (for regular-season games of a finished season, that model was fitted on this game too).");
     $("note").textContent = notes.join(" ");
     $("upset").innerHTML = upsetBanner(m, d.kind);
+    $("why").innerHTML = m.explanations ? `<div class="panel" style="margin:8px 0"><b>What this game did to the ratings</b>` +
+      Object.entries(m.explanations).map(([t, e]) => `<div style="margin-top:6px"><b>${t}</b>
+        <span style="color:${e.dnet >= 0 ? "var(--win)" : "var(--upset)"}">${e.headline}</span>
+        ${e.evidence.length ? `<ul class="mini muted" style="margin:2px 0 0 18px; padding:0">${e.evidence.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}</div>`).join("") + `</div>` : "";
     if (!d.model) { $("game").innerHTML = `<div class="muted">One of these teams is not in the model.</div>`; return; }
     LiveGame.render($("game"), d, { mode: d.kind === "live" ? "live" : d.kind });
     clearTimeout(timer);
