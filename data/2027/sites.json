@@ -1,0 +1,126 @@
+{
+ "source": "NCAA site announcements (October 2024; field expanded to 76 in May 2026). Days marked null were not announced when this was written; set them when the schedule is out.",
+ "pods": [
+  {
+   "id": "charlotte",
+   "city": "Charlotte",
+   "state": "NC",
+   "venue": "Spectrum Center",
+   "days": null,
+   "lat": 35.2269,
+   "lon": -80.8433
+  },
+  {
+   "id": "minneapolis",
+   "city": "Minneapolis",
+   "state": "MN",
+   "venue": "Target Center",
+   "days": null,
+   "lat": 45.049582,
+   "lon": -93.246095
+  },
+  {
+   "id": "omaha",
+   "city": "Omaha",
+   "state": "NE",
+   "venue": "CHI Health Center",
+   "days": "thu-sat",
+   "lat": 41.261,
+   "lon": -95.9376
+  },
+  {
+   "id": "fort-worth",
+   "city": "Fort Worth",
+   "state": "TX",
+   "venue": "Dickies Arena",
+   "days": null,
+   "lat": 32.7469,
+   "lon": -97.3268
+  },
+  {
+   "id": "louisville",
+   "city": "Louisville",
+   "state": "KY",
+   "venue": "KFC Yum! Center",
+   "days": null,
+   "lat": 38.2435,
+   "lon": -85.7639
+  },
+  {
+   "id": "pittsburgh",
+   "city": "Pittsburgh",
+   "state": "PA",
+   "venue": "PPG Paints Arena",
+   "days": "thu-sat",
+   "lat": 40.474536,
+   "lon": -79.952524
+  },
+  {
+   "id": "sacramento",
+   "city": "Sacramento",
+   "state": "CA",
+   "venue": "Golden 1 Center",
+   "days": null,
+   "lat": 38.5816,
+   "lon": -121.4933
+  },
+  {
+   "id": "spokane",
+   "city": "Spokane",
+   "state": "WA",
+   "venue": "Spokane Veterans Memorial Arena",
+   "days": null,
+   "lat": 47.666485,
+   "lon": -117.436527
+  }
+ ],
+ "regionals": [
+  {
+   "id": "east",
+   "region": "East",
+   "city": "New York",
+   "state": "NY",
+   "venue": "Madison Square Garden",
+   "days": null,
+   "lat": 40.74838,
+   "lon": -73.996705
+  },
+  {
+   "id": "midwest",
+   "region": "Midwest",
+   "city": "Kansas City",
+   "state": "MO",
+   "venue": "T-Mobile Center",
+   "days": "fri-sun",
+   "lat": 39.163189,
+   "lon": -94.569882
+  },
+  {
+   "id": "south",
+   "region": "South",
+   "city": "San Antonio",
+   "state": "TX",
+   "venue": null,
+   "days": null,
+   "lat": 29.468525,
+   "lon": -98.526352
+  },
+  {
+   "id": "west",
+   "region": "West",
+   "city": "Los Angeles",
+   "state": "CA",
+   "venue": null,
+   "days": null,
+   "lat": 33.973093,
+   "lon": -118.247896
+  }
+ ],
+ "final_four": {
+  "city": "Detroit",
+  "state": "MI",
+  "venue": "Ford Field",
+  "lat": 42.347429,
+  "lon": -83.060398
+ }
+}

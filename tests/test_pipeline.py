@@ -916,7 +916,7 @@ def test_results_reach_every_page_before_the_nightly_schedule(tmp_path, monkeypa
 
 
 def test_road_to_march_projection_accounting(monkeypatch):
-    """The season projection plays out consistently: 68 in the field, exactly 64 in the round of 64 and one
+    """The season projection plays out consistently: the whole field, exactly 64 in the round of 64 and one
     champion per simulation, one tournament champion per conference, and odds that are probabilities."""
     import numpy as np
     import pandas as pd
@@ -941,11 +941,14 @@ def test_road_to_march_projection_accounting(monkeypatch):
             rows.append({"game_id": gid, "date": now + pd.Timedelta(days=k - 8), "home": a, "away": b, "neutral": False,
                          "home_conf": conf[a], "away_conf": conf[b], "completed": done, "tournament": False, "no_result": False,
                          "home_score": int(rng.integers(55, 90)) if done else 0, "away_score": int(rng.integers(55, 90)) if done else 0})
-    out = projection.project(2027, post, pd.DataFrame(rows), n_sims=60, log=lambda *_: None)
-    T = out["teams"]
+    for season, field, opening in ((2026, 68, 8), (2027, 76, 24)):        # 2027 on: 76 teams, a 12-game Opening Round
+        out = projection.project(season, post, pd.DataFrame(rows), n_sims=60, log=lambda *_: None)
+        T = out["teams"]
+        assert out["field"] == field
+        assert abs(sum(r["p_field"] for r in T) - field) < 1e-9
+        assert abs(sum(r["reach"]["Round of 64"] for r in T) - 64) < 1e-9
+        assert abs(sum(r["reach"]["First Four"] for r in T) - opening) < 1e-9
     assert len(T) == 96 and out["games_left"] == 12 * 48
-    assert abs(sum(r["p_field"] for r in T) - 68) < 1e-9
-    assert abs(sum(r["reach"]["Round of 64"] for r in T) - 64) < 1e-9 and abs(sum(r["reach"]["First Four"] for r in T) - 8) < 1e-9
     assert abs(sum(r["reach"]["Champion"] for r in T) - 1) < 1e-9 and abs(sum(r["reach"]["Final Four"] for r in T) - 4) < 1e-9
     assert abs(sum(r["p_conf_tourney"] for r in T) - 12) < 1e-9 and abs(sum(r["p_conf_regular"] for r in T) - 12) < 1e-9
     for r in T:
@@ -994,3 +997,120 @@ def test_why_did_the_rating_move(tmp_path, monkeypatch):
     updates.apply_game(2027, st2, post, 401856600, "2026-04-07", a, b, 0.0, final.box[a], final.box[b], 40.0,
                        np.eye(st2.mean.shape[1]), "test")
     assert {k[1] for k in explain.load(2027, game_id=401856600)} == {a, b}          # recorded by the update itself
+
+
+def test_committee_sheets():
+    """Team-sheet numbers: wins above bubble rise with wins and fall with losses to weak teams, quadrant
+    counts add up to the games, and the score ranks a team that beat everyone first."""
+    import numpy as np
+
+    from ncaa import committee
+
+    rng = np.random.default_rng(1)
+    T, n = 40, 3
+    eff = np.sort(rng.normal(0, 8, T))[::-1][None].repeat(n, 0).copy()        # team 0 strongest
+    a, b = np.array([i for i in range(T) for j in range(T) if i < j]), np.array([j for i in range(T) for j in range(T) if i < j])
+    home = rng.choice([-1, 0, 1], len(a))
+    won = np.ones(len(a), dtype=bool)                                         # the better-rated team always wins
+    won[(a == 30) & (b == 31)] = False                                        # but 30 loses to 31 at ...
+    ex = {"sim": np.array([0]), "a": np.array([0]), "b": np.array([1]), "a_won": np.array([True])}  # one extra game, sim 0
+    sh = committee.sheets(eff, {"a": a, "b": b, "home": home, "a_won": won}, ex, bubble_rank=10)
+    assert sh["wab"][1, 0] > sh["wab"][1, 5] > sh["wab"][1, 20] > sh["wab"][1, 39]
+    assert sh["games"][0, 0] == T and sh["games"][1, 0] == T - 1
+    tot = sh["q1w"] + sh["q1l"] + sh["q2w"] + sh["q2l"]
+    q34 = sh["games"] - tot                                                    # games in quadrants 3-4
+    assert (sh["q34l"] <= q34 + 1e-9).all() and (tot <= sh["games"] + 1e-9).all()
+    assert sh["q1l"][:, 0].sum() == 0 and (sh["net_rank"][:, 0] == 1).all()
+    assert (np.argmax(sh["score"], axis=1) == 0).all()
+    assert committee.earliest_round(0, 1) == 1 and committee.earliest_round(0, 3) == 2
+    assert committee.earliest_round(0, 7) == 3 and committee.earliest_round(0, 15) == 4
+    assert [committee.required_round(m) for m in (0, 1, 2, 3, 5)] == [2, 2, 3, 4, 4]
+
+
+def test_bracket_rules():
+    """The bracket keeps the committee's principles: a conference's top four in different regions, conference
+    teams kept apart by how often they met, No. 1 seeds at the closest regional, no team at its own arena, no
+    Sunday site for BYU, and a one-line move when nothing else works."""
+    import itertools
+
+    import numpy as np
+
+    from ncaa import committee
+
+    T = 64
+    conf = np.array([i % 8 for i in range(T)])                                # 8 conferences, 8 teams each
+    regionals = [{"id": f"r{i}", "lat": 40.0, "lon": lon, "days": "fri-sun" if i == 3 else "thu-sat"}
+                 for i, lon in enumerate((-75, -88, -100, -120))]
+    pods = [{"id": f"p{i}", "lat": 35.0 + (i % 2) * 8, "lon": -75 - 6 * i, "days": "fri-sun" if i % 2 else "thu-sat"}
+            for i in range(8)]
+    loc = {t: (38.0 + (t % 5), -72 - (t * 7) % 50) for t in range(T)}
+    loc[3] = (40.0, -121)                                                     # a No. 1 seed in the far west
+    blocked = {0: {"p0", "r0"}}
+    sunday = {9}
+    geo = {"loc": loc, "regionals": regionals, "pods": pods, "blocked": blocked}
+    b = committee.Bracketer(conf, geo, sunday=sunday)
+    entries = [[t] for t in range(T)]
+    meets = {(0, 8): 3, (1, 9): 2, (2, 10): 1, (16, 56): 3}
+    meet = lambda x, y: meets.get((min(x, y), max(x, y)), 0)
+    placed, info = b.place(entries, meet)
+    assert info["conflicts"] == 0
+    reg = {e[0]: p for e, p in zip(entries, placed)}
+    # every region gets one team per line, and seeds sit where the bracket puts them
+    for line in range(16):
+        assert sorted(reg[t][0] for t in range(4 * line, 4 * line + 4) if reg[t][2] == line + 1) == \
+            sorted(set(reg[t][0] for t in range(4 * line, 4 * line + 4) if reg[t][2] == line + 1))
+    assert sum(r[2] for r in placed) == 4 * sum(range(1, 17))
+    # protected seeds: a conference's top four on lines 1-4 in four different regions
+    prot = [t for t in range(T) if reg[t][2] <= 4]
+    for c in set(conf[prot]):
+        top = sorted([t for t in prot if conf[t] == c], key=lambda t: t)[:4]
+        assert len({reg[t][0] for t in top}) == len(top)
+    # same-conference meetings
+    for x, y in itertools.combinations(range(T), 2):
+        if conf[x] == conf[y] and reg[x][0] == reg[y][0]:
+            assert committee.earliest_round(reg[x][1], reg[y][1]) >= committee.required_round(meet(x, y))
+    # geography: the far-western No. 1 seed gets the western regional; nobody at a blocked site; BYU off Sundays
+    assert reg[3][0] == 3
+    assert reg[0][0] != 0 and info["pod_site"][reg[0][0]][reg[0][1] // 4] != 0
+    r9 = reg[9][0]
+    assert regionals[info["reg_site"][r9]]["days"] != "fri-sun"
+    pod9 = info["pod_site"][r9][reg[9][1] // 4]
+    assert pod9 is None or pods[pod9]["days"] != "fri-sun"
+    # Final Four: best No. 1 seed's region against the fourth
+    ones = sorted(range(4), key=lambda r: min(t for t in range(4) if reg[t][0] == r))
+    assert info["region_order"] == [ones[0], ones[3], ones[1], ones[2]]
+    # a line where no region satisfies the rules: every 5 seed and every 12 seed from one conference, all having
+    # met three times (5 v 12 meet in the first round, and any 12 shares a half with a 5) -> moved or reported
+    conf2 = np.arange(T) + 100
+    group = [16, 17, 18, 19, 44, 45, 46, 47]
+    conf2[group] = 7
+    meets2 = {(min(x, y), max(x, y)): 3 for x, y in itertools.combinations(group, 2)}
+    placed2, info2 = committee.Bracketer(conf2).place(entries, lambda x, y: meets2.get((min(x, y), max(x, y)), 0))
+    assert info2["moves"] + info2["conflicts"] > 0
+    assert sorted(r[2] for r in placed2) == sorted(r[2] for r in placed)       # still four teams on every line
+
+
+def test_geo_load(tmp_path, monkeypatch):
+    """Geography: team coordinates, and sites a team may not play at (its own arena, more than three games)."""
+    import json
+
+    import pandas as pd
+
+    from ncaa import data, geo
+
+    d = tmp_path / "2030"; d.mkdir()
+    monkeypatch.setattr(data, "DATA_DIR", tmp_path)
+    pd.DataFrame([{"team": "Louisville", "venue": "KFC Yum! Center", "city": "Louisville", "state": "KY", "lat": 38.25, "lon": -85.76},
+                  {"team": "Kentucky", "venue": "Rupp Arena", "city": "Lexington", "state": "KY", "lat": 38.05, "lon": -84.5}]
+                 ).to_csv(d / "geo_teams.csv", index=False)
+    pd.DataFrame([{"team": "Louisville", "venue": "KFC YUM! Center", "city": "Louisville", "state": "KY", "games": 16},
+                  {"team": "Kentucky", "venue": "KFC YUM! Center", "city": "Louisville", "state": "KY", "games": 1}]
+                 ).to_csv(d / "geo_venues.csv", index=False)
+    site = lambda i, **k: {"id": f"s{i}", "city": "X", "state": "ZZ", "venue": None, "days": None, "lat": 40.0, "lon": -90.0, **k}
+    pods = [site(0, city="Louisville", state="KY", venue="KFC Yum! Center")] + [site(i) for i in range(1, 8)]
+    regs = [site(10 + i, region=f"R{i}") for i in range(4)]
+    (d / "sites.json").write_text(json.dumps({"pods": pods, "regionals": regs}))
+    g = geo.load(2030)
+    assert g["blocked"] == {"Louisville": {"s0"}} and g["loc"]["Kentucky"] == (38.05, -84.5)
+    assert geo.locate({("saint louis", "MO"): (1, 2)}, "St. Louis", "MO") == (1, 2)
+    assert geo.locate(geo.cities() if (geo.GEO_DIR / "us_cities.csv").exists() else {("storrs", "CT"): (41.808, -72.25)}, "Storrs", "CT")
