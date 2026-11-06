@@ -32,13 +32,14 @@ history against the prior afterwards.</p>
     { key: "score", label: "Score", num: true, render: (g) => {
         const p = prob(g), upset = g.completed && p != null && (p > 0.5) !== (g.score[0] > g.score[1]);
         return g.completed ? `<span style="color:${upset ? "var(--upset)" : "inherit"}">${g.score[1]}–${g.score[0]}</span>`
+          : g.no_result ? `<span class="muted" title="Well past tip-off with no result: probably postponed or cancelled">no result</span>`
           : (g.pred_score ? `<span class="muted">proj. ${g.pred_score[1]}–${g.pred_score[0]}</span>` : "");
       } },
     { key: "p", label: "P(home wins)", num: true, sort: prob, render: (g) => prob(g) != null ? fmtPct(prob(g)) + (g.completed ? ' <span class="muted">pre-game</span>' : "") : "" },
     { key: "upset", label: "Upset", sort: (g) => g.p_underdog, title: "lower-ranked team's chance; flagged at 35%+", render: (g) => upsetBadge(g, g.completed) },
     { key: "u", label: "Unusualness", num: true, sort: (g) => g.unusualness, dir: 1,
       render: (g) => g.unusualness != null ? `<span style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness.toFixed(3)}</span>` : "" },
-    { key: "go", label: "", render: (g) => `<a href="/game/${g.game_id}?season=${season()}">${g.completed ? "update history" : "forecast"} →</a>` },
+    { key: "go", label: "", render: (g) => `<a href="/game/${g.game_id}?season=${season()}">${g.completed ? "update history" : g.no_result ? "details" : "forecast"} →</a>` },
   ], { sortKey: "date", dir: 1, text: (g) => `${g.home} ${g.away}`, empty: "No games on this date." });
   function prob(g) { return g.completed ? g.p_home_pregame : g.p_home; }
 

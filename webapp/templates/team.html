@@ -165,7 +165,7 @@
         const res = g.score ? (() => { const [a, b] = home ? g.score : [g.score[1], g.score[0]]; return `${a > b ? "W" : "L"} ${a}–${b}`; })() : "";
         return `<tr><td>${new Date(g.date).toLocaleDateString([], { month: "short", day: "numeric" })}</td>
           <td><a href="/game/${g.game_id}?season=${d.season}">${home ? "vs" : g.neutral ? "vs" : "@"} ${opp}</a>${g.neutral ? ' <span class="muted">(neutral)</span>' : ""}</td>
-          <td class="num">${res || '<span class="muted">upcoming</span>'}</td><td class="num">${p != null ? fmtPct(p) : ""}</td>
+          <td class="num">${res || (g.no_result ? '<span class="muted" title="Well past tip-off with no result: probably postponed or cancelled">no result</span>' : '<span class="muted">upcoming</span>')}</td><td class="num">${p != null ? fmtPct(p) : ""}</td>
           <td class="num" style="color:${g.unusualness < 0.05 ? "var(--upset)" : "inherit"}">${g.unusualness != null ? g.unusualness.toFixed(3) : ""}</td></tr>`;
       }).join("") + `</table>`;
   }
