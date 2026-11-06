@@ -1,0 +1,119 @@
+{
+ "source": "read from the tournament's games",
+ "pods": [
+  {
+   "id": "tampa",
+   "city": "Tampa",
+   "state": "FL",
+   "venue": "Benchmark International Arena",
+   "days": "fri-sun",
+   "lat": 28.0879,
+   "lon": -82.4593
+  },
+  {
+   "id": "greenville",
+   "city": "Greenville",
+   "state": "SC",
+   "venue": "Bon Secours Wellness Arena",
+   "days": "thu-sat",
+   "lat": 34.847165,
+   "lon": -82.406049
+  },
+  {
+   "id": "st-louis",
+   "city": "St. Louis",
+   "state": "MO",
+   "venue": "Enterprise Center",
+   "days": "fri-sun",
+   "lat": 38.642574,
+   "lon": -90.324189
+  },
+  {
+   "id": "buffalo",
+   "city": "Buffalo",
+   "state": "NY",
+   "venue": "KeyBank Center",
+   "days": "thu-sat",
+   "lat": 42.896659,
+   "lon": -78.884575
+  },
+  {
+   "id": "portland",
+   "city": "Portland",
+   "state": "OR",
+   "venue": "Moda Center",
+   "days": "thu-sat",
+   "lat": 45.442919,
+   "lon": -122.615092
+  },
+  {
+   "id": "oklahoma-city",
+   "city": "Oklahoma City",
+   "state": "OK",
+   "venue": "Paycom Center",
+   "days": "thu-sat",
+   "lat": 35.3337,
+   "lon": -97.4922
+  },
+  {
+   "id": "san-diego",
+   "city": "San Diego",
+   "state": "CA",
+   "venue": "Viejas Arena",
+   "days": "fri-sun",
+   "lat": 32.71852,
+   "lon": -117.159316
+  },
+  {
+   "id": "philadelphia",
+   "city": "Philadelphia",
+   "state": "PA",
+   "venue": "Xfinity Mobile Arena",
+   "days": "fri-sun",
+   "lat": 39.864998,
+   "lon": -75.275196
+  }
+ ],
+ "regionals": [
+  {
+   "id": "east",
+   "region": "East",
+   "city": "Washington",
+   "state": "DC",
+   "venue": "Capital One Arena",
+   "days": "fri-sun",
+   "lat": 38.912217,
+   "lon": -77.017691
+  },
+  {
+   "id": "west",
+   "region": "West",
+   "city": "San Jose",
+   "state": "CA",
+   "venue": "SAP Center at San Jose",
+   "days": "thu-sat",
+   "lat": 37.3894,
+   "lon": -121.8868
+  },
+  {
+   "id": "south",
+   "region": "South",
+   "city": "Houston",
+   "state": "TX",
+   "venue": "Toyota Center (Houston)",
+   "days": "thu-sat",
+   "lat": 29.596156,
+   "lon": -95.458709
+  },
+  {
+   "id": "midwest",
+   "region": "Midwest",
+   "city": "Chicago",
+   "state": "IL",
+   "venue": "United Center",
+   "days": "fri-sun",
+   "lat": 41.885847,
+   "lon": -87.618123
+  }
+ ]
+}

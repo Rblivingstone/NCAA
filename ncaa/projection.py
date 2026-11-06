@@ -7,11 +7,14 @@ ratings carries through) and then plays, in order:
 2. **conference tournaments**: every conference's members seeded by simulated conference record, single
    elimination on a neutral floor, top seeds getting byes up to the next power of two (the Ivy League takes its
    top four). Real formats vary a little; this is the common shape;
-3. **selection**: each conference tournament champion gets the automatic bid; the remaining at-large places go
-   to the best other teams by a résumé score that weighs the team's strength in that simulation and its
-   simulated winning percentage equally (a stand-in for the committee, which can't be modelled exactly);
-4. **the NCAA tournament**: 68 teams, seeded 1-16 down an S-curve by the same score, four First Four games (the
-   four lowest automatic bids and the last four at-large teams), then six rounds on neutral floors.
+3. **selection**: each conference tournament champion gets the automatic bid; the at-large places go down a
+   committee score built from each simulated season's team sheet (wins above bubble, a NET-style ranking,
+   quadrant records: see ``ncaa.committee``);
+4. **the NCAA tournament**: 68 teams through 2026 (a four-game First Four), 76 from 2027 (a twelve-game Opening
+   Round of the lowest automatic bids and the last at-large teams). The seed list follows the committee score and
+   the bracket follows the committee's principles: protected seeds near home, conference separation, no team at
+   its own arena, BYU off Sundays, one-line moves when the rules can't otherwise be met (``ncaa.committee``, with
+   sites and team locations from ``ncaa.geo``). Then six rounds on neutral floors.
 
 Every game is a full simulated game from the model, the same simulator the rest of the app uses; only the
 winner is kept. The result is, for every Division I team: projected record, conference titles, chance of making
@@ -25,11 +28,10 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import data, model
+from . import committee, data, geo, model
 from .simulate import expected_efficiency, simulate_games
 
 ROUNDS = ["First Four", "Round of 64", "Round of 32", "Sweet 16", "Elite 8", "Final Four", "Final", "Champion"]
-FIELD, AUTO_BIDS_PLAYIN, ATLARGE_PLAYIN = 68, 4, 4
 BATCH = 200_000                              # simulated games held in memory at once (~0.4 GB)
 SHORT_TOURNEY = {12: 4}                      # conference id -> teams in its tournament (Ivy League: top four)
 
@@ -41,8 +43,13 @@ CONFERENCES = {1: "America East", 2: "ACC", 3: "Atlantic 10", 4: "Big East", 5: 
                27: "Sun Belt", 29: "West Coast", 30: "WAC", 43: "Mountain West", 44: "Mountain West",
                45: "Horizon", 46: "ASUN", 49: "Summit", 62: "American"}
 
-# Positions of seeds 1..16 in a 16-team region, top to bottom: 1v16, 8v9, 5v12, 4v13, 6v11, 3v14, 7v10, 2v15.
-REGION_ORDER = [1, 16, 8, 9, 5, 12, 4, 13, 6, 11, 3, 14, 7, 10, 2, 15]
+
+def field_format(season: int) -> dict:
+    """Field size and opening round: 68 teams with a First Four (four lowest automatic bids, last four at-large)
+    through 2026; 76 from 2027, with a twelve-game Opening Round (twelve of each)."""
+    if season >= 2027:
+        return {"field": 76, "auto_pi": 12, "atl_pi": 12, "opening": "Opening Round"}
+    return {"field": 68, "auto_pi": 4, "atl_pi": 4, "opening": "First Four"}
 
 
 def conference_name(cid) -> str:
@@ -63,6 +70,7 @@ class _Sim:
 
     def __init__(self, post, draws, rng):
         self.post, self.draws, self.rng, self.games = post, draws, rng, 0
+        self.record = None                     # a list to keep (sim, a, b, a_won) of every game played, when set
 
     def play(self, sim, a, b, home=None) -> np.ndarray:
         """Winner flags (True = ``a``) for games between ``a`` and ``b`` in simulations ``sim``."""
@@ -74,6 +82,8 @@ class _Sim:
             res = simulate_games(self.post, self.draws[sim[e]], a[e], b[e], self.rng, home=h[e], full_box=False)
             out[e] = res["a_wins"]
         self.games += len(a)
+        if self.record is not None:
+            self.record.append((sim, a, b, out))
         return out
 
 
@@ -169,6 +179,7 @@ def project(season: int, post, sched: pd.DataFrame, n_sims: int = 1000, seed: in
         by_conf.setdefault(c, []).append(col[t])
     reg_title = np.zeros(T); tourney_title = np.zeros(T)
     auto = {}
+    sim.record = []
     for c, members in by_conf.items():
         members = np.array(members)
         order = members[np.argsort(-cpct[:, members], axis=1)]          # n_sims x m, best first
@@ -184,19 +195,61 @@ def project(season: int, post, sched: pd.DataFrame, n_sims: int = 1000, seed: in
         champ_col = np.array([to_col[int(x)] for x in champ])
         np.add.at(tourney_title, champ_col, 1)
         auto[c] = champ_col
+
+    recorded, sim.record = sim.record, None
     log(f"conference tournaments: {len(by_conf)} conferences ({time.time() - t0:.0f}s)")
 
-    # --- selection and seeding
+    # --- the committee's team sheets: every Division I v Division I game, played or simulated
+    to_col_arr = np.full(len(post.teams), -1); to_col_arr[pidx] = np.arange(T)
+    dd = done[done.home.isin(col) & done.away.isin(col)]
+    lmask = (left.home.isin(col) & left.away.isin(col)).to_numpy()
+    ll = left[lmask]
+    sh_a = np.r_[dd.home.map(col).to_numpy(), ll.home.map(col).to_numpy()].astype(int)
+    sh_b = np.r_[dd.away.map(col).to_numpy(), ll.away.map(col).to_numpy()].astype(int)
+    sh_h = np.r_[np.where(dd.neutral.astype(bool), 0, 1), np.where(ll.neutral.astype(bool), 0, 1)]
+    sh_w = np.concatenate([np.broadcast_to((dd.home_score > dd.away_score).to_numpy(), (n_sims, len(dd))),
+                           home_won[:, lmask]], axis=1)
+    if recorded:
+        ex = [np.concatenate(x) for x in zip(*recorded)]
+        ex = {"sim": ex[0], "a": to_col_arr[ex[1]], "b": to_col_arr[ex[2]], "a_won": ex[3]}
+    else:
+        ex = {k: np.zeros(0, dtype=int) for k in ("sim", "a", "b", "a_won")}
+    fmt = field_format(season)
+    n_auto = len(auto)
+    n_at = fmt["field"] - n_auto
     net = _net(post, draws)[:, pidx]                                    # n_sims x T
-    pct = wins / np.maximum(games, 1)
-    zs = lambda x: (x - x.mean(1, keepdims=True)) / (x.std(1, keepdims=True) + 1e-9)
-    score = zs(net) + zs(pct)
+    sheet = committee.sheets(net, {"a": sh_a, "b": sh_b, "home": sh_h, "a_won": sh_w}, ex, bubble_rank=n_at + 9)
+    score = sheet["score"]
+    # how often each pair of teams has met (for the conference rules): the schedule, plus each simulation's
+    # conference tournament
+    base_meet = {}
+    for x, y in zip(sh_a, sh_b):
+        k = (min(x, y), max(x, y)); base_meet[k] = base_meet.get(k, 0) + 1
+    ct_meet = [dict() for _ in range(n_sims)]
+    for sm, x, y in zip(ex["sim"].tolist(), ex["a"].tolist(), ex["b"].tolist()):
+        k = (min(x, y), max(x, y)); ct_meet[sm][k] = ct_meet[sm].get(k, 0) + 1
+    log(f"team sheets ({time.time() - t0:.0f}s)")
+
+    # --- selection, the seed list and the bracket
+    gdat = geo.load(season)
+    conf_arr = np.array([conf.get(t, -1) for t in d1])
+    geo_cols = None
+    if gdat:
+        geo_cols = {"loc": {col[t]: v for t, v in gdat["loc"].items() if t in col},
+                    "regionals": gdat["sites"]["regionals"], "pods": gdat["sites"]["pods"],
+                    "blocked": {col[t]: v for t, v in gdat["blocked"].items() if t in col}}
+    bracketer = committee.Bracketer(conf_arr, geo_cols, sunday={col[t] for t in committee.SUNDAY_RESTRICTED if t in col})
+    region_names = [r.get("region", f"Region {i + 1}") for i, r in enumerate(gdat["sites"]["regionals"])] if gdat \
+        else [f"Region {i + 1}" for i in range(4)]
+    pod_names = [f"{p_['city']}, {p_['state']}" for p_ in gdat["sites"]["pods"]] if gdat else []
     autos = np.stack(list(auto.values()), axis=1) if auto else np.zeros((n_sims, 0), dtype=int)
-    n_auto = autos.shape[1]
-    n_at = FIELD - n_auto
     make = np.zeros(T); seeds = np.zeros((T, 16)); reach = np.zeros((T, len(ROUNDS)))
     made = np.zeros((n_sims, T), dtype=bool)
-    field_rows = []
+    region_ct = np.zeros((T, 4)); pod_ct = np.zeros((T, max(1, len(pod_names))))
+    moves = conflicts = 0
+    slots = np.full((n_sims, 64), -1)
+    pa = np.full((n_sims, fmt["field"] - 64), -1); pb = pa.copy()
+    pi_slot = np.zeros_like(pa)
     for s in range(n_sims):
         is_auto = np.zeros(T, dtype=bool); is_auto[autos[s]] = True
         others = np.flatnonzero(~is_auto)
@@ -204,36 +257,47 @@ def project(season: int, post, sched: pd.DataFrame, n_sims: int = 1000, seed: in
         field = np.r_[autos[s], atl]
         make[field] += 1
         made[s, field] = True
-        # First Four: the four lowest automatic bids and the last four at-large teams, paired off.
-        low_auto = autos[s][np.argsort(score[s, autos[s]])][:AUTO_BIDS_PLAYIN]
-        last_atl = atl[-ATLARGE_PLAYIN:]
-        playin = [(low_auto[0], low_auto[1]), (low_auto[2], low_auto[3]), (last_atl[0], last_atl[1]), (last_atl[2], last_atl[3])]
+        # Opening round: the lowest automatic bids and the last at-large teams, each paired with its neighbour on
+        # the seed list
+        # (always field - 64 pairs, so 64 entries: a short supply of automatic bids is made up from the at-large)
+        k_auto = min(fmt["auto_pi"], len(autos[s]) // 2 * 2)
+        k_atl = 2 * (fmt["field"] - 64) - k_auto
+        low_auto = autos[s][np.argsort(-score[s, autos[s]])][len(autos[s]) - k_auto:]
+        last_atl = atl[len(atl) - k_atl:]
+        pairs = [(low_auto[i], low_auto[i + 1]) for i in range(0, len(low_auto), 2)] + \
+                [(last_atl[i], last_atl[i + 1]) for i in range(0, len(last_atl), 2)]
         in_pi = set(np.r_[low_auto, last_atl].tolist())
-        entries = [(score[s, t], [t]) for t in field if t not in in_pi] + [(max(score[s, a], score[s, b]), [a, b]) for a, b in playin]
+        entries = [(score[s, t], [int(t)]) for t in field if t not in in_pi] + \
+                  [(max(score[s, a], score[s, b]), [int(a), int(b)]) for a, b in pairs]
         entries.sort(key=lambda e: -e[0])
-        field_rows.append(entries)
-    # play the First Four across all simulations at once
-    pi_pos = [[e for e, ent in enumerate(ents) if len(ent[1]) == 2] for ents in field_rows]   # where the 4 pairs sit
-    pa = np.array([[field_rows[s][e][1][0] for e in pi_pos[s]] for s in range(n_sims)])
-    pb = np.array([[field_rows[s][e][1][1] for e in pi_pos[s]] for s in range(n_sims)])
-    r, c = np.nonzero(pa >= 0)
-    pw = sim.play(r, pidx[pa[r, c]], pidx[pb[r, c]]).reshape(pa.shape)
-    slots = np.full((n_sims, 64), -1)
-    for s, ents in enumerate(field_rows):
-        result = {e: bool(pw[s, i]) for i, e in enumerate(pi_pos[s])}   # entry position -> first team won
-        for line in range(16):                                         # S-curve: snake the four regions
-            for reg_i in range(4):
-                e = 4 * line + (reg_i if line % 2 == 0 else 3 - reg_i)
-                _, teams = ents[e]
-                if len(teams) == 2:
-                    t = teams[0] if result[e] else teams[1]
-                    reach[teams, 0] += 1
-                else:
-                    t = teams[0]
-                for tt in teams:
-                    seeds[tt, line] += 1
-                slots[s, reg_i * 16 + REGION_ORDER.index(line + 1)] = pidx[t]
-                reach[t, 1] += 1
+        ents = [e[1] for e in entries]
+        m_s = ct_meet[s]
+        meet = lambda x, y: base_meet.get((min(x, y), max(x, y)), 0) + m_s.get((min(x, y), max(x, y)), 0)
+        placed, info = bracketer.place(ents, meet)
+        moves += info["moves"]; conflicts += info["conflicts"]
+        block = {r: i for i, r in enumerate(info["region_order"])}            # region -> block of 16 slots
+        k = 0
+        for teams, (r, pos, seed) in zip(ents, placed):
+            slot = block[r] * 16 + pos
+            for tt in teams:
+                seeds[tt, seed - 1] += 1
+                region_ct[tt, r] += 1
+                pod = info["pod_site"][r][pos // 4]
+                if pod is not None:
+                    pod_ct[tt, pod] += 1
+            if len(teams) == 2:
+                pa[s, k], pb[s, k], pi_slot[s, k] = teams[0], teams[1], slot
+                reach[teams, 0] += 1
+                k += 1
+            else:
+                slots[s, slot] = pidx[teams[0]]
+    # the opening round, across all simulations at once
+    r_, c_ = np.nonzero(pa >= 0)
+    pw = sim.play(r_, pidx[pa[r_, c_]], pidx[pb[r_, c_]])
+    win_col = np.where(pw, pa[r_, c_], pb[r_, c_])
+    slots[r_, pi_slot[r_, c_]] = pidx[win_col]
+    for v in slots.ravel():
+        reach[to_col[int(v)], 1] += 1
     champ, alive = _knockout(sim, slots)
     for rnd, a in enumerate(alive):                                    # alive after round 1 -> reached round 32, ...
         vals, cnt = np.unique(a[a >= 0], return_counts=True)
@@ -262,6 +326,16 @@ def project(season: int, post, sched: pd.DataFrame, n_sims: int = 1000, seed: in
                "reach": {ROUNDS[i]: float(reach[c, i] / n_sims) for i in range(len(ROUNDS))}}
         sd = seeds[c]
         row["avg_seed"] = float((sd * np.arange(1, 17)).sum() / sd.sum()) if sd.sum() else None
+        row["sheet"] = {"net_rank": float(sheet["net_rank"][:, c].mean()),
+                        "net_rank_lo": float(np.percentile(sheet["net_rank"][:, c], 10)),
+                        "net_rank_hi": float(np.percentile(sheet["net_rank"][:, c], 90)),
+                        "wab": float(sheet["wab"][:, c].mean()), "q1w": float(sheet["q1w"][:, c].mean()),
+                        "q1l": float(sheet["q1l"][:, c].mean()), "q2w": float(sheet["q2w"][:, c].mean()),
+                        "q2l": float(sheet["q2l"][:, c].mean()), "q34l": float(sheet["q34l"][:, c].mean())}
+        if make[c]:
+            row["regions"] = {region_names[i]: float(region_ct[c, i] / make[c]) for i in range(4) if region_ct[c, i]}
+            if pod_names:
+                row["sites"] = {pod_names[i]: float(pod_ct[c, i] / make[c]) for i in np.argsort(-pod_ct[c])[:3] if pod_ct[c, i]}
         if t in nxt:
             j, won = nxt[t]
             g = left.iloc[j]
@@ -273,7 +347,10 @@ def project(season: int, post, sched: pd.DataFrame, n_sims: int = 1000, seed: in
                                 "p_field_if_loss": None if p_l is None else float(p_l)}
         teams.append(row)
     return {"season": season, "n_sims": n_sims, "games_left": G, "games_simulated": sim.games, "seconds": round(elapsed, 1),
-            "updated": pd.Timestamp.now(tz="UTC").isoformat(), "teams": teams}
+            "updated": pd.Timestamp.now(tz="UTC").isoformat(), "field": fmt["field"], "opening_round": fmt["opening"],
+            "geography": bool(gdat), "regions": region_names,
+            "sites_source": gdat["sites"].get("source") if gdat else None,
+            "bracket_moves": moves / n_sims, "bracket_conflicts": conflicts / n_sims, "teams": teams}
 
 
 # --- storage ------------------------------------------------------------------

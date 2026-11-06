@@ -6,6 +6,7 @@
     python -m ncaa build    --season 2026   # all three
     python -m ncaa update   --season 2027   # nightly during a season: fetch, score new games, refit
     python -m ncaa project  --season 2027   # nightly: Road to March, the rest of the season simulated
+    python -m ncaa geo      --season 2027   # team locations and tournament sites, for the bracket rules
     python -m ncaa watch    --season 2027   # all day: track every game from tip-off (win-prob history), update ratings at the final
 """
 from __future__ import annotations
@@ -71,6 +72,12 @@ def cmd_project(a):
     print(f"Road to March: {out['n_sims']} simulations of the rest of {a.season}, {out['games_simulated']:,} games, {out['seconds']:.0f}s")
 
 
+def cmd_geo(a):
+    from . import geo
+
+    geo.build(a.season, force=a.force)
+
+
 def cmd_watch(a):
     from . import season
 
@@ -80,7 +87,7 @@ def cmd_watch(a):
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="ncaa")
-    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update", "watch", "project"])
+    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update", "watch", "project", "geo"])
     p.add_argument("--season", type=int, default=2026)
     p.add_argument("--method", choices=["nuts", "vi"], default="nuts",
                    help="nuts: full MCMC (slow, exact); vi: variational approximation (fast)")
@@ -94,10 +101,11 @@ def main(argv=None):
     p.add_argument("--refit", choices=["vi", "nuts", "none"], default="vi", help="update: how to refit after scoring")
     p.add_argument("--every", type=int, default=60, help="watch: seconds between polls of live games")
     p.add_argument("--project-sims", type=int, default=1000, help="project: simulations of the rest of the season")
+    p.add_argument("--force", action="store_true", help="geo: rewrite sites.json even if it exists (loses hand edits)")
     a = p.parse_args(argv)
     steps = {"fetch": [cmd_fetch], "fit": [cmd_fit], "simulate": [cmd_simulate],
              "build": [cmd_fetch, cmd_fit, cmd_simulate], "update": [cmd_update], "watch": [cmd_watch],
-             "project": [cmd_project]}[a.command]
+             "project": [cmd_project], "geo": [cmd_geo]}[a.command]
     for step in steps:
         step(a)
 

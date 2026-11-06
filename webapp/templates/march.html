@@ -7,7 +7,8 @@
 </div>
 <p class="lede">The rest of the {{ season_label }} season, simulated thousands of times from the current ratings. Each simulation
 plays every remaining game, every conference tournament, picks the NCAA field and plays the tournament, with the
-uncertainty in every team's rating carried through. The odds below are the share of simulations in which each thing
+uncertainty in every team's rating carried through. Selection, seeding and the bracket follow the committee's own
+team-sheet numbers and bracketing rules. The odds below are the share of simulations in which each thing
 happened. They are refreshed every night.</p>
 <div class="stats" id="tiles"></div>
 
@@ -30,8 +31,8 @@ happened. They are refreshed every night.</p>
 </div>
 
 <div class="panel" style="margin-top:12px"><b>Most likely field</b>
-  <div class="muted mini">The 68 teams most likely to be selected, in order of their average projected seed. Real seeding also
-    follows rules this doesn't model (conference separation, geography), so treat lines as approximate.</div>
+  <div class="muted mini" id="fieldnote">The teams most likely to be selected, in order of their average projected seed, with the
+    region and first-round site each most often lands in.</div>
   <div id="field" class="cols2" style="margin-top:6px"></div></div>
 
 <div class="panel" style="margin-top:12px"><b>How it works, and what it simplifies</b>
@@ -41,11 +42,40 @@ happened. They are refreshed every night.</p>
       appropriately wide odds.</li>
     <li>Conference tournaments: every member, seeded by simulated conference record, single elimination on a neutral floor,
       top seeds getting byes (the Ivy League takes its top four). Real formats vary a little.</li>
-    <li>Selection: conference tournament champions get the automatic bids. The remaining at-large places go to the best other
-      teams by a résumé score that weighs strength and winning percentage equally. That's a stand-in for the selection
-      committee, which can't be modelled exactly.</li>
-    <li>Seeding: down an S-curve by the same score, with the First Four for the four lowest automatic bids and the last four
-      at-large teams. Conference-separation and geographic rules are not modelled.</li>
+    <li>Team sheets: in every simulation each team gets the numbers the committee reads. They're built from games between
+      Division I teams only, as on the real sheets:
+      <ul style="margin:2px 0 0 16px; padding:0">
+        <li><i>strength</i>: the model's rating;</li>
+        <li><i>wins above bubble</i>: each win or loss against the chance a bubble-quality team would have won that game, at
+          that site;</li>
+        <li><i>a NET-style ranking</i>: half strength, half results;</li>
+        <li><i>quadrant records</i> by opponent ranking and site (Quadrant 1 is home against the top 30, neutral against the
+          top 50, away against the top 75).</li>
+      </ul></li>
+    <li>Selection: conference tournament champions get the automatic bids. The at-large places go down a committee score,
+      the seed list follows the same score, and both line up with the committee's own sheets:
+      <ul style="margin:2px 0 0 16px; padding:0">
+        <li>the score is mostly wins above bubble, then the NET-style ranking, then Quadrant 1 wins, minus Quadrant 3–4
+          losses;</li>
+        <li>on the real 2026 field it picks 35 of the 37 at-large teams, where strength and record alone picked 32.</li>
+      </ul></li>
+    <li>The field: 76 teams from 2027, the expanded format. The Opening Round pairs the twelve lowest automatic bids and the
+      twelve last at-large teams with their neighbours on the seed list.</li>
+    <li>The bracket follows the committee's published principles:
+      <ul style="margin:2px 0 0 16px; padding:0">
+        <li>the top four seed lines go to the regional and first-round site nearest campus, in seed-list order, with the
+          regions kept in balance;</li>
+        <li>a conference's top four teams on those lines go to different regions;</li>
+        <li>conference teams that met three times can't meet before the regional final, twice not before the regional
+          semifinal, otherwise not in the first round;</li>
+        <li>no team plays at an arena where it played more than three regular-season games;</li>
+        <li>BYU only goes to Thursday–Saturday sites;</li>
+        <li>a team moves one seed line when nothing else satisfies the rules (in the few simulations where even that
+          fails, the fewest rules are broken);</li>
+        <li>the Final Four pairs the regions of the No. 1 seeds 1 v 4 and 2 v 3.</li>
+      </ul>
+      Placing the real 2026 seed list this way puts 12 of the 16 top-four seeds in their actual region and 13 at their
+      actual first-round site.</li>
   </ul></div>
 {% endblock %}
 {% block scripts %}
@@ -106,10 +136,16 @@ happened. They are refreshed every night.</p>
     { key: "conf", label: "Conference", sort: (r) => r.conference, dir: 1, render: (r) => `<span class="muted">${r.conference}</span>` },
     { key: "now", label: "Now", num: true, sort: (r) => r.wins_now - r.losses_now, render: (r) => rec(r.wins_now, r.losses_now) },
     { key: "proj", label: "Projected", num: true, sort: (r) => r.wins, title: "average final regular-season record; 80% range of wins",
-      render: (r) => `${rec(r.wins, r.losses)} <span class="muted">(${Math.round(r.wins_lo)}–${Math.round(r.wins_hi)} W)</span>` },
+      render: (r) => `<span style="white-space:nowrap">${rec(r.wins, r.losses)} <span class="muted">(${Math.round(r.wins_lo)}–${Math.round(r.wins_hi)} W)</span></span>` },
     { key: "creg", label: "Conf. title", num: true, sort: (r) => r.p_conf_regular, title: "wins (or shares) the regular-season conference title", render: (r) => pct(r.p_conf_regular) },
     { key: "ctour", label: "Conf. tourney", num: true, sort: (r) => r.p_conf_tourney, render: (r) => pct(r.p_conf_tourney) },
     { key: "field", label: "Makes field", num: true, sort: (r) => r.p_field, render: (r) => pct(r.p_field) },
+    { key: "net", label: "NET", num: true, sort: (r) => (r.sheet ? r.sheet.net_rank : 999), dir: 1, title: "average projected NET-style rank at Selection Sunday",
+      render: (r) => (r.sheet ? Math.round(r.sheet.net_rank) : "") },
+    { key: "wab", label: "WAB", num: true, sort: (r) => (r.sheet ? r.sheet.wab : -99), title: "projected wins above bubble",
+      render: (r) => (r.sheet ? (r.sheet.wab >= 0 ? "+" : "") + r.sheet.wab.toFixed(1) : "") },
+    { key: "q1", label: "Q1", num: true, sort: (r) => (r.sheet ? r.sheet.q1w : 0), title: "projected Quadrant 1 record",
+      render: (r) => (r.sheet ? `${Math.round(r.sheet.q1w)}–${Math.round(r.sheet.q1l)}` : "") },
     { key: "seed", label: "Avg seed", num: true, sort: (r) => r.avg_seed, dir: 1, render: (r) => (r.avg_seed ? r.avg_seed.toFixed(1) : "") },
     { key: "s16", label: "Sweet 16", num: true, sort: (r) => r.reach["Sweet 16"], render: (r) => pct(r.reach["Sweet 16"]) },
     { key: "f4", label: "Final Four", num: true, sort: (r) => r.reach["Final Four"], render: (r) => pct(r.reach["Final Four"]) },
@@ -119,10 +155,15 @@ happened. They are refreshed every night.</p>
   $("q").oninput = () => table.filter($("q").value);
 
   // most likely field
-  const field = T.filter((r) => r.avg_seed).sort((a, b) => b.p_field - a.p_field).slice(0, 68).sort((a, b) => a.avg_seed - b.avg_seed);
+  const nField = d.field || 68;
+  const field = T.filter((r) => r.avg_seed).sort((a, b) => b.p_field - a.p_field).slice(0, nField).sort((a, b) => a.avg_seed - b.avg_seed);
   const half = Math.ceil(field.length / 2);
-  const ft = (rows, start) => `<table class="data mini"><tr><th class="num">#</th><th>Team</th><th class="num">Avg seed</th><th class="num">Makes field</th></tr>` +
-    rows.map((r, i) => `<tr><td class="num">${start + i + 1}</td><td>${team(r)}</td><td class="num">${r.avg_seed.toFixed(1)}</td><td class="num">${pct(r.p_field)}</td></tr>`).join("") + `</table>`;
+  const top1 = (o) => { const e = Object.entries(o || {}).sort((a, b) => b[1] - a[1])[0]; return e ? e[0] : ""; };
+  const ft = (rows, start) => `<table class="data mini"><tr><th class="num">#</th><th>Team</th><th class="num">Avg seed</th><th class="num">Makes field</th><th>Region</th><th>First-round site</th></tr>` +
+    rows.map((r, i) => `<tr><td class="num">${start + i + 1}</td><td>${team(r)}</td><td class="num">${r.avg_seed.toFixed(1)}</td><td class="num">${pct(r.p_field)}</td>
+      <td class="muted">${top1(r.regions)}</td><td class="muted">${top1(r.sites)}</td></tr>`).join("") + `</table>`;
+  $("fieldnote").textContent = `The ${nField} teams most likely to be selected, in order of their average projected seed, with the region and first-round site each most often lands in` +
+    (d.geography ? "." : ". (Tournament sites aren't set up yet, so regions are numbered and sites are blank.)");
   $("field").innerHTML = ft(field.slice(0, half), 0) + ft(field.slice(half), half);
 })();
 </script>

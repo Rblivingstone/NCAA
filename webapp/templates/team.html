@@ -56,6 +56,16 @@
       ${stat(pct(m.p_conf_regular), `${m.conference} regular-season title`)}${stat(pct(m.p_conf_tourney), `${m.conference} tournament title`)}
       ${stat(pct(m.p_field), "makes the NCAA tournament")}${stat(m.avg_seed ? m.avg_seed.toFixed(1) : "—", "average seed, when in")}
       ${stat(pct(m.reach["Final Four"]), "reaches the Final Four")}${stat(`<b>${pct(m.reach.Champion)}</b>`, "wins the national title")}</div>`;
+    // the projected team sheet, and where it would likely play
+    if (m.sheet) {
+      const q = m.sheet, top = (o) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
+      const reg = top(m.regions)[0], sites = top(m.sites).slice(0, 2);
+      h += `<div class="stats" style="margin-top:8px">${stat(Math.round(q.net_rank), `projected NET-style rank (80%: ${Math.round(q.net_rank_lo)}–${Math.round(q.net_rank_hi)})`)}
+        ${stat((q.wab >= 0 ? "+" : "") + q.wab.toFixed(1), "wins above bubble")}
+        ${stat(`${q.q1w.toFixed(1)}–${q.q1l.toFixed(1)}`, "Quadrant 1 record")}${stat(q.q34l.toFixed(1), "Quadrant 3–4 losses")}
+        ${reg ? stat(reg[0], `most likely region (${pct(reg[1])} when in)`) : ""}
+        ${sites.length ? stat(sites[0][0], `most likely first-round site (${pct(sites[0][1])})` + (sites[1] ? `; next ${sites[1][0]}` : "")) : ""}</div>`;
+    }
     // how far it goes: the chance to reach each round
     const rounds = ["Round of 64", "Round of 32", "Sweet 16", "Elite 8", "Final Four", "Final", "Champion"];
     const W = 900, H = 120, L = 10, bw = (W - 2 * L) / rounds.length;
