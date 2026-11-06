@@ -1114,3 +1114,33 @@ def test_geo_load(tmp_path, monkeypatch):
     assert g["blocked"] == {"Louisville": {"s0"}} and g["loc"]["Kentucky"] == (38.05, -84.5)
     assert geo.locate({("saint louis", "MO"): (1, 2)}, "St. Louis", "MO") == (1, 2)
     assert geo.locate(geo.cities() if (geo.GEO_DIR / "us_cities.csv").exists() else {("storrs", "CT"): (41.808, -72.25)}, "Storrs", "CT")
+
+
+def test_conditional_bracket_and_path_clearing():
+    """Max points if a chosen champion wins: built from the simulated tournaments it wins, champion fixed, every
+    pick consistent; and the exits that clear its path are more common in those tournaments than overall."""
+    import numpy as np
+
+    from ncaa import bracket as B
+    from ncaa import data
+
+    if not (model.artifact_dir(2026) / "tournament_sims.npz").exists():
+        pytest.skip("needs the 2026 tournament simulation")
+    br = B.Bracket(data.load_bracket(2026))
+    sims, summary, _ = B.load_simulation(2026)
+    m = br.tidx["Michigan"]
+    out = B.conditional_points_bracket(br, sims, m)
+    won = sims["winners"][:, br.gidx["R6"]] == m
+    assert out["picks"]["R6"] == m and out["n_sims"] == int(won.sum())
+    for g in br.games:                                                # a pick must have won its way to the game
+        for kind, src in g.sources:
+            if kind == "game" and out["picks"][g.id] in br.possible_teams(src):
+                assert out["picks"][src] == out["picks"][g.id]
+    pwin, n = B.conditional_win_probabilities(br, sims, m)
+    assert n == out["n_sims"] and np.allclose(pwin.sum(1), 1) and pwin[br.gidx["R6"], m] == 1
+    assert out["expected_points_if_champion"] >= 320                 # the title game alone is a sure 320
+    pc = B.path_clearing(br, sims, m)
+    assert abs(pc["p_title"] - won.mean()) < 1e-12 and pc["eliminations"]
+    gains = [r["gain"] for r in pc["eliminations"]]
+    assert gains == sorted(gains, reverse=True) and all(r["p_out_if_champion"] > r["p_out"] for r in pc["eliminations"])
+    assert all(r["team"] != m for r in pc["eliminations"])
