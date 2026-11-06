@@ -239,9 +239,28 @@ def apply_game(season: int, st: TeamState, base: Posterior, game_id: int, date, 
              "pts": box_a["pts"] if t == a else box_b["pts"], "opp_pts": box_b["pts"] if t == a else box_a["pts"],
              "net_before": before[t][0], "sd_before": before[t][1], "net_after": after[t][0], "sd_after": after[t][1],
              "source": source} for t, o in ((a, b), (b, a))]
-    log = updates_path(season)
-    pd.DataFrame(rows).to_csv(log, mode="a", header=not log.exists(), index=False)
+    _write_log_rows(updates_path(season), pd.DataFrame(rows))
     return {t: {"before": before[t], "after": after[t]} for t in (a, b)}
+
+
+def _write_log_rows(log, new: pd.DataFrame) -> None:
+    """Add a game's rows to the update log, replacing any earlier rows for the same game and team.
+
+    A game can legitimately be folded in twice: once from the live feed, and again after a nightly refit
+    whose box-score data didn't have it yet (the refit rebuilds every rating from that data, so the game must
+    be applied again). The log keeps one row per game and team, the latest, so counts built on it (games,
+    records, streaks) never see the game twice."""
+    import os
+
+    if log.exists():
+        old = pd.read_csv(log)
+        keep = ~(old.game_id.astype(int).isin(new.game_id.astype(int)) & old.team.isin(new.team))
+        out = pd.concat([old[keep], new], ignore_index=True)
+    else:
+        out = new
+    tmp = log.with_name(f".{log.name}.{os.getpid()}.tmp")
+    out.to_csv(tmp, index=False)
+    os.replace(tmp, log)
 
 
 def apply_one_sided(st: TeamState, base: Posterior, school: str, opp: str, home: float, box_school: dict,
@@ -268,8 +287,12 @@ def updates_path(season: int):
 
 
 def load_updates(season: int) -> pd.DataFrame:
+    """The update log, one row per game and team (the latest, if a game was folded in again after a refit)."""
     path = updates_path(season)
-    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+    if not path.exists():
+        return pd.DataFrame()
+    up = pd.read_csv(path)
+    return up.drop_duplicates(["game_id", "team"], keep="last").reset_index(drop=True) if len(up) else up
 
 
 def minutes_played(ot: int) -> float:

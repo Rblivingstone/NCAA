@@ -43,10 +43,12 @@
     const d = await r.json(), m = d.meta;
     $("title").innerHTML = `<a href="/team/${encodeURIComponent(m.away)}?season=${season}">${m.away}</a> ${m.neutral ? "vs" : "@"}
       <a href="/team/${encodeURIComponent(m.home)}?season=${season}">${m.home}</a>`;
-    $("kind").textContent = { pre: "Upcoming", live: "Live", post: "Final" }[d.kind];
+    $("kind").textContent = m.no_result ? "No result" : { pre: "Upcoming", live: "Live", post: "Final" }[d.kind];
     $("sub").textContent = `${new Date(m.date).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` +
       `${m.tournament ? " · NCAA tournament" : ""} · model: ${d.posterior}`;
-    $("explain").textContent = EXPLAIN[d.kind];
+    $("explain").textContent = m.no_result
+      ? "No result has been recorded for this game, though it was scheduled well over six hours ago: it was most likely postponed or cancelled. What follows is the forecast the model would have made before tip-off, not a result."
+      : EXPLAIN[d.kind];
     const notes = [];
     if (m.note) notes.push(m.note);
     if (m.ledger) notes.push(`Forecast logged before the game (${m.ledger.model}): ${m.home} ${fmtPct(m.ledger.p_home)}; whole-box-score unusualness ${m.ledger.unusualness.toFixed(3)}.`);

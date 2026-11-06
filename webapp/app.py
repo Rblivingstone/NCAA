@@ -612,7 +612,8 @@ def api_season_upcoming():
         abort(404, "There's no model for this season yet.")
     date = request.args.get("date") or None
     ranks = rank_map(season)
-    games = season_mod.upcoming(season, post, start=date, days=int(request.args.get("days", 1)))
+    games = [g for g in season_mod.upcoming(season, post, start=date, days=int(request.args.get("days", 1)))
+             if not g["completed"] and not g["no_result"]]          # finished (or never played) games aren't upcoming
     for g in games:
         g |= game_flags(g["home"], g["away"], g.get("p_home"), ranks)
     return jsonify({"posterior": label, "games": games})
@@ -632,7 +633,7 @@ def _schedule_board(date: str) -> list[dict]:
     from ncaa import tracker
 
     try:
-        sched = data.load_schedule(LIVE_SEASON)
+        sched = season_mod.schedule_with_results(LIVE_SEASON)
     except Exception:
         return []
     day = sched[sched.date.dt.tz_convert("America/New_York").dt.strftime("%Y%m%d") == date]
@@ -910,18 +911,18 @@ def api_team():
     up = season_mod.load_updates(season)
     per_game = up[up.team == name].sort_values("date").to_dict("records") if len(up) else []
     # Games: results (with the out-of-sample pre-game forecast when the ledger has it) and upcoming.
-    sched = data.load_schedule(season)
+    sched = season_mod.schedule_with_results(season)
     games = []
     if len(sched):
         led = season_mod.load_ledger(season).set_index("game_id") if len(season_mod.load_ledger(season)) else None
         mine = sched[(sched.home == name) | (sched.away == name)].sort_values("date")
         for r in mine.itertuples():
             row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
-                   "neutral": bool(r.neutral), "completed": bool(r.completed),
+                   "neutral": bool(r.neutral), "completed": bool(r.completed), "no_result": bool(r.no_result),
                    "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
             if led is not None and r.game_id in led.index:
                 lr = led.loc[r.game_id]
-                p_home = float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home)
+                p_home = 1 - float(lr.p_home) if season_mod.ledger_swapped(lr, r.home, r.away) else float(lr.p_home)
                 row |= {"p_home_pregame": p_home, "unusualness": float(lr.unusualness)}
             games.append(row)
     return jsonify({"season": season, "posterior": label, "team": name, "rating": rating,
@@ -940,7 +941,7 @@ def games_page():
 def api_games():
     """Games for a date (or all of a team's games), with forecasts for the ones not yet played."""
     season = int(request.args.get("season", LIVE_SEASON))
-    sched = data.load_schedule(season)
+    sched = season_mod.schedule_with_results(season)
     if not len(sched):
         return jsonify({"games": [], "dates": []})
     team = request.args.get("team", "")
@@ -957,19 +958,20 @@ def api_games():
     led = led.set_index("game_id") if len(led) else None
     upcoming_ids = {u["game_id"]: u for u in
                     (season_mod.upcoming(season, post, start=rows.date.min().strftime("%Y-%m-%d"),
-                                         days=(rows.date.max() - rows.date.min()).days + 2)
+                                         days=(rows.date.max() - rows.date.min()).days + 2,
+                                         game_ids=rows.game_id[~rows.completed])     # only these games
                      if post is not None and len(rows) and (~rows.completed).any() and len(rows) <= 120 else [])}
     out = []
     for r in rows.itertuples():
         row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
                "neutral": bool(r.neutral), "completed": bool(r.completed), "tournament": bool(r.tournament),
-               "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
+               "no_result": bool(r.no_result), "score": [int(r.home_score), int(r.away_score)] if r.completed else None}
         if r.game_id in upcoming_ids and "p_home" in upcoming_ids[r.game_id]:
             u = upcoming_ids[r.game_id]
             row |= {"p_home": u["p_home"], "pred_score": u["pred_score"]}
         if led is not None and r.game_id in led.index:
             lr = led.loc[r.game_id]
-            row |= {"p_home_pregame": float(lr.p_home) if lr.home == r.home else 1 - float(lr.p_home),
+            row |= {"p_home_pregame": 1 - float(lr.p_home) if season_mod.ledger_swapped(lr, r.home, r.away) else float(lr.p_home),
                     "unusualness": float(lr.unusualness)}
         p = row.get("p_home_pregame", row.get("p_home"))
         row |= game_flags(r.home, r.away, p, ranks, result=tuple(row["score"]) if row["score"] else None)
@@ -1003,7 +1005,7 @@ def api_game():
     """One game, whatever its state: prior before tip-off, live during, update history after."""
     season = int(request.args.get("season", LIVE_SEASON))
     gid = int(request.args["id"])
-    sched = data.load_schedule(season)
+    sched = season_mod.schedule_with_results(season)
     row = sched[sched.game_id == gid]
     if not len(row):
         abort(404, "This game isn't in this season's schedule.")
@@ -1014,7 +1016,7 @@ def api_game():
     led = season_mod.load_ledger(season)
     if len(led) and gid in set(led.game_id):
         lr = led[led.game_id == gid].iloc[0]
-        meta["ledger"] = {"p_home": float(lr.p_home) if lr.home == row.home else 1 - float(lr.p_home),
+        meta["ledger"] = {"p_home": 1 - float(lr.p_home) if season_mod.ledger_swapped(lr, row.home, row.away) else float(lr.p_home),
                           "unusualness": float(lr.unusualness), "model": lr.model}
     timeline, kind, state_ = None, "pre", None
     now = pd.Timestamp.now(tz="UTC")
@@ -1043,6 +1045,8 @@ def api_game():
         except Exception as e:
             meta["note"] = "The play-by-play isn't available for this game, so the final box score is shown against the pre-game forecast."
             state_ = _final_state_from_box(season, gid, row)
+    if kind == "pre" and bool(row.no_result):
+        meta["no_result"] = True                   # well past tip-off and no result anywhere
     if state_ is None:
         state_ = LiveState(gid, [row.home, row.away], ["", ""], bool(row.neutral), "pre" if kind == "pre" else "post",
                            1, 20.0, {}, detail="Scheduled" if kind == "pre" else "Final")

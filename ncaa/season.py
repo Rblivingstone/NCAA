@@ -33,6 +33,55 @@ LEDGER_COLUMNS = ["game_id", "date", "home", "away", "neutral", "kind", "home_pt
                   "espn_p_home", "espn_checked", "margin_lo", "margin_hi", "line_margin", "line_checked"]
 
 
+NO_RESULT_AFTER = pd.Timedelta(hours=6)    # a game this long past tip-off with no result was probably not played
+
+
+def ledger_swapped(lr, home: str, away: str) -> bool:
+    """Whether a ledger row lists the game's teams the other way round from the schedule's home/away.
+    (Older rows name a non-D1 school as the pooled "Non-D1", so one matching name is enough.)"""
+    return (lr.home == away or lr.away == home) and not (lr.home == home or lr.away == away)
+
+
+def schedule_with_results(season: int) -> pd.DataFrame:
+    """The season schedule with every result already known filled in.
+
+    The schedule file is refreshed by the nightly update, but games go final, are scored and fold into the
+    ratings within minutes, through the live feed or the game archive. So a game the schedule still lists as
+    unplayed is marked completed, with its score, when the ledger has scored it or the live tracker has a
+    final for it. ``result_source`` says where each result came from; ``no_result`` marks games well past
+    tip-off with no result anywhere (postponed or cancelled, most likely)."""
+    from .tracker import load_track
+
+    sched = data.load_schedule(season)
+    if not len(sched):
+        return sched
+    sched = sched.copy()
+    sched["result_source"] = np.where(sched.completed, "schedule", "")
+    led = load_ledger(season)
+    by_id = {int(r.game_id): r for r in led.itertuples()} if len(led) else {}
+    for i in sched.index[~sched.completed]:
+        r = sched.loc[i]
+        gid = int(r.game_id)
+        score = None
+        lr = by_id.get(gid)
+        if lr is not None:
+            swapped = ledger_swapped(lr, r.home, r.away)
+            score = (int(lr.away_pts), int(lr.home_pts)) if swapped else (int(lr.home_pts), int(lr.away_pts))
+            src = "ledger"
+        else:
+            tr = load_track(season, gid)
+            if tr and tr.get("status") == "post" and tr.get("points"):
+                s = tr["points"][-1]["score"]
+                if tr.get("teams") and tr["teams"][0] == r.away:
+                    s = s[::-1]
+                score, src = (int(s[0]), int(s[1])), "live tracker"
+        if score is not None:
+            sched.loc[i, ["completed", "home_score", "away_score", "result_source"]] = [True, score[0], score[1], src]
+    now = pd.Timestamp.now(tz="UTC")
+    sched["no_result"] = ~sched.completed & (sched.date + NO_RESULT_AFTER < now)
+    return sched
+
+
 def ledger_path(season: int):
     return model.artifact_dir(season) / "ledger.csv"
 
@@ -468,22 +517,26 @@ def load_ratings_history(season: int) -> pd.DataFrame:
     return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
 
-def upcoming(season: int, post: model.Posterior, start=None, days: int = 1, n: int = 1500) -> list[dict]:
-    """Pre-game forecasts for scheduled games in a date window."""
+def upcoming(season: int, post: model.Posterior, start=None, days: int = 1, n: int = 1500, game_ids=None) -> list[dict]:
+    """Pre-game forecasts for scheduled games in a date window (only ``game_ids``, when given)."""
     from .simulate import simulate_games
 
-    sched = data.load_schedule(season)
+    sched = schedule_with_results(season)
     if not len(sched):
         return []
     start = pd.Timestamp.now(tz="UTC").normalize() if start is None else pd.Timestamp(start, tz="UTC")
     win = sched[(sched.date >= start) & (sched.date < start + pd.Timedelta(days=days))]
+    if game_ids is not None:
+        win = win[win.game_id.isin(set(int(g) for g in game_ids))]
     post = model.with_teams(post, set(win.home) | set(win.away), data.d1_set(season) or None)  # group average
     idx = {t: i for i, t in enumerate(post.teams)}
     out = []
     rng = np.random.default_rng(0)
     for r in win.itertuples():
         row = {"game_id": int(r.game_id), "date": r.date.isoformat(), "home": r.home, "away": r.away,
-               "neutral": bool(r.neutral), "completed": bool(r.completed)}
+               "neutral": bool(r.neutral), "completed": bool(r.completed), "no_result": bool(r.no_result)}
+        if r.completed:
+            row["score"] = [int(r.home_score), int(r.away_score)]
         if r.home in idx and r.away in idx:
             res = simulate_games(post, rng.integers(post.n_draws, size=n), np.full(n, idx[r.home]),
                                  np.full(n, idx[r.away]), rng, home=0 if r.neutral else 1, full_box=False)

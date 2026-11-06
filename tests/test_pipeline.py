@@ -875,3 +875,41 @@ def test_unearned_winning_streaks():
     assert hot["verdict"]["level"] == "unearned" and real["verdict"]["level"] == "earned"
     g = streaks.team_games(pd.DataFrame(up), pd.DataFrame(led), "Hot")
     assert list(g.won) == [True] * 8 and abs(g.p_pre.iloc[0] - 0.4) < 1e-9     # oriented to the team (it was the away side)
+
+
+def test_results_reach_every_page_before_the_nightly_schedule(tmp_path, monkeypatch):
+    """A game scored in the ledger (or final in the live tracker) shows as completed with its score even
+    while the schedule file still lists it as unplayed; a game long past tip-off with no result anywhere is
+    marked no-result; and a game folded in twice (live, then again after a refit) keeps one log row."""
+    import json
+
+    import pandas as pd
+
+    from ncaa import data, season, tracker
+    from ncaa.updates import _write_log_rows, load_updates, updates_path
+
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    (tmp_path / "2027").mkdir()
+    now = pd.Timestamp.now(tz="UTC")
+    sched = pd.DataFrame({"game_id": [1, 2, 3, 4], "date": [now - pd.Timedelta(days=1)] * 3 + [now + pd.Timedelta(days=1)],
+                          "home": ["Utah", "Duke", "Kansas", "UCLA"], "away": ["Towson", "Army", "Iowa", "USC"],
+                          "neutral": False, "completed": False, "home_score": 0, "away_score": 0, "tournament": False})
+    monkeypatch.setattr(data, "load_schedule", lambda s: sched)
+    pd.DataFrame([{"game_id": 1, "date": "2026-11-06T02:00:00Z", "home": "Towson", "away": "Utah",   # listed the other way
+                   "home_pts": 57, "away_pts": 67, "p_home": 0.2, "unusualness": 0.5}]).to_csv(season.ledger_path(2027), index=False)
+    (tmp_path / "2027" / "live").mkdir()
+    (tmp_path / "2027" / "live" / "2.json").write_text(json.dumps(
+        {"game_id": 2, "status": "post", "teams": ["Duke", "Army"], "points": [{"elapsed": 40, "score": [84, 50]}]}))
+    s = season.schedule_with_results(2027).set_index("game_id")
+    assert s.loc[1, "completed"] and (s.loc[1, "home_score"], s.loc[1, "away_score"]) == (67, 57) and s.loc[1, "result_source"] == "ledger"
+    assert s.loc[2, "completed"] and (s.loc[2, "home_score"], s.loc[2, "away_score"]) == (84, 50) and s.loc[2, "result_source"] == "live tracker"
+    assert not s.loc[3, "completed"] and s.loc[3, "no_result"]                 # a day past, nothing anywhere
+    assert not s.loc[4, "completed"] and not s.loc[4, "no_result"]             # still to be played
+    row = lambda src, after: {"game_id": 10, "date": "2026-11-05", "team": "High Point", "opponent": "UMES", "pts": 63,
+                              "opp_pts": 49, "net_before": 1.0, "sd_before": 5, "net_after": after, "sd_after": 4.8, "source": src}
+    _write_log_rows(updates_path(2027), pd.DataFrame([row("live feed", 2.0)]))
+    _write_log_rows(updates_path(2027), pd.DataFrame([row("nightly box scores", 2.5)]))
+    up = load_updates(2027)
+    assert len(up) == 1 and up.source.iloc[0] == "nightly box scores" and up.net_after.iloc[0] == 2.5
+    pd.concat([pd.DataFrame([row("live feed", 2.0)])] * 2).to_csv(updates_path(2027), index=False)   # an old duplicated log
+    assert len(load_updates(2027)) == 1
