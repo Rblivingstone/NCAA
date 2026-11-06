@@ -606,6 +606,90 @@ def max_expected_points_bracket(bracket: Bracket, summary: dict, c: Constraints 
     return {"picks": picks, "expected_points": total}
 
 
+def conditional_win_probabilities(bracket: Bracket, sims: dict, champion: int) -> tuple[np.ndarray, int]:
+    """P(team wins game | ``champion`` wins the title), from the simulated tournaments it won: games x teams."""
+    w = sims["winners"]
+    keep = w[:, bracket.gidx["R6"]] == champion
+    n = int(keep.sum())
+    T = len(bracket.teams)
+    if not n:
+        raise ValueError("this team never won the title in the simulations")
+    pwin = np.stack([np.bincount(w[keep, i], minlength=T) / n for i in range(len(bracket.games))])
+    return pwin, n
+
+
+def conditional_points_bracket(bracket: Bracket, sims: dict, champion: int, c: Constraints = Constraints(),
+                               points=ESPN_POINTS) -> dict:
+    """The bracket with the most expected points in the tournaments ``champion`` wins.
+
+    The same exact backwards induction as the max-points bracket, on win probabilities taken only from the
+    simulated tournaments the chosen champion won. In those worlds the rivals who stood in its way usually went
+    out early, and whoever was more likely than not to put them out is picked to do it: the consequential upsets
+    that clear the path come out of the search, not out of a rule."""
+    pwin, n = conditional_win_probabilities(bracket, sims, champion)
+    T = len(bracket.teams)
+
+    def value(g):
+        return np.repeat((points[g.round] * pwin[bracket.gidx[g.id]])[:, None], T, axis=1)
+
+    cc = Constraints(forced={**c.forced, "R6": int(champion)}, n_upsets=c.n_upsets, upset_gap=c.upset_gap)
+    picks, total, _ = _dp(bracket, value, cc)
+    return {"picks": picks, "expected_points_if_champion": total, "n_sims": n}
+
+
+def path_clearing(bracket: Bracket, sims: dict, champion: int, top: int = 8) -> dict:
+    """Which eliminations most raise ``champion``'s title chances.
+
+    For every other team, the rounds up to the one where it would meet the champion: the champion's title
+    chance in the simulated tournaments where that team didn't get that far, against its chance overall. (Past
+    that meeting the question answers itself: a champion beats whoever it meets.)
+
+    An exit is consequential when it is much more common in the tournaments the champion wins than in all of
+    them: those are the upsets a title run tends to need, as opposed to long shots that would help but rarely
+    happen. Kept: each rival's most consequential exit, ranked by that difference, with the title chance when
+    it happens and who most often knocks the rival out on the way to the champion's title."""
+    w, sides = sims["winners"], sims["sides"]
+    n, T = w.shape[0], len(bracket.teams)
+    won = w[:, bracket.gidx["R6"]] == champion
+    base = float(won.mean())
+    reached = np.zeros((n, T, len(ROUNDS)), dtype=bool)
+    lost_to = np.full((n, T), -1, dtype=int)
+    for i, g in enumerate(bracket.games):
+        for s_ in range(2):
+            t_ = sides[:, i, s_].astype(int)
+            reached[np.arange(n), t_, g.round] = True
+            lost = w[:, i] != t_
+            lost_to[np.flatnonzero(lost), t_[lost]] = w[lost, i]
+    meet = {}                                                          # rival -> round it would meet the champion
+    for g in sorted(bracket.games, key=lambda g: -g.round):
+        both = set(bracket.possible_teams(g.id))
+        if champion in both:
+            for t in both:
+                meet[t] = g.round
+    rows = []
+    for t in range(T):
+        if t == champion or t not in meet:
+            continue
+        best = None
+        for r in range(2, meet[t] + 1):                                # Round of 32 .. the meeting
+            out = ~reached[:, t, r]
+            if not out.any() or out.all() or reached[:, t, r].mean() < 0.02:
+                continue
+            p_if = float(won[out].mean())
+            gain = float(out[won].mean()) - float(out.mean()) if won.any() else 0.0
+            if best is None or gain > best["gain"]:
+                m = out & won
+                by = np.bincount(lost_to[m, t][lost_to[m, t] >= 0], minlength=T)
+                best = {"team": t, "round": ROUNDS[r], "gain": gain, "p_title_if_out": p_if, "lift": p_if / base if base else 0.0,
+                        "p_out": float(out.mean()), "p_out_if_champion": float(out[won].mean()) if won.any() else 0.0,
+                        "eliminated_by": int(by.argmax()) if by.any() else None,
+                        "p_eliminated_by": float(by.max() / m.sum()) if by.any() else 0.0}
+        if best and best["gain"] > 0.01:
+            rows.append(best)
+    rows.sort(key=lambda r: -r["gain"])
+    return {"p_title": base, "eliminations": rows[:top]}
+
+
 def expected_points(bracket: Bracket, picks: dict[str, str], summary: dict, points=ESPN_POINTS) -> float:
     """Expected pool score of a set of pre-tournament picks."""
     pwin = _win_probabilities(bracket, summary)

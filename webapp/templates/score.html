@@ -11,6 +11,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     <label>Objective <select id="objective">
       <option value="likelihood">Most likely bracket</option>
       <option value="points">Max expected points (ESPN)</option>
+      <option value="conditional">Max points if my champion wins</option>
       <option value="pool">Win a pool</option></select></label>
     <span id="pool-opts" hidden>
       <label>preset <select id="pool-preset"></select></label>
@@ -229,7 +230,10 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     const q = new URLSearchParams({ objective: $("objective").value, champion: champSel.value, gap: $("gap").value,
       keep_final_four: $("keep-f4").checked ? "1" : "0" });
     if ($("upsets-on").checked) q.set("upsets", $("n-upsets").value || "0");
+    if ($("objective").value === "conditional" && !champSel.value) {
+      $("opt-note").textContent = "Choose a champion first: this bracket is built from the simulated tournaments that team wins."; return; }
     $("opt-note").textContent = "Searching…";
+    $("champ-table").innerHTML = "";
     const r = await fetch("/api/optimize?" + q);
     if (!r.ok) { $("opt-note").textContent = "No bracket satisfies those constraints."; return; }
     const o = await r.json();
@@ -239,7 +243,10 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     $("opt-note").innerHTML = `<b>${o.champion}</b> champion · 1 in ${Math.exp(-o.log_likelihood).toExponential(2)} ` +
       `(log P ${o.log_likelihood.toFixed(2)}) · ESPN points: predicted ${e.expected.toFixed(1)}, realized ${e.realized.toFixed(0)} ` +
       `(<b style="color:${e.delta >= 0 ? "var(--win)" : "var(--upset)"}">${e.delta >= 0 ? "+" : ""}${e.delta.toFixed(1)}</b>) · ` +
-      `${ups.length} upset${ups.length === 1 ? "" : "s"}${ups.length ? ": " + ups.join(", ") : ""}`;
+      `${ups.length} upset${ups.length === 1 ? "" : "s"}${ups.length ? ": " + ups.join(", ") : ""}` +
+      (o.conditional ? `<br>Built from the ${o.conditional.n_sims.toLocaleString()} simulated tournaments ${o.champion} wins:
+        ${o.conditional.expected_points_if_champion.toFixed(0)} expected points when it does.` : "");
+    if (o.path && o.path.eliminations.length) $("champ-table").innerHTML = pathTable(o);
     if (o.by_champion.length > 1) {
       $("champ-table").innerHTML = `<div class="muted" style="margin-bottom:4px">Best bracket for each candidate champion
         (exact search with that champion held fixed). Click one to load it.</div><table class="data champ"><tr><th>Champion</th>
@@ -249,6 +256,22 @@ how it compares with brackets the model itself generates. Or let the optimizer b
           <td><span class="bar here" style="width:${c.relative * 120}px"></span></td></tr>`).join("") + "</table>";
       $("champ-table").querySelectorAll("tr[data-champ]").forEach((tr) => (tr.onclick = () => build(tr.dataset.champ)));
     }
+  }
+
+  // which exits clear the champion's path: more common in the tournaments it wins than in all of them
+  function pathTable(o) {
+    const p = o.path, pc = (v) => fmtPct(v);
+    return `<div style="margin-bottom:4px"><b>What clears ${o.champion}'s path</b> <span class="muted">(title chance ${pc(p.p_title)})</span></div>
+      <div class="muted" style="margin-bottom:4px">Rivals whose early exit is most over-represented in the tournaments ${o.champion}
+        wins. "Exit" is missing that round, before any meeting with ${o.champion}. A common exit can still leave the rival
+        in the bracket: the max-points-if-it-wins bracket drops a rival only when one particular team is more likely to
+        win that game, and a common exit can be spread over many teams.</div>
+      <table class="data"><tr><th>Rival</th><th>Out before</th><th class="num">How often</th><th class="num">When ${o.champion} wins</th>
+        <th class="num">${o.champion} title chance if it happens</th><th>Most often knocked out by</th><th>In this bracket</th></tr>` +
+      p.eliminations.map((e) => `<tr><td>${e.seed} ${e.team}</td><td>${e.round}</td><td class="num">${pc(e.p_out)}</td>
+        <td class="num"><b>${pc(e.p_out_if_champion)}</b></td><td class="num">${pc(e.p_title_if_out)}</td>
+        <td>${e.eliminated_by ? `${e.eliminated_by} <span class="muted">(${pc(e.p_eliminated_by)})</span>` : ""}</td>
+        <td>${e.picked_out ? "✓ out" : '<span class="muted">still in</span>'}</td></tr>`).join("") + "</table>";
   }
 
   function schedule() { clearTimeout(timer); timer = setTimeout(score, 150); }

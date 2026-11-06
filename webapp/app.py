@@ -13,9 +13,10 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 from ncaa import data, model
-from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, espn_points, expected_points,
-                          favourites, is_upset, load_simulation, max_expected_points_bracket, most_likely_bracket,
-                          resolve_picks, score_bracket, simulate_tournament, upset_distribution)
+from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, conditional_points_bracket,
+                          espn_points, expected_points, favourites, is_upset, load_simulation,
+                          max_expected_points_bracket, most_likely_bracket, path_clearing, resolve_picks, score_bracket,
+                          simulate_tournament, upset_distribution)
 from ncaa.evaluate import game_unusualness, kde, tournament_unusualness
 from ncaa.pool import ARCHETYPES, Pool, PoolSpec, best_pool_bracket
 from ncaa.simulate import BOX_STATS, simulate_games
@@ -174,7 +175,11 @@ def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep
         forced["R6"] = br.tidx[champion]
     c = Constraints(forced=forced, n_upsets=n_upsets, upset_gap=gap)
     by_champion = []
-    if objective == "points":
+    cond = None
+    if objective == "conditional":
+        cond = conditional_points_bracket(br, sims, br.tidx[champion], c)
+        picks = cond["picks"]
+    elif objective == "points":
         picks = max_expected_points_bracket(br, summary, c)["picks"]
     else:
         res = most_likely_bracket(br, W, c, n_champions=1 if champion else 10)
@@ -182,6 +187,14 @@ def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep
     named = {g: br.teams[t] for g, t in picks.items()}
     played = resolve_picks(br, named)
     best_ll = max([r["log_likelihood"] for r in by_champion] or [0.0])
+    path = None
+    if champion:
+        pc = path_clearing(br, sims, br.tidx[champion])
+        name = lambda t: None if t is None else br.teams[t]
+        path = {"p_title": pc["p_title"],
+                "eliminations": [{**r, "team": br.teams[r["team"]], "seed": br.seed[br.teams[r["team"]]],
+                                  "eliminated_by": name(r["eliminated_by"]),
+                                  "picked_out": picks_out(br, picks, r["team"], r["round"])} for r in pc["eliminations"]]}
     return {
         "picks": named,
         "champion": named["R6"],
@@ -194,19 +207,33 @@ def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep
         "by_champion": [{"champion": br.teams[r["champion"]], "log_likelihood": r["log_likelihood"],
                          "relative": float(np.exp(r["log_likelihood"] - best_ll)),
                          "p_title": summary["reach"][r["champion"]][-1]} for r in by_champion],
+        "conditional": None if cond is None else {"n_sims": cond["n_sims"],
+                                                  "expected_points_if_champion": cond["expected_points_if_champion"]},
+        "path": path,
     }
+
+
+def picks_out(br, picks: dict, team: int, round_name: str) -> bool:
+    """Whether these picks have ``team`` out before ``round_name``."""
+    from ncaa.bracket import ROUNDS
+
+    r = ROUNDS.index(round_name)
+    return not any(br.games[br.gidx[g]].round == r - 1 and t == team for g, t in picks.items())
 
 
 @app.route("/api/optimize")
 def api_optimize():
-    """Optimal bracket: ?objective=likelihood|points&champion=&upsets=&gap=&keep_final_four=0|1"""
+    """Optimal bracket: ?objective=likelihood|points|conditional&champion=&upsets=&gap=&keep_final_four=0|1
+    (conditional: the most expected points in the tournaments the chosen champion wins; needs a champion)"""
     br = state()[0]
     objective = request.args.get("objective", "likelihood")
     champion = request.args.get("champion", "")
     upsets = request.args.get("upsets", "")
     gap = int(request.args.get("gap", 1))
-    if objective not in ("likelihood", "points") or (champion and champion not in br.tidx):
+    if objective not in ("likelihood", "points", "conditional") or (champion and champion not in br.tidx):
         abort(400, "bad objective or champion")
+    if objective == "conditional" and not champion:
+        abort(400, "Choose a champion first: this bracket is built from the tournaments that team wins.")
     try:
         n_upsets = int(upsets) if upsets else None
         keep = n_upsets is not None and request.args.get("keep_final_four") == "1"
