@@ -170,8 +170,11 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
     df["ot"] = np.clip(periods - 2, 0, None).astype(int)
     # First-half points (used to estimate how leads erode in the second half).
     is_home = (df.team_home_away == "home").to_numpy()
-    home_h1 = sched.home_linescores.reindex(df.game_id).map(_first_half).to_numpy()
-    away_h1 = sched.away_linescores.reindex(df.game_id).map(_first_half).to_numpy()
+    if "home_linescores" in sched:                  # older schedules have no half-time scores
+        home_h1 = sched.home_linescores.reindex(df.game_id).map(_first_half).to_numpy()
+        away_h1 = sched.away_linescores.reindex(df.game_id).map(_first_half).to_numpy()
+    else:
+        home_h1 = away_h1 = np.full(len(df), np.nan)
     df["h1"] = np.where(is_home, home_h1, away_h1)
     df["opp_h1"] = np.where(is_home, away_h1, home_h1)
 
