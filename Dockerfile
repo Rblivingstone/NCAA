@@ -14,6 +14,7 @@ RUN pip install -r requirements.txt gunicorn==23.0.0
 COPY ncaa ncaa
 COPY webapp webapp
 COPY data data
+COPY results results
 COPY deploy/worker.sh deploy/worker.sh
 RUN chmod +x deploy/worker.sh && mkdir -p artifacts
 

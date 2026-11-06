@@ -840,6 +840,22 @@ def ratings_for(season: int):
     return _ratings(season, _stamp(season))
 
 
+@app.route("/track-record")
+def track_record_page():
+    return render_template("track_record.html", season=SEASON, live_season=LIVE_SEASON, page="track")
+
+
+@app.route("/api/track-record")
+def api_track_record():
+    """The out-of-sample backtest: every season's games and brackets, and the totals (see ncaa.backtest)."""
+    from ncaa import backtest
+
+    results = backtest.load_all()
+    return jsonify({"summary": backtest.summary(results) if results else None,
+                    "seasons": [{k: r[k] for k in ("season", "champion", "games", "brackets", "cutoff", "seed_slope")}
+                                for r in results]})
+
+
 @app.route("/march")
 def march_page():
     return render_template("march.html", season=SEASON, live_season=LIVE_SEASON, page="march")

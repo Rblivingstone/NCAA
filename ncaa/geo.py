@@ -123,12 +123,11 @@ def _days(dates: pd.Series) -> str | None:
 
 def sites_from_schedule(raw: pd.DataFrame) -> dict | None:
     """A finished (or seeded) tournament's sites, read from its games."""
-    t = raw[(raw.tournament_id == data.NCAA_TOURNAMENT_ID)
-            & raw.notes_headline.fillna("").str.contains("Men's Basketball Championship")].copy()
+    t = raw[data.is_ncaa_tournament(raw)].copy()
     if not len(t):
         return None
-    t["rnd"] = t.notes_headline.str.split(" - ").str[-1]
-    t["region"] = t.notes_headline.str.extract(r"- (\w+) Region -", expand=False)
+    t["rnd"] = data.round_and_region(t.notes_headline)[0]
+    t["region"] = data.round_and_region(t.notes_headline)[1]
     pods, regionals = [], []
     for (venue, city, st), g in t[t.rnd.isin(["1st Round", "2nd Round"])].groupby(
             ["venue_full_name", "venue_address_city", "venue_address_state"]):

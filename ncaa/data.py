@@ -53,6 +53,25 @@ TEAM_ALIASES = {"St. Thomas": "St. Thomas-Minnesota", "LSU New Orleans": "New Or
 
 ROUND_NAMES = ["First Four", "1st Round", "2nd Round", "Sweet 16", "Elite 8",
                "Final Four", "National Championship"]
+_ROUND_CANON = {r.lower(): r for r in ROUND_NAMES}
+# Tournament games declared no-contests (the winner advanced without playing): seeded into the bracket and
+# counted as a win for bracket scoring, as pools did, but never as a game for forecast accuracy.
+NO_CONTESTS = {2021: [{"region": "West", "seeds": {7: "Oregon", 10: "VCU"}, "winner": "Oregon",
+                       "date": "2021-03-20T00:00:00+00:00"}]}
+CHAMPIONSHIP_HEADLINE = r"men's basketball championship"     # older seasons write headlines in capitals
+
+
+def is_ncaa_tournament(sched: pd.DataFrame) -> pd.Series:
+    """Rows of the schedule that are NCAA tournament games (any capitalisation of the headline)."""
+    return sched.tournament_id.eq(NCAA_TOURNAMENT_ID) & sched.notes_headline.fillna("").str.contains(
+        CHAMPIONSHIP_HEADLINE, case=False, regex=True)
+
+
+def round_and_region(headlines: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Round name (as in ROUND_NAMES) and region (title case) from tournament headlines."""
+    rnd = headlines.str.split(" - ").str[-1].str.strip().str.lower().map(_ROUND_CANON)
+    region = headlines.str.extract(r"- (\w+) Region -", flags=2, expand=False).str.title()   # 2 = re.IGNORECASE
+    return rnd, region
 
 
 def season_dir(season: int) -> Path:
@@ -100,16 +119,14 @@ def build_schedule(sched: pd.DataFrame) -> pd.DataFrame:
         "home_conf": s.home_conference_id, "away_conf": s.away_conference_id,
         "completed": s.status_type_completed.fillna(False).astype(bool),
         "home_score": s.home_score, "away_score": s.away_score, "season_type": s.season_type,
-        "tournament": s.tournament_id.eq(NCAA_TOURNAMENT_ID) & s.notes_headline.fillna("").str.contains("Men's Basketball Championship"),
+        "tournament": is_ncaa_tournament(s),
     })
     return out.sort_values("date").reset_index(drop=True)
 
 
 def _tournament_games(sched: pd.DataFrame) -> pd.DataFrame:
-    t = sched[(sched.tournament_id == NCAA_TOURNAMENT_ID)
-              & sched.notes_headline.fillna("").str.contains("Men's Basketball Championship")].copy()
-    t["round_name"] = t.notes_headline.str.split(" - ").str[-1]
-    t["region"] = t.notes_headline.str.extract(r"- (\w+) Region -", expand=False)
+    t = sched[is_ncaa_tournament(sched)].copy()
+    t["round_name"], t["region"] = round_and_region(t.notes_headline)
     return t
 
 
@@ -182,9 +199,37 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
     return df[cols].sort_values(["date", "game_id", "team"]).reset_index(drop=True)
 
 
+RAW_GAME_JSON = "https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-raw/main/mbb/json/final/{game_id}.json"
+
+
+def with_seeds(t: pd.DataFrame, log=print) -> pd.DataFrame:
+    """Tournament games with ``home_current_rank`` / ``away_current_rank`` (the seeds). Schedules before 2023
+    have no seed columns; those seeds come from ESPN's archived game files (cached in data/archive_seeds)."""
+    if {"home_current_rank", "away_current_rank"} <= set(t.columns) and t.home_current_rank.notna().all():
+        return t
+    t = t.copy()
+    season = int(t.season.iloc[0]) if "season" in t else 0
+    cache = DATA_DIR / "archive_seeds" / f"{season}.json"
+    seeds = json.loads(cache.read_text()) if cache.exists() else {}
+    for gid in t.game_id.astype(int):
+        if str(gid) in seeds:
+            continue
+        try:
+            with urllib.request.urlopen(RAW_GAME_JSON.format(game_id=gid), timeout=60) as r:
+                comp = json.loads(r.read())["header"]["competitions"][0]
+            seeds[str(gid)] = {c["homeAway"]: c.get("rank") for c in comp["competitors"]}
+        except Exception as e:                                          # pragma: no cover - network
+            log(f"no archived game {gid}: {e}")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(seeds))
+    t["home_current_rank"] = [seeds.get(str(int(g)), {}).get("home") for g in t.game_id]
+    t["away_current_rank"] = [seeds.get(str(int(g)), {}).get("away") for g in t.game_id]
+    return t
+
+
 def build_bracket(sched: pd.DataFrame, box: pd.DataFrame) -> dict:
     """Bracket definition (regions, seeds, First Four) and actual results."""
-    t = _tournament_games(sched)
+    t = with_seeds(_tournament_games(sched))
     names = box.drop_duplicates("team_id").set_index("team_id").team_location.to_dict()
 
     def name(tid):
@@ -198,6 +243,9 @@ def build_bracket(sched: pd.DataFrame, box: pd.DataFrame) -> dict:
             slot = regions.setdefault(g.region, {}).setdefault(seed, [])
             if team not in slot:
                 slot.append(team)
+    for patch in NO_CONTESTS.get(int(sched.season.iloc[0]), []):        # games never played: seat both teams
+        for seed, team in patch["seeds"].items():
+            regions.setdefault(patch["region"], {}).setdefault(seed, [team])
     # A First Four winner also appears in the 1st round; keep the pair only
     # for slots that actually had a First Four game.
     ff_slots = {(g.region, int(g.home_current_rank)) for _, g in t[t.round_name == "First Four"].iterrows()}
@@ -227,6 +275,9 @@ def build_bracket(sched: pd.DataFrame, box: pd.DataFrame) -> dict:
                         "teams": [home, away], "score": [int(g.home_score), int(g.away_score)],
                         "winner": winner, "date": pd.Timestamp(g.date).isoformat()})
 
+    for patch in NO_CONTESTS.get(int(sched.season.iloc[0]), []):
+        results.append({"round": "1st Round", "region": patch["region"], "teams": list(patch["seeds"].values()),
+                        "score": None, "winner": patch["winner"], "date": patch["date"], "no_contest": True})
     first_game = pd.to_datetime(t.date, utc=True).min()
     return {
         "season": int(sched.season.iloc[0]),
