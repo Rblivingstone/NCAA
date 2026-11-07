@@ -701,6 +701,58 @@ def path_clearing(bracket: Bracket, sims: dict, champion: int, top: int = 8) -> 
     return {"p_title": base, "eliminations": rows[:top]}
 
 
+def arrival_and_win(bracket: Bracket, sims: dict) -> tuple[np.ndarray, np.ndarray]:
+    """For every game and team (games x teams): the chance the team plays in that game (arrives), and the
+    chance it wins it. Winning once there is their ratio."""
+    n, T = sims["winners"].shape[0], len(bracket.teams)
+    A = np.zeros((len(bracket.games), T)); Wn = np.zeros_like(A)
+    for i in range(len(bracket.games)):
+        A[i] = (np.bincount(sims["sides"][:, i, 0], minlength=T) + np.bincount(sims["sides"][:, i, 1], minlength=T)) / n
+        Wn[i] = np.bincount(sims["winners"][:, i], minlength=T) / n
+    return A, Wn
+
+
+TILTS = {"arrival": "Arrival blend", "edge": "Conditional edge"}
+
+
+def tilt_values(bracket: Bracket, A: np.ndarray, Wn: np.ndarray, method: str, param: float,
+                points=ESPN_POINTS) -> np.ndarray:
+    """What picking each team to win each game is worth (games x teams), for the two arrival-aware brackets.
+
+    * ``arrival`` (parameter alpha): points x a^alpha x c, where a is the chance the team arrives and c its chance of
+      winning once there. alpha = 1 is the max-expected-points bracket; alpha = 0 ignores how likely the team is
+      to get there and backs whoever is strongest once there.
+    * ``edge`` (parameter beta): points x a x c x (c / c_seat)^beta, where c_seat is the chance that whoever
+      usually fills that seat wins the game. beta = 0 is the max-expected-points bracket; larger beta rewards
+      teams that would do better than the seat's usual occupant: underrated by a hard path, or simply strong.
+    """
+    C = np.divide(Wn, A, out=np.zeros_like(Wn), where=A > 1e-12)
+    pts = np.array([points[g.round] for g in bracket.games], dtype=float)[:, None]
+    if method == "arrival":
+        return pts * np.power(A, param) * C
+    if method == "edge":
+        seat = np.zeros_like(Wn)
+        for i, g in enumerate(bracket.games):
+            for side in range(2):
+                members = bracket.side_teams(g, side)
+                seat[i, members] = Wn[i, members].sum()
+        ratio = np.divide(C, seat, out=np.zeros_like(C), where=seat > 1e-12)
+        return pts * Wn * np.power(ratio, param)
+    raise ValueError(method)
+
+
+def tilted_bracket(bracket: Bracket, sims: dict, method: str, param: float, c: Constraints = Constraints(),
+                   points=ESPN_POINTS, A=None, Wn=None) -> dict:
+    """The bracket maximising the summed ``tilt_values`` (exact backwards induction; every pick consistent)."""
+    if A is None:
+        A, Wn = arrival_and_win(bracket, sims)
+    V = tilt_values(bracket, A, Wn, method, param, points)
+    T = len(bracket.teams)
+    picks, total, root = _dp(bracket, lambda g: np.repeat(V[bracket.gidx[g.id]][:, None], T, axis=1), c)
+    exp = float(sum(points[bracket.games[bracket.gidx[g]].round] * Wn[bracket.gidx[g], t] for g, t in picks.items()))
+    return {"picks": picks, "expected_points": exp, "objective": total, "root": root}
+
+
 def expected_points(bracket: Bracket, picks: dict[str, str], summary: dict, points=ESPN_POINTS) -> float:
     """Expected pool score of a set of pre-tournament picks."""
     pwin = _win_probabilities(bracket, summary)

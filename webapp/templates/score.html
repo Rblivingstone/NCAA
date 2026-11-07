@@ -16,11 +16,15 @@ how it compares with brackets the model itself generates. Or let the optimizer b
       <option value="likelihood">Most likely bracket</option>
       <option value="points">Max expected points (ESPN)</option>
       <option value="conditional">Max points if my champion wins</option>
+      <option value="arrival">Arrival blend (less weight on getting there)</option>
+      <option value="edge">Conditional edge (better than the seat's usual team)</option>
       <option value="pool">Win a pool</option></select></label>
     <span id="pool-opts" hidden>
       <label>preset <select id="pool-preset"></select></label>
       <label>competitors <input type="number" id="pool-n" value="100" min="1" max="1000000" style="width:90px"></label>
     </span>
+    <label id="param-wrap" hidden title="Arrival blend: 1 = max expected points, 0 = ignore how likely a team is to get there. Conditional edge: 0 = max expected points, higher = more weight on beating the seat's usual occupant."><span id="param-name">alpha</span>
+      <input type="number" id="param" step="0.25" style="width:64px"></label>
     <label>Champion <select id="champion"><option value="">Best overall</option></select></label>
     <label class="switch"><input type="checkbox" id="upsets-on"> Upsets</label>
     <span id="upset-opts" hidden>
@@ -162,6 +166,9 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   applyPreset();
   $("objective").onchange = () => {
     const pool = $("objective").value === "pool";
+    const tilt = { arrival: ["alpha", 0.5], edge: ["beta", 1] }[$("objective").value];
+    $("param-wrap").hidden = !tilt;
+    if (tilt) { $("param-name").textContent = tilt[0]; $("param").value = tilt[1]; }
     $("pool-opts").hidden = !pool; $("pool-panel").hidden = !pool;
     if (!pool) $("pool-difficulty").innerHTML = "";
     for (const id of ["champion", "upsets-on"]) $(id).closest("label").hidden = pool;
@@ -245,7 +252,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     if ($("objective").value === "pool" && champion === undefined) return buildPool();
     if (champion !== undefined) { champSel.value = champion; if ($("objective").value === "pool") $("objective").value = "likelihood"; $("objective").onchange(); }
     const q = new URLSearchParams({ objective: $("objective").value, champion: champSel.value, gap: $("gap").value,
-      keep_final_four: $("keep-f4").checked ? "1" : "0" });
+      keep_final_four: $("keep-f4").checked ? "1" : "0", param: $("param").value });
     if ($("upsets-on").checked) q.set("upsets", $("n-upsets").value || "0");
     if ($("objective").value === "conditional" && !champSel.value) {
       $("opt-note").textContent = "Choose a champion first: this bracket is built from the simulated tournaments that team wins."; return; }
