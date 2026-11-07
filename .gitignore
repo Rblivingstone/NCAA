@@ -4,3 +4,14 @@ __pycache__/
 artifacts/
 .pytest_cache/
 data/geo/
+data/archive_seeds/
+# backtest seasons: fetched on demand by `python -m ncaa backtest` (results/backtest is what the site reads)
+data/2016/
+data/2017/
+data/2018/
+data/2019/
+data/2021/
+data/2022/
+data/2023/
+data/2024/
+data/2025/

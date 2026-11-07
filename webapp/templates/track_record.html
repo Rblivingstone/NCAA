@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Track record{% endblock %}
+{% block content %}
+<h1>Track record: ten tournaments, out of sample</h1>
+<p class="lede">For each of the last ten NCAA tournaments, the model was fitted only on that season's games before the
+First Four, as it stood on Selection Sunday, and asked to forecast the whole bracket. Nothing from the tournament, and
+nothing from later seasons, went into it. Here it is head to head with the alternatives whose historical forecasts can
+be recovered.</p>
+<div class="stats" id="tiles"></div>
+
+<div class="panel" style="margin-top:12px">
+  <div class="toolbar" style="margin:0"><b>Game forecasts</b>
+    <label><input type="radio" name="scope" value="all" checked> all 67 games a year</label>
+    <label><input type="radio" name="scope" value="no_first_four"> the 63 from the round of 64 on</label></div>
+  <div class="muted mini" style="margin:4px 0 6px">Each source's chance that the eventual winner would win that game. Lower
+    log loss and Brier score are better. Every row is compared with the model on exactly the games that source covers.
+    ESPN BPI and Vegas are set on the day of each game, after the earlier rounds are known, so they have information the
+    Selection Sunday forecasts don't.</div>
+  <table class="data" id="games"></table></div>
+
+<div class="panel" style="margin-top:12px"><b>Brackets at Selection Sunday</b>
+  <div class="muted mini" style="margin:4px 0 6px">Each source's most likely bracket, found by the same exact search,
+    scored with ESPN Tournament Challenge points (10-20-40-80-160-320, 1,920 at most). "Expected" is the score the source
+    itself expected of that bracket. The five-bracket portfolio is the most likely bracket for each of the source's five
+    likeliest champions, scored by the best of the five. ESPN BPI and Vegas only forecast single games, so they have no
+    Selection Sunday bracket.</div>
+  <table class="data" id="brackets"></table></div>
+
+<div class="dash-grid" style="margin-top:12px">
+  <div class="panel"><b>ESPN score by year</b><div class="muted mini">Most likely bracket, each source.</div><div id="espnChart"></div></div>
+  <div class="panel"><b>Log loss by year</b><div class="muted mini">All tournament games; lower is better.</div><div id="llChart"></div></div>
+</div>
+
+<div class="panel" style="margin-top:12px"><b>Year by year</b>
+  <div class="scroll" style="margin-top:6px; max-height:none"><table class="data" id="years"></table></div></div>
+
+<div class="panel" style="margin-top:12px"><b>How the test works, and what's missing</b>
+  <ul class="mini" style="margin:6px 0 0 18px; padding:0">
+    <li><b>The model</b>: refitted from scratch for each season, the same way the live site fits, on regular-season and
+      conference-tournament games only. Its game chances are its Selection Sunday chances for each pairing, never updated
+      during the tournament. It was designed with knowledge of recent seasons, so this is out of sample for the fitted
+      numbers, not for every modelling choice.</li>
+    <li><b>Seeds</b>: a curve in the seed difference fitted on the tournaments before each year (from 2012).</li>
+    <li><b>Efficiency margin</b>: a KenPom-style rating (opponent- and venue-adjusted points per 100 possessions)
+      rebuilt here from the same box scores the model sees. It is not KenPom's own numbers.</li>
+    <li><b>ESPN BPI</b> and <b>Vegas</b> (the consensus line, moneylines with the bookmaker's margin removed): read from
+      ESPN's archived game files, which keep them for some years only (the Years column). Each is compared with the model
+      on the games it covers.</li>
+    <li><b>Not included</b>, because their historical forecasts can't be recovered:
+      <ul style="margin:2px 0 0 16px; padding:0">
+        <li>KenPom itself: its archive is behind a subscription;</li>
+        <li>FiveThirtyEight: its public archive ends in 2015, and it stopped forecasting after 2023;</li>
+        <li>BracketProof: no record of its forecasts could be found.</li>
+      </ul></li>
+    <li>2020 had no tournament. In 2021, VCU–Oregon was declared a no-contest: Oregon advanced for bracket scoring, but
+      no game is counted for forecast accuracy.</li>
+  </ul></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const d = await (await fetch("/api/track-record")).json();
+  if (!d.summary) { $("tiles").innerHTML = `<div class="muted">The backtest hasn't been run yet.</div>`; return; }
+  const S = d.summary, names = S.sources, years = S.seasons;
+  const colour = { model: "var(--accent)", efficiency: "var(--hl)", seed: "var(--muted)", bpi: "#8b5cf6", vegas: "var(--win)" };
+  const f3 = (v) => v.toFixed(3), f0 = (v) => Math.round(v).toLocaleString();
+  const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+  const B = S.brackets;
+  const others = Object.keys(B).filter((k) => k !== "model");
+  const bestOther = others.sort((a, b) => B[b].espn - B[a].espn)[0];
+  const g = S.games.all;
+  $("tiles").innerHTML = stat(years.length, `tournaments (${years[0]}–${years[years.length - 1]})`) +
+    stat(f3(g.model.log_loss), `model log loss on ${g.model.n} games (seeds ${f3(g.seed.log_loss)})`) +
+    stat(`${B.model.champions_right} of ${B.model.n}`, "champions the model's bracket picked") +
+    stat(f0(B.model.espn), `model's average ESPN score (best alternative: ${names[bestOther]}, ${f0(B[bestOther].espn)})`);
+
+  // game forecasts
+  function drawGames(scope) {
+    const G = S.games[scope];
+    const rows = Object.keys(names).filter((k) => G[k]);
+    const yrs = (k) => { const c = S.coverage[k] || []; return c.length === years.length ? "every year" : c.join(", "); };
+    $("games").innerHTML = `<tr><th>Source</th><th>Years</th><th class="num">Games</th><th class="num">Log loss</th><th class="num">Brier</th>
+      <th class="num">Picked the winner</th><th class="num">Model on the same games</th><th class="num">Difference</th></tr>` +
+      rows.map((k) => { const r = G[k], diff = r.log_loss - r.model_log_loss, se = r.ll_diff_se;
+        const sig = k !== "model" && se && Math.abs(diff) > 2 * se;
+        const verdict = k === "model" ? "" : `${diff > 0 ? "+" : ""}${f3(diff)}${se ? ` ± ${f3(2 * se)}` : ""} ` +
+          `<span class="muted">${diff > 0 ? "model better" : "source better"}${sig ? "" : ", within noise"}</span>`;
+        return `<tr${k === "model" ? ' style="font-weight:600"' : ""}><td><span style="color:${colour[k]}">■</span> ${names[k]}</td>
+          <td class="muted">${yrs(k)}</td><td class="num">${r.n}</td><td class="num">${f3(r.log_loss)}</td><td class="num">${f3(r.brier)}</td>
+          <td class="num">${fmtPct(r.accuracy)}</td><td class="num">${k === "model" ? "" : `${f3(r.model_log_loss)} / ${f3(r.model_brier)}`}</td>
+          <td class="num">${verdict}</td></tr>`; }).join("");
+  }
+  document.querySelectorAll("input[name=scope]").forEach((el) => (el.onchange = () => drawGames(el.value)));
+  drawGames("all");
+
+  // brackets
+  $("brackets").innerHTML = `<tr><th>Source</th><th class="num">Average ESPN score</th><th class="num">Expected</th>
+    <th class="num">Champion right</th><th class="num">Title favourite won</th><th class="num">Best of 5 (average)</th>
+    <th class="num">Portfolio had the champion</th><th class="num">Years it outscored the model</th></tr>` +
+    Object.keys(B).map((k) => { const r = B[k];
+      return `<tr${k === "model" ? ' style="font-weight:600"' : ""}><td><span style="color:${colour[k]}">■</span> ${names[k]}</td>
+        <td class="num">${f0(r.espn)}</td><td class="num">${f0(r.expected)}</td><td class="num">${r.champions_right} / ${r.n}</td>
+        <td class="num">${r.title_favourite_right} / ${r.n}</td><td class="num">${f0(r.portfolio_best)}</td>
+        <td class="num">${r.portfolio_champion_right} / ${r.n}</td>
+        <td class="num">${k === "model" ? "" : `${r.beats_model} of ${r.n}${r.ties_model ? ` (${r.ties_model} tied)` : ""}`}</td></tr>`; }).join("");
+
+  // charts: one line per source over the years
+  function lines(el, key, srcs, fmt, lowerBetter) {
+    const W = 560, H = 220, L = 46, R = 12, T = 10, Bm = 26;
+    const vals = srcs.flatMap((k) => S.by_season.map((y) => y.sources[k] && y.sources[k][key]).filter((v) => v != null));
+    let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    const x = (i) => L + i / Math.max(1, years.length - 1) * (W - L - R), y = (v) => T + (hi - v) / (hi - lo) * (H - T - Bm);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+    for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4;
+      s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 5}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`; }
+    years.forEach((yr, i) => (s += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${String(yr).slice(2)}</text>`));
+    for (const k of srcs) {
+      const pts = S.by_season.map((r, i) => (r.sources[k] && r.sources[k][key] != null ? [x(i), y(r.sources[k][key]), r] : null)).filter(Boolean);
+      s += `<polyline points="${pts.map((p) => p[0] + "," + p[1]).join(" ")}" fill="none" stroke="${colour[k]}" stroke-width="${k === "model" ? 3 : 2}"/>`;
+      s += pts.map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${colour[k]}"><title>${p[2].season} · ${names[k]}: ${fmt(p[2].sources[k][key])}</title></circle>`).join("");
+    }
+    s += `</svg><div class="muted mini">` + srcs.map((k) => `<span style="color:${colour[k]}">■</span> ${names[k]}`).join(" &nbsp; ") + `</div>`;
+    el.innerHTML = s;
+  }
+  lines($("espnChart"), "espn", Object.keys(B), f0);
+  lines($("llChart"), "log_loss", Object.keys(names).filter((k) => S.games.all[k]), (v) => v.toFixed(2));
+
+  // year by year
+  const bs = Object.keys(B), gs = Object.keys(names).filter((k) => S.games.all[k]);
+  $("years").innerHTML = `<tr><th>Year</th><th>Champion</th>` + bs.map((k) => `<th>${names[k]}: bracket</th>`).join("") +
+    gs.map((k) => `<th class="num">${names[k]} log loss</th>`).join("") + `</tr>` +
+    S.by_season.map((r) => `<tr><td>${r.season}</td><td>${r.champion}</td>` +
+      bs.map((k) => { const v = r.sources[k];
+        return `<td>${f0(v.espn)} <span class="muted">· ${v.champion}</span> ${v.champion_right ? "✓" : ""}
+          <span class="muted mini">(gave the champion ${fmtPct(v.p_title_actual || 0)})</span></td>`; }).join("") +
+      gs.map((k) => { const v = r.sources[k], best = Math.min(...gs.map((j) => (r.sources[j] && r.sources[j].log_loss) || 9));
+        return `<td class="num"${v && v.log_loss === best ? ' style="font-weight:700"' : ""}>${v && v.log_loss != null ? f3(v.log_loss) : "—"}</td>`; }).join("") +
+      `</tr>`).join("");
+})();
+</script>
+{% endblock %}
