@@ -4,13 +4,13 @@ Tested on the backtest's tournament games, the raw model was underconfident: fav
 the time. Two things caused it, and both are measurable from the games:
 
 * the gaps between teams were compressed: actual margins ran 1.2 times the predicted ones;
-* single games were too noisy: simulated margins spread 13.3 points around their mean, real ones 12.0.
+* single games looked too noisy (13.3 points of spread against 12.0), but that turned out to be the seasons
+  without half-time scores, which had no second-half lead erosion; with it, the spread matches.
 
-The simulator therefore gets two settings (``ncaa.simulate.CAL``): ``skill_scale`` multiplies the matchup's
-skill gap, and ``phi_scale`` multiplies the beta-binomial precision of game-night rates (more precision, less
-noise). They are chosen together by log loss over a grid, each tournament's game chance coming from
-simulations of that exact matchup on Selection Sunday. The live site uses the values fitted on all ten
-tournaments; the backtest scores each season with the values fitted on the other nine.
+The simulator therefore widens every matchup's skill gap by ``skill_scale`` (``ncaa.simulate.CAL``), fitted on
+the margins of each tournament game as forecast on Selection Sunday. The live site uses the value fitted on all
+ten tournaments; the backtest scores each season with the value fitted on the other nine. (``phi_scale``, the
+game-night precision, stays at 1.)
 
 ``python -m ncaa calibrate`` (after ``python -m ncaa backtest`` has fitted the seasons) writes
 ``ncaa/calibration.json``. Ratings, rankings and the rating updates are untouched: only game simulation
@@ -26,9 +26,7 @@ import numpy as np
 from . import data, model
 from .simulate import CALIBRATION_FILE, calibration, simulate_games
 
-SKILL_GRID = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
-PHI_GRID = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 10.0]
-N_SIMS = 400
+N_SIMS = 1000
 
 
 def matchups(season: int) -> dict:
@@ -61,42 +59,39 @@ def log_loss(p: np.ndarray, margin: np.ndarray) -> np.ndarray:
 
 
 def fit(seasons, log=print) -> dict:
-    """Grid of (skill_scale, phi_scale) by log loss: all seasons together, and leaving each season out."""
+    """The skill gap from margins, then a check by log loss with the same random numbers before and after.
+
+    Simulated win chances from a few hundred games per matchup are too noisy to pick a calibration by log loss
+    over a grid (the minimum chases the noise), so the skill gap is fitted where the signal is smooth: real
+    margins against the predicted ones. The predicted margin scales almost exactly with ``skill_scale``, so
+    the slope of actual on predicted (through zero) is the factor that makes it 1. Leaving each season out
+    gives the factor that season is scored with. Game-night noise is left as it is: with the half-time lead
+    erosion in place, simulated spread already matches the real one (12.2 against 11.9 points)."""
     t0 = time.time()
     ms = {s: matchups(s) for s in seasons}
-    grid = [(k, f) for k in SKILL_GRID for f in PHI_GRID]
-    loss = {s: np.zeros(len(grid)) for s in seasons}               # summed log loss per season, per grid point
-    n_games = {s: len(ms[s]["a"]) for s in seasons}
-    diag = {}
-    for gi, (k, f) in enumerate(grid):
-        means, sds, margins = [], [], []
-        for s in seasons:
-            r = simulate(ms[s], k, f, seed=gi)
-            loss[s][gi] = log_loss(r["p"], ms[s]["margin"]).sum()
-            means.append(r["mean"]); sds.append(r["sd"]); margins.append(ms[s]["margin"])
-        pm, act = np.concatenate(means), np.concatenate(margins)
-        diag[(k, f)] = {"margin_slope": float((pm * act).sum() / (pm * pm).sum()),
-                        "sim_sd": float(np.concatenate(sds).mean()), "resid_sd": float((act - pm).std())}
-        log(f"skill {k:.1f} phi {f:>4.1f}: log loss {sum(l[gi] for l in loss.values()) / sum(n_games.values()):.4f} "
-            f"| margin slope {diag[(k, f)]['margin_slope']:.2f}, spread {diag[(k, f)]['sim_sd']:.1f} vs "
-            f"{diag[(k, f)]['resid_sd']:.1f} ({time.time() - t0:.0f}s)")
-    total = sum(loss.values())
-    best = int(np.argmin(total))
-    N = sum(n_games.values())
-    raw = grid.index((1.0, 1.0))
-    loso = {}
+    raw = {s: simulate(ms[s], 1.0, 1.0, seed=1) for s in seasons}
+    xy = {s: float((raw[s]["mean"] * ms[s]["margin"]).sum()) for s in seasons}
+    xx = {s: float((raw[s]["mean"] ** 2).sum()) for s in seasons}
+    slope = lambda keep: round(sum(xy[s] for s in keep) / sum(xx[s] for s in keep), 2)
+    k_all = slope(seasons)
+    n = {s: len(ms[s]["a"]) for s in seasons}
+    N = sum(n.values())
+    loso, ll_raw, ll_all, ll_loso = {}, 0.0, 0.0, 0.0
     for s in seasons:
-        others = total - loss[s]
-        j = int(np.argmin(others))
-        loso[s] = {"skill_scale": grid[j][0], "phi_scale": grid[j][1],
-                   "log_loss_raw": float(loss[s][raw] / n_games[s]), "log_loss": float(loss[s][j] / n_games[s])}
-    k, f = grid[best]
-    return {"skill_scale": k, "phi_scale": f, "seasons": list(seasons), "games": N,
-            "log_loss_raw": float(total[raw] / N), "log_loss": float(total[best] / N),
-            "log_loss_out_of_sample": float(sum(loso[s]["log_loss"] * n_games[s] for s in seasons) / N),
-            "margin_slope_raw": diag[(1.0, 1.0)]["margin_slope"], "margin_slope": diag[grid[best]]["margin_slope"],
-            "sim_sd_raw": diag[(1.0, 1.0)]["sim_sd"], "sim_sd": diag[grid[best]]["sim_sd"],
-            "resid_sd": diag[grid[best]]["resid_sd"], "leave_one_out": {str(s): v for s, v in loso.items()}}
+        k = slope([x for x in seasons if x != s])
+        r_raw = simulate(ms[s], 1.0, 1.0, seed=7)                   # the same random numbers for all three
+        r_loso = simulate(ms[s], k, 1.0, seed=7)
+        r_all = simulate(ms[s], k_all, 1.0, seed=7)
+        a, b_, c = (log_loss(r["p"], ms[s]["margin"]).sum() for r in (r_raw, r_loso, r_all))
+        ll_raw += a; ll_loso += b_; ll_all += c
+        loso[s] = {"skill_scale": k, "phi_scale": 1.0, "log_loss_raw": a / n[s], "log_loss": b_ / n[s]}
+        log(f"{s}: skill x{k} (fitted without {s}); log loss {a / n[s]:.4f} -> {b_ / n[s]:.4f} ({time.time() - t0:.0f}s)")
+    pm = np.concatenate([raw[s]["mean"] for s in seasons]); act = np.concatenate([ms[s]["margin"] for s in seasons])
+    return {"skill_scale": k_all, "phi_scale": 1.0, "seasons": list(seasons), "games": N,
+            "log_loss_raw": ll_raw / N, "log_loss": ll_all / N, "log_loss_out_of_sample": ll_loso / N,
+            "margin_slope_raw": float((pm * act).sum() / (pm * pm).sum()),
+            "sim_sd_raw": float(np.concatenate([raw[s]["sd"] for s in seasons]).mean()),
+            "resid_sd": float((act - pm).std()), "leave_one_out": {str(s): v for s, v in loso.items()}}
 
 
 def run(seasons=None, log=print) -> dict:
