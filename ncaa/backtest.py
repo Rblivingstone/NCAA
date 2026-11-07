@@ -48,12 +48,14 @@ MARGIN_SD = 11.0
 PORTFOLIO = 5
 SOURCES = {
     "model": "This model",
+    "model_raw": "This model, before calibration",
     "efficiency": "Efficiency margin (KenPom-style)",
     "seed": "Seeds",
     "bpi": "ESPN BPI (game day)",
     "vegas": "Vegas (game day)",
 }
-BRACKET_SOURCES = ["model", "efficiency", "seed"]
+BRACKET_SOURCES = ["model", "model_raw", "efficiency", "seed"]
+MODEL_RUNS = ("model", "model_raw")
 
 
 def _phi(x):
@@ -193,15 +195,32 @@ def bracket_scores(br: Bracket, picks: dict, actual: dict, pwin: np.ndarray | No
             "espn": float(real), "expected": exp, "champion_right": named["R6"] == actual.get("R6")}
 
 
-def evaluate(season: int, log=print) -> dict:
-    """Score every source on one season (the model's fit and simulation must exist)."""
+def model_run(season: int, skill: float, phi: float, sims: int = 10000, seed: int = 0) -> tuple:
+    """The model's Selection Sunday forecast under one calibration: (tournament simulations, summary, the
+    pairwise win matrix), computed in memory, exactly as ``python -m ncaa simulate`` does."""
+    from .bracket import pairwise_win_matrix, simulate_tournament, summarize
+    from .simulate import calibration
+
+    post = model.load_posterior(season)
+    br = Bracket(data.load_bracket(season))
+    with calibration(skill, phi):
+        sim = simulate_tournament(br, post, sims, seed=seed)
+        summary = summarize(br, sim)
+        _, W = pairwise_win_matrix(br, post, n_draws=100, sims_per_draw=100, seed=seed + 1)
+    return sim, summary, W
+
+
+def evaluate(season: int, runs: dict | None = None, log=print) -> dict:
+    """Score every source on one season. ``runs`` holds the model's forecasts ({"model": (sims, summary, W),
+    "model_raw": ...}); by default the saved simulation, as "model"."""
     br = Bracket(data.load_bracket(season))
     actual = actual_picks(br)
-    sims, summary, W = load_simulation(season)
+    runs = runs or {"model": load_simulation(season)}
     games = data.load_games(season)
     eff = efficiency_ratings(games)
     k = seed_curve(season, log)
-    mats = {"model": W.mean(0), "efficiency": efficiency_matrix(br, eff), "seed": seed_matrix(br, k)}
+    mats = {name: r[2].mean(0) for name, r in runs.items()}
+    mats |= {"efficiency": efficiency_matrix(br, eff), "seed": seed_matrix(br, k)}
 
     # the tournament's real games, with each source's chance for the winner
     sched = data.load_schedule(season)
@@ -232,13 +251,16 @@ def evaluate(season: int, log=print) -> dict:
     # brackets: the most likely bracket of every Selection Sunday source, and its five-champion portfolio
     brackets = {}
     for name in BRACKET_SOURCES:
-        Wsrc = W if name == "model" else mats[name][None]
+        if name not in mats:
+            continue
+        run_ = runs.get(name)
+        sims = run_[0] if run_ else None
+        Wsrc = run_[2] if run_ else mats[name][None]
         res = most_likely_bracket(br, Wsrc, n_champions=10)
-        pwin = None if name == "model" else advancement(br, mats[name])
-        best = bracket_scores(br, res["picks"], actual, pwin, sims if name == "model" else None)
-        port = [bracket_scores(br, c["picks"], actual, pwin, sims if name == "model" else None)
-                for c in res["by_champion"][:PORTFOLIO]]
-        title = summary["reach"] if name == "model" else None
+        pwin = None if run_ else advancement(br, mats[name])
+        best = bracket_scores(br, res["picks"], actual, pwin, sims)
+        port = [bracket_scores(br, c["picks"], actual, pwin, sims) for c in res["by_champion"][:PORTFOLIO]]
+        title = run_[1]["reach"] if run_ else None
         p_title = (np.array(title)[:, -1] if title is not None else advancement(br, mats[name])[br.gidx["R6"]])
         brackets[name] = {**best, "log_likelihood": float(bracket_log_likelihood(br, res["picks"], Wsrc)),
                           "portfolio": [{"champion": p["champion"], "espn": p["espn"], "expected": p["expected"]}
@@ -260,8 +282,10 @@ def _is_first_four(br: Bracket, a: str, b: str) -> bool:
 # --- pipeline -----------------------------------------------------------------
 
 def run(seasons=None, sims: int = 10000, force: bool = False, log=print) -> list[Path]:
-    """Fetch, fit (variational, as the live site does) and simulate any season missing, then score it."""
+    """Fetch and fit (variational, as the live site does) any season missing, then score it twice: the raw
+    model, and the model calibrated with the values fitted on the *other* seasons (see ncaa.calibration)."""
     from .__main__ import main as cli
+    from .calibration import leave_one_out
 
     out = []
     RESULTS.mkdir(parents=True, exist_ok=True)
@@ -273,10 +297,15 @@ def run(seasons=None, sims: int = 10000, force: bool = False, log=print) -> list
         if force or not (model.artifact_dir(season) / "posterior.npz").exists():
             log(f"{season}: fitting")
             cli(["fit", "--season", str(season), "--method", "vi"])
-        if force or not (model.artifact_dir(season) / "tournament_sims.npz").exists():
-            log(f"{season}: simulating")
-            cli(["simulate", "--season", str(season), "--sims", str(sims)])
-        res = evaluate(season, log)
+        runs = {"model_raw": model_run(season, 1.0, 1.0, sims)}
+        cal = leave_one_out(season)
+        if cal:
+            log(f"{season}: calibrated with skill x{cal[0]}, precision x{cal[1]} (fitted without {season})")
+            runs["model"] = model_run(season, *cal, sims)
+        else:
+            runs["model"] = runs["model_raw"]
+        res = evaluate(season, runs, log)
+        res["calibration"] = {"skill_scale": cal[0], "phi_scale": cal[1]} if cal else None
         p = RESULTS / f"{season}.json"
         p.write_text(json.dumps(res, default=float))
         log(f"{season}: scored in {time.time() - t0:.0f}s -> {p}")

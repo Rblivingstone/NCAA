@@ -17,10 +17,15 @@ import argparse
 import json
 import time
 
+import numpy as np
+
 from . import data, model
 from .bracket import Bracket, pairwise_win_matrix, save_simulation, simulate_tournament, summarize
 from .ratings import team_ratings
 from .simulate import estimate_lead_beta
+
+
+DEFAULT_LEAD_BETA = -0.18     # second-half change in margin per point of half-time lead, where it can't be fitted
 
 
 def cmd_fetch(a):
@@ -38,7 +43,11 @@ def cmd_fit(a):
                     seed=a.seed)
     print(f"fit in {time.time() - t:.0f}s -> {out}")
     if games.h1.notna().sum() < 100:
-        print("no half-time scores this season: in-game lead adjustment not estimated")
+        # Seasons before 2023 have no half-time scores. How far leads erode is a stable fact of the game
+        # (every season with the data gives -0.175 to -0.183), so those seasons use the typical value.
+        post = model.load_posterior(a.season)
+        model.add_to_posterior(a.season, lead_beta=np.full(post.n_draws, DEFAULT_LEAD_BETA))
+        print(f"no half-time scores this season: second-half lead regression set to the usual {DEFAULT_LEAD_BETA}")
     else:
         beta = estimate_lead_beta(games, model.load_posterior(a.season))
         model.add_to_posterior(a.season, lead_beta=beta)
