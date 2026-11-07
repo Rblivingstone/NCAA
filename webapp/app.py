@@ -1145,7 +1145,10 @@ def api_game():
 
     ex = explain.load(season, game_id=gid)
     if ex:
-        meta["explanations"] = {t: {k: e[k] for k in ("dnet", "headline", "evidence")} for (g_, t), e in ex.items()}
+        mu = post.mu.mean(0) if post is not None else None
+        meta["explanations"] = {t: {**{k: e[k] for k in ("dnet", "headline", "evidence")},
+                                    "performance": explain.performance(e, mu) if mu is not None else None}
+                                for (g_, t), e in ex.items()}
     if kind == "live" and view is not None and meta.get("underdog"):
         p_live_dog = float(view["p_win"][0]) if meta["underdog"] == row.home else 1 - float(view["p_win"][0])
         meta["p_underdog_live"] = p_live_dog

@@ -59,11 +59,61 @@
     $("why").innerHTML = m.explanations ? `<div class="panel" style="margin:8px 0"><b>What this game did to the ratings</b>` +
       Object.entries(m.explanations).map(([t, e]) => `<div style="margin-top:6px"><b>${t}</b>
         <span style="color:${e.dnet >= 0 ? "var(--win)" : "var(--upset)"}">${e.headline}</span>
-        ${e.evidence.length ? `<ul class="mini muted" style="margin:2px 0 0 18px; padding:0">${e.evidence.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}</div>`).join("") + `</div>` : "";
+        ${e.evidence.length ? `<ul class="mini muted" style="margin:2px 0 0 18px; padding:0">${e.evidence.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}</div>`).join("") +
+      perfPanel(m.explanations) + `</div>` : "";
     if (!d.model) { $("game").innerHTML = `<div class="muted">One of these teams is not in the model.</div>`; return; }
     LiveGame.render($("game"), d, { mode: d.kind === "live" ? "live" : d.kind });
     clearTimeout(timer);
     if (d.kind === "live") timer = setTimeout(load, 20000);
+  }
+  // Performance against expectation, stat by stat in points per 100 possessions, beside the rating change
+  // each matching skill got from it.
+  function perfPanel(ex) {
+    const teams = Object.entries(ex).filter(([, e]) => e.performance && e.performance.rows.length);
+    if (!teams.length) return "";
+    const all = teams.flatMap(([, e]) => e.performance.rows.filter((r) => !r.style));
+    const maxP = Math.max(1, ...teams.map(([, e]) => Math.abs(e.performance.total)), ...all.map((r) => Math.abs(r.points)));
+    const maxR = Math.max(0.2, ...teams.map(([, e]) => Math.abs(e.performance.rating_change || 0)),
+      ...all.map((r) => Math.abs(r.rating_change || 0)));
+    const sign = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
+    const pct = (v) => (100 * v).toFixed(0) + "%";
+    const chart = (t, perf) => {
+      const rows = [{ label: "Overall", points: perf.total, rating_change: perf.rating_change, total: true }]
+        .concat(perf.rows.filter((r) => !r.style));
+      const W = 900, rowH = 22, L = 210, mid1 = L + 190, half1 = 150, mid2 = L + 560, half2 = 85;
+      const H = rows.length * rowH + 26;
+      let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${t}: performance against expectation">`;
+      s += `<text x="${mid1}" y="12" text-anchor="middle" class="mini">vs expected (pts / 100 poss.)</text>
+        <text x="${mid2}" y="12" text-anchor="middle" class="mini">rating moved</text>
+        <line x1="${mid1}" x2="${mid1}" y1="18" y2="${H}" stroke="var(--line)"/><line x1="${mid2}" x2="${mid2}" y1="18" y2="${H}" stroke="var(--line)"/>`;
+      rows.forEach((r, i) => {
+        const y = 22 + i * rowH, col = (v) => (v >= 0 ? "var(--win)" : "var(--upset)");
+        const w1 = Math.abs(r.points) / maxP * half1, x1 = r.points >= 0 ? mid1 : mid1 - w1;
+        const tip = r.total ? `${t}: ${sign(r.points)} points per 100 possessions against expectation in all; rating ${sign(r.rating_change || 0)}`
+          : `${r.label}: ${r.count} of ${r.of} (${pct(r.actual)}), the model expected ${r.expected_count.toFixed(1)} (${pct(r.expected)}). ` +
+            `Worth ${sign(r.points)} points per 100 possessions` + (r.rating_change != null ? `; this skill moved the rating ${sign(r.rating_change, 2)}` : "");
+        s += `<g><title>${tip}</title><rect x="0" y="${y - 2}" width="${W}" height="${rowH}" fill="transparent"/>
+          <text x="${L - 8}" y="${y + 12}" text-anchor="end" style="fill:var(--ink)${r.total ? ";font-weight:700" : ""}">${r.label}</text>
+          <rect x="${x1}" y="${y + 2}" width="${Math.max(1, w1)}" height="${rowH - 8}" rx="2" fill="${col(r.points)}" opacity="${r.total ? 1 : 0.75}"/>
+          <text x="${r.points >= 0 ? x1 + w1 + 4 : x1 - 4}" y="${y + 12}" text-anchor="${r.points >= 0 ? "start" : "end"}" class="mini">${sign(r.points)}</text>`;
+        if (r.rating_change != null) {
+          const w2 = Math.abs(r.rating_change) / maxR * half2, xx = r.rating_change >= 0 ? mid2 : mid2 - w2;
+          s += `<rect x="${xx}" y="${y + 4}" width="${Math.max(1, w2)}" height="${rowH - 12}" rx="2" fill="${col(r.rating_change)}" opacity="${r.total ? 1 : 0.6}"/>
+            <text x="${r.rating_change >= 0 ? xx + w2 + 4 : xx - 4}" y="${y + 12}" text-anchor="${r.rating_change >= 0 ? "start" : "end"}" class="mini">${sign(r.rating_change, 2)}</text>`;
+        }
+        s += `</g>`;
+      });
+      return s + `</svg>`;
+    };
+    const partial = teams.some(([, e]) => !e.performance.complete);
+    return `<div style="margin-top:10px"><b>Performance against expectation</b>
+      <div class="muted mini" style="margin:2px 0 4px">For each part of the game, what happened against what the model expected
+        from both teams beforehand, valued at what that stat is worth in points per 100 possessions. Green helped the team,
+        red hurt it. Beside it, how far that same skill moved the team's rating: a bigger surprise moves it more, but by much
+        less than the game itself, because one game is weighed against everything seen before. Skills the model sees as
+        linked can also move together, so a small bar can point the other way. Hover a row for the numbers.
+        ${partial ? "This game was rated before the full breakdown was kept, so only its biggest surprises are shown." : ""}</div>
+      ${teams.map(([t, e]) => `<div style="margin-top:6px"><b class="mini">${t}</b>${chart(t, e.performance)}</div>`).join("")}</div>`;
   }
 })();
 </script>

@@ -82,6 +82,51 @@ def evidence(za: np.ndarray, zb: np.ndarray, base, home: float, k: np.ndarray, n
     return out
 
 
+def loadings(mu: np.ndarray) -> np.ndarray:
+    """Points per 100 possessions that one unit of each rate's log-odds is worth, at league-average rates
+    (the gradient the model's efficiency directions are built from). Zero for the style stats (assists,
+    steals, blocks), which change who scores, not how much."""
+    from .simulate import expected_efficiency
+
+    g = np.zeros(S)
+    for j in range(S - 1):
+        up, dn = mu.copy(), mu.copy()
+        up[j] += 1e-4; dn[j] -= 1e-4
+        g[j] = 100 * (expected_efficiency(up[None])[0] - expected_efficiency(dn[None])[0]) / 2e-4
+    return g
+
+
+def performance(record: dict, mu: np.ndarray) -> dict:
+    """Performance against expectation in points per 100 possessions, stat by stat, and the rating change
+    each matching skill got from it.
+
+    For every rate, the surprise is the gap between what happened and what the model expected, on the log-odds
+    scale (where the model works), valued at what that rate is worth in points (``loadings``). Offence counts
+    for the team; the opponent's offence is the team's defence, so it counts against. The total is the
+    first-order sum: how many points per 100 possessions better or worse than expected the team played."""
+    g = loadings(mu)
+    ev = record.get("ev") or record.get("surprises") or []
+    shares = {(x["side"], x["stat"]): x["points"] for x in (record.get("shares") or record.get("drivers") or [])}
+    J = {st: j for j, st in enumerate(STATS)}
+    rows = []
+    for e in ev:
+        n = e["of"]
+        if not n:
+            continue
+        lo = lambda k: np.log((k + 0.5) / (n - k + 0.5))
+        surprise = lo(e["count"]) - lo(e["expected"])
+        value = g[J[e["stat"]]] * surprise * (1 if e["side"] == "off" else -1)
+        w = RATE_WORDS[e["stat"]]
+        rows.append({"side": e["side"], "stat": e["stat"],
+                     "label": w[2] if e["side"] == "off" else f"defending {w[2]}",
+                     "actual": e["count"] / n, "expected": e["expected"] / n, "count": e["count"], "of": n,
+                     "expected_count": e["expected"], "points": float(value),
+                     "rating_change": shares.get((e["side"], e["stat"])), "style": bool(g[J[e["stat"]]] == 0)})
+    rows.sort(key=lambda r: -abs(r["points"]))
+    return {"rows": rows, "total": float(sum(r["points"] for r in rows)),
+            "rating_change": record.get("dnet"), "complete": bool(record.get("ev"))}
+
+
 def sentence(team: str, opponent: str, dnet: float, shares: list[dict], ev: list[dict]) -> dict:
     """Plain-language summary: the rating change, the skills that drove it, the stats behind it."""
     tops = sorted(shares, key=lambda s: -abs(s["points"]))
@@ -120,7 +165,8 @@ def explain_update(team_a: str, team_b: str, za0, za1, zb0, zb1, base, home: flo
         dnet_skills = _net(np.asarray(z1, float), mu) - _net(np.asarray(z0, float), mu)
         dnet = (dnets or {}).get(t, dnet_skills)                    # the change the update log shows, when given
         s = sentence(t, o, dnet, shares, ev)
-        out[t] = {"opponent": o, "dnet": dnet, "dnet_mean_skills": dnet_skills, **s}
+        out[t] = {"opponent": o, "dnet": dnet, "dnet_mean_skills": dnet_skills, **s,
+                  "shares": shares, "ev": ev}                       # everything, for the performance chart
     return out
 
 
