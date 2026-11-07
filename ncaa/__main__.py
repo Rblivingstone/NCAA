@@ -8,6 +8,7 @@
     python -m ncaa project  --season 2027   # nightly: Road to March, the rest of the season simulated
     python -m ncaa geo      --season 2027   # team locations and tournament sites, for the bracket rules
     python -m ncaa backtest                 # ten tournaments out of sample against seeds, efficiency, BPI, Vegas
+    python -m ncaa calibrate                # fit the game simulator's calibration on those tournaments
     python -m ncaa watch    --season 2027   # all day: track every game from tip-off (win-prob history), update ratings at the final
 """
 from __future__ import annotations
@@ -89,6 +90,13 @@ def cmd_backtest(a):
     backtest.run(seasons, sims=a.sims, force=a.force)
 
 
+def cmd_calibrate(a):
+    from . import calibration
+
+    seasons = [int(x) for x in a.seasons.split(",")] if a.seasons else None
+    calibration.run(seasons)
+
+
 def cmd_watch(a):
     from . import season
 
@@ -98,7 +106,7 @@ def cmd_watch(a):
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="ncaa")
-    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update", "watch", "project", "geo", "backtest"])
+    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update", "watch", "project", "geo", "backtest", "calibrate"])
     p.add_argument("--season", type=int, default=2026)
     p.add_argument("--method", choices=["nuts", "vi"], default="nuts",
                    help="nuts: full MCMC (slow, exact); vi: variational approximation (fast)")
@@ -118,7 +126,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     steps = {"fetch": [cmd_fetch], "fit": [cmd_fit], "simulate": [cmd_simulate],
              "build": [cmd_fetch, cmd_fit, cmd_simulate], "update": [cmd_update], "watch": [cmd_watch],
-             "project": [cmd_project], "geo": [cmd_geo], "backtest": [cmd_backtest]}[a.command]
+             "project": [cmd_project], "geo": [cmd_geo], "backtest": [cmd_backtest], "calibrate": [cmd_calibrate]}[a.command]
     for step in steps:
         step(a)
 

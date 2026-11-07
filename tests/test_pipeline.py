@@ -987,6 +987,20 @@ def test_why_did_the_rating_move(tmp_path, monkeypatch):
         assert abs(sum(s["points"] for s in shares) - ex[t]["dnet"]) < 0.1 * max(1.0, abs(ex[t]["dnet"]))
         assert ex[t]["headline"].startswith("Rating") and len(ex[t]["evidence"]) == 3
     assert any("offensive rebounds: 22 of 47" in e for e in ex[a]["evidence"] + ex[b]["evidence"])   # UConn crashed the glass
+    # performance against expectation, valued in points, beside the rating change each skill got
+    mu = post.mu.mean(0)
+    for t in (a, b):
+        perf = explain.performance(ex[t], mu)
+        assert perf["complete"] and len(perf["rows"]) == len(ex[t]["ev"])
+        assert abs(perf["total"] - sum(r["points"] for r in perf["rows"])) < 1e-9
+        assert all(r["points"] == 0 for r in perf["rows"] if r["style"])
+        assert any(r["rating_change"] is not None for r in perf["rows"])
+    uconn = a if "UConn" in a else b
+    orb = next(r for r in explain.performance(ex[uconn], mu)["rows"] if (r["side"], r["stat"]) == ("off", "orb"))
+    assert orb["points"] > 0 and orb["actual"] > orb["expected"]
+    # an older record (top three only) still gives a partial view
+    part = explain.performance({k: v for k, v in ex[a].items() if k not in ("ev", "shares")}, mu)
+    assert not part["complete"] and len(part["rows"]) <= 3
 
     monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
     explain.record(2027, 7, "2026-11-05", {"Utah": {"opponent": "Towson", "dnet": 1.0, "headline": "old", "evidence": []}})

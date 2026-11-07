@@ -34,7 +34,7 @@ import numpy as np
 from .evaluate import JOINT_STATS, unusualness
 from .live import STATS, LiveState
 from .model import FT_TRIP, PACE, S, STATS as RATE_STATS, Posterior
-from .simulate import (SEGMENTS, _lead_adjusted, _merge, _play, expected_efficiency, matchup_eta,
+from .simulate import (SEGMENTS, _lead_adjusted, _merge, _play, expected_efficiency, game_phi, matchup_eta,
                        simulate_games)
 
 J = {s: j for j, s in enumerate(RATE_STATS)}
@@ -101,7 +101,7 @@ def forecast(post: Posterior, a: int, b: int, home: float, state: LiveState, n: 
     eta = [matchup_eta(post, ks, np.full(K, a), np.full(K, b), np.full(K, home)),
            matchup_eta(post, ks, np.full(K, b), np.full(K, a), np.full(K, -home))]
     prob = [1 / (1 + np.exp(-e[:, :S - 1])) for e in eta]                     # K x (S-1)
-    phi = post.phi                                                             # K x (S-1)
+    phi = game_phi(post)                                                       # K x (S-1), calibrated
 
     # 1. Reweight posterior draws by the likelihood of the box score so far.
     counts = [_counts(cur[0], cur[1]), _counts(cur[1], cur[0])]

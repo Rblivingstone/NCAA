@@ -7,9 +7,48 @@ for both teams.  Ties go to five-minute overtimes until someone wins.
 """
 from __future__ import annotations
 
+import json
+from contextlib import contextmanager
+from pathlib import Path
+
 import numpy as np
 
 from .model import FT_TRIP, PACE, S, STATS, Posterior, def_index
+
+# Calibration of the game simulator (see ncaa.calibration): tested on ten tournaments out of sample, the raw
+# model was underconfident because it compressed the gaps between teams and made single games noisier than
+# real ones. ``skill_scale`` widens the matchup's skill gap; ``phi_scale`` tightens game-night noise (a larger
+# beta-binomial precision). Fitted values live in calibration.json; without it the model runs raw.
+CALIBRATION_FILE = Path(__file__).with_name("calibration.json")
+
+
+def _load_calibration() -> dict:
+    cal = {"skill_scale": 1.0, "phi_scale": 1.0}
+    if CALIBRATION_FILE.exists():
+        cal.update({k: float(v) for k, v in json.loads(CALIBRATION_FILE.read_text()).items() if k in cal})
+    return cal
+
+
+CAL = _load_calibration()
+
+
+@contextmanager
+def calibration(skill_scale: float | None = None, phi_scale: float | None = None):
+    """Run the simulator with other calibration values for a while (1, 1 = the raw model)."""
+    old = dict(CAL)
+    if skill_scale is not None:
+        CAL["skill_scale"] = float(skill_scale)
+    if phi_scale is not None:
+        CAL["phi_scale"] = float(phi_scale)
+    try:
+        yield CAL
+    finally:
+        CAL.clear(); CAL.update(old)
+
+
+def game_phi(post: Posterior) -> np.ndarray:
+    """Game-night precision of every rate (draws x stats), calibrated."""
+    return post.phi * CAL["phi_scale"]
 
 J = {s: j for j, s in enumerate(STATS)}
 EXTRA_FTA = 1 / FT_TRIP - 2  # and-ones / three-shot fouls per trip
@@ -22,7 +61,7 @@ def matchup_eta(post: Posterior, k, o, d, home=None) -> np.ndarray:
     di = def_index()
     zo = post.z[k, o, :S]
     zd = post.z[k, d][:, np.maximum(di, 0)] * (di >= 0)
-    eta = post.mu[k] + zo + zd
+    eta = post.mu[k] + CAL["skill_scale"] * (zo + zd)
     if home is not None:
         eta = eta + post.hfa[k] * np.asarray(home, dtype=float)[:, None]
     return eta
@@ -31,7 +70,7 @@ def matchup_eta(post: Posterior, k, o, d, home=None) -> np.ndarray:
 def _night_rates(post: Posterior, k, eta, rng) -> np.ndarray:
     """Draw this game's actual rates: Beta around the matchup mean (Poisson rate for fouls)."""
     p = 1 / (1 + np.exp(-eta))
-    phi = post.phi[k]  # n x (S-1)
+    phi = game_phi(post)[k]  # n x (S-1)
     out = np.empty_like(p)
     pp = p[:, :S - 1]
     out[:, :S - 1] = rng.beta(phi * pp, phi * (1 - pp))
