@@ -40,10 +40,10 @@ be recovered.</p>
       conference-tournament games only. Its game chances are its Selection Sunday chances for each pairing, never updated
       during the tournament. It was designed with knowledge of recent seasons, so this is out of sample for the fitted
       numbers, not for every modelling choice.</li>
-    <li><b>Calibration</b>: the raw model ("before calibration") was underconfident. It compressed the gaps between teams
-      (real margins ran about 1.2 times its predictions) and its single games were a little too noisy. The simulator now
-      widens the skill gap and tightens game-night noise by two factors chosen on these tournaments. Each year here uses
-      the factors fitted on the other nine years, never its own.</li>
+    <li><b>Calibration</b>: the raw model ("before calibration") was underconfident. It compressed the gaps between teams:
+      real margins ran about 1.2 times its predictions. The simulator now widens every matchup's skill gap by that factor,
+      fitted on these tournaments' margins. Each year here uses the factor fitted on the other nine years, never its own;
+      it comes out between 1.17 and 1.23 whichever year is left out.</li>
     <li>Seasons before 2023 have no half-time scores. Those years use the usual rate at which leads erode in the second
       half, which every later season puts at about the same value.</li>
     <li><b>Seeds</b>: a curve in the seed difference fitted on the tournaments before each year (from 2012).</li>
