@@ -316,7 +316,7 @@ def run(seasons=None, sims: int = 10000, force: bool = False, log=print) -> list
 def load_all() -> list[dict]:
     if not RESULTS.exists():
         return []
-    return [json.loads(p.read_text()) for p in sorted(RESULTS.glob("*.json"))]
+    return [json.loads(p.read_text()) for p in sorted(RESULTS.glob("[0-9][0-9][0-9][0-9].json"))]   # seasons only
 
 
 def summary(results: list[dict]) -> dict:

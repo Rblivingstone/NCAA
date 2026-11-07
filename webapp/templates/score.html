@@ -166,7 +166,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   applyPreset();
   $("objective").onchange = () => {
     const pool = $("objective").value === "pool";
-    const tilt = { arrival: ["alpha", 0.5], edge: ["beta", 4] }[$("objective").value];
+    const tilt = { arrival: ["alpha", 0.5], edge: ["beta", 1] }[$("objective").value];
     $("param-wrap").hidden = !tilt;
     if (tilt) { $("param-name").textContent = tilt[0]; $("param").value = tilt[1]; }
     $("pool-opts").hidden = !pool; $("pool-panel").hidden = !pool;

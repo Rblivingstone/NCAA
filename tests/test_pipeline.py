@@ -1257,3 +1257,31 @@ def test_simulation_variants(tmp_path, monkeypatch):
     B.save_simulation(2030, None, sims, {"v": "raw"}, np.full((1, 2, 2), 0.4), np.zeros(1), variant="raw")
     assert B.load_simulation(2030)[1] == {"v": "cal"} and B.load_simulation(2030, "raw")[1] == {"v": "raw"}
     assert abs(B.load_simulation(2030, "raw")[2].mean() - 0.4) < 1e-3
+
+
+def test_tilted_brackets():
+    """The arrival-aware brackets: each reduces to the max-expected-points bracket at its end setting, every
+    pick is consistent, and the values are what the definitions say."""
+    import numpy as np
+
+    from ncaa import bracket as B
+    from ncaa import data
+
+    if not (model.artifact_dir(2026) / "tournament_sims.npz").exists():
+        pytest.skip("needs the 2026 tournament simulation")
+    br = B.Bracket(data.load_bracket(2026))
+    sims, summary, _ = B.load_simulation(2026)
+    A, Wn = B.arrival_and_win(br, sims)
+    assert np.allclose(A.sum(1), 2) and np.allclose(Wn.sum(1), 1) and (Wn <= A + 1e-12).all()
+    mp = B.max_expected_points_bracket(br, summary)["picks"]
+    assert B.tilted_bracket(br, sims, "arrival", 1.0, A=A, Wn=Wn)["picks"] == mp
+    assert B.tilted_bracket(br, sims, "edge", 0.0, A=A, Wn=Wn)["picks"] == mp
+    for method, p in (("arrival", 0.0), ("edge", 16.0)):
+        picks = B.tilted_bracket(br, sims, method, p, A=A, Wn=Wn)["picks"]
+        for g in br.games:
+            for kind, src in g.sources:
+                if kind == "game" and picks[g.id] in br.possible_teams(src):
+                    assert picks[src] == picks[g.id]
+    V = B.tilt_values(br, A, Wn, "arrival", 0.0)
+    i = br.gidx["R6"]; t = int(np.argmax(Wn[i]))
+    assert abs(V[i, t] - 320 * Wn[i, t] / A[i, t]) < 1e-9

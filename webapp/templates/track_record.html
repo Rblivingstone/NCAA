@@ -26,6 +26,16 @@ be recovered.</p>
     Selection Sunday bracket.</div>
   <table class="data" id="brackets"></table></div>
 
+<div class="panel" style="margin-top:12px" id="methods-panel" hidden><b>Other ways to build the bracket</b>
+  <div class="muted mini" style="margin:4px 0 6px">Two brackets that use, separately, each team's chance of reaching a game
+    and its chance of winning it once there. The <i>arrival blend</i> values a pick at points × arrival<sup>α</sup> × win-once-there:
+    α = 1 is the bracket with the most expected points, α = 0 ignores how likely a team is to get there. The
+    <i>conditional edge</i> multiplies the expected points by (win-once-there ÷ the chance the seat's usual occupant wins)<sup>β</sup>:
+    β = 0 is the max-points bracket, higher β backs teams that would beat their seat's usual occupant. All are found
+    by the same exact search, on the calibrated model, scored with ESPN points. "Tuned out of sample" picks each year's
+    setting from the other nine years.</div>
+  <div class="scroll"><table class="data" id="methods"></table></div></div>
+
 <div class="dash-grid" style="margin-top:12px">
   <div class="panel"><b>ESPN score by year</b><div class="muted mini">Most likely bracket, each source.</div><div id="espnChart"></div></div>
   <div class="panel"><b>Log loss by year</b><div class="muted mini">All tournament games; lower is better.</div><div id="llChart"></div></div>
@@ -131,6 +141,24 @@ be recovered.</p>
   }
   lines($("espnChart"), "espn", Object.keys(B), f0);
   lines($("llChart"), "log_loss", Object.keys(names).filter((k) => S.games.all[k]), (v) => v.toFixed(2));
+
+  // other bracket methods
+  const M = d.methods;
+  if (M && M.grid) {
+    $("methods-panel").hidden = false;
+    const label = (k, v) => v.method === "arrival" ? `Arrival blend, α = ${v.param}` + (v.param === 1 ? " (max expected points)" : "")
+      : `Conditional edge, β = ${v.param}` + (v.param === 0 ? " (max expected points)" : "");
+    const rows = Object.entries(M.grid).filter(([k, v]) => !(v.method === "edge" && v.param === 0));
+    $("methods").innerHTML = `<tr><th>Bracket</th><th class="num">Average ESPN score</th><th class="num">Expected</th>
+      <th class="num">Best of 5 (average)</th><th class="num">Champion right</th></tr>` +
+      `<tr style="font-weight:600"><td>Most likely bracket (this model)</td><td class="num">${f0(B.model.espn)}</td>
+        <td class="num">${f0(B.model.expected)}</td><td class="num">${f0(B.model.portfolio_best)}</td><td class="num">${B.model.champions_right} / ${B.model.n}</td></tr>` +
+      rows.map(([k, v]) => `<tr><td>${label(k, v)}</td><td class="num">${f0(v.espn)}</td><td class="num">${f0(v.expected)}</td>
+        <td class="num">${f0(v.portfolio_best)}</td><td class="num">${v.champions_right} / ${M.seasons.length}</td></tr>`).join("") +
+      Object.entries(M.tuned).map(([m, v]) => `<tr><td><i>${m === "arrival" ? "Arrival blend" : "Conditional edge"}, tuned out of sample</i>
+        <span class="muted mini">(${v.by_season.map((x) => x.param).join(", ")})</span></td><td class="num">${f0(v.espn)}</td><td class="num"></td>
+        <td class="num">${f0(v.portfolio_best)}</td><td class="num">${v.champions_right} / ${M.seasons.length}</td></tr>`).join("");
+  }
 
   // year by year
   const bs = Object.keys(B), gs = Object.keys(names).filter((k) => S.games.all[k]);

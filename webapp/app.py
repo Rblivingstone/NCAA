@@ -38,7 +38,7 @@ def state(variant: str = "calibrated"):
 
 
 # Default settings of the two arrival-aware brackets (see ncaa.bracket.tilt_values and the backtest).
-TILT_DEFAULTS = {"arrival": 0.5, "edge": 4.0}
+TILT_DEFAULTS = {"arrival": 0.5, "edge": 1.0}
 
 
 def model_variant() -> str:
@@ -879,7 +879,7 @@ def api_track_record():
     from ncaa import backtest
 
     results = backtest.load_all()
-    return jsonify({"summary": backtest.summary(results) if results else None,
+    return jsonify({"summary": backtest.summary(results) if results else None, "methods": backtest.methods_summary(),
                     "seasons": [{k: r[k] for k in ("season", "champion", "games", "brackets", "cutoff", "seed_slope")}
                                 for r in results]})
 
