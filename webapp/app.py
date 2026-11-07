@@ -13,7 +13,7 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 from ncaa import data, model
-from ncaa.bracket import (Bracket, Constraints, actual_picks, bracket_log_likelihood, conditional_points_bracket,
+from ncaa.bracket import (Bracket, has_simulation, Constraints, actual_picks, bracket_log_likelihood, conditional_points_bracket,
                           espn_points, expected_points, favourites, is_upset, load_simulation,
                           max_expected_points_bracket, most_likely_bracket, path_clearing, resolve_picks, score_bracket,
                           simulate_tournament, upset_distribution)
@@ -27,12 +27,20 @@ app = Flask(__name__)
 app.json.sort_keys = False  # keep box-score stats in their natural order
 
 
-@lru_cache(maxsize=1)
-def state():
+@lru_cache(maxsize=2)
+def state(variant: str = "calibrated"):
+    """The bracket season's saved simulation: the calibrated model, or the raw one for comparison."""
     br = Bracket(data.load_bracket(SEASON))
-    sims, summary, W = load_simulation(SEASON)
+    sims, summary, W = load_simulation(SEASON, variant)
     post = model.load_posterior(SEASON)
     return br, sims, summary, W, post
+
+
+def model_variant() -> str:
+    """?model=raw (or "model": "raw" in a JSON body) asks for the uncalibrated model, when it has been built."""
+    body = request.get_json(silent=True) if request.is_json else None
+    want = request.args.get("model") or (body or {}).get("model")
+    return "raw" if want == "raw" and has_simulation(SEASON, "raw") else "calibrated"
 
 
 @lru_cache(maxsize=1)
@@ -86,7 +94,11 @@ def teams_page():
 
 @app.route("/api/summary")
 def api_summary():
-    return jsonify(state()[2])
+    v = model_variant()
+    from ncaa.simulate import CAL
+
+    return jsonify({**state(v)[2], "model_variant": v, "raw_available": has_simulation(SEASON, "raw"),
+                    "skill_scale": CAL["skill_scale"]})
 
 
 @app.route("/api/actual")
@@ -94,15 +106,15 @@ def api_actual():
     return jsonify(actual())
 
 
-@lru_cache(maxsize=1)
-def compare() -> dict:
+@lru_cache(maxsize=2)
+def compare(variant: str = "calibrated") -> dict:
     """The real tournament set against the model's pre-tournament distribution.
 
     Per game: who actually occupied each slot and how likely the model thought
     that was, who won, the model's head-to-head probability for that actual
     matchup, and whether the model's favourite in it lost ("wrong").
     """
-    br, _, summary, W, _ = state()
+    br, _, summary, W, _ = state(variant)
     act = actual()
     Wm = W.mean(0)
     games, played = {}, {}
@@ -134,12 +146,12 @@ def compare() -> dict:
 
 @app.route("/api/compare")
 def api_compare():
-    return jsonify(compare())
+    return jsonify(compare(model_variant()))
 
 
 @app.route("/api/score", methods=["POST"])
 def api_score():
-    br, sims, summary, W, _ = state()
+    br, sims, summary, W, _ = state(model_variant())
     if W is None:
         abort(503, "The tournament simulations haven't been built yet; check back once the first build finishes.")
     picks = (request.get_json(silent=True) or {}).get("picks", {})
@@ -154,7 +166,7 @@ def api_score():
 @app.route("/api/favorites")
 def api_favorites():
     """Fill the bracket game by game, always advancing the head-to-head favourite."""
-    br, _, _, W, _ = state()
+    br, _, _, W, _ = state(model_variant())
     return jsonify({g: br.teams[t] for g, t in favourites(br, W.mean(0)).items()})
 
 
@@ -162,14 +174,15 @@ FINAL_FOUR_GAMES = ("R4", "R5", "R6")  # region finals onward decide the Final F
 
 
 @lru_cache(maxsize=256)
-def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep_final_four: bool) -> dict:
+def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep_final_four: bool,
+             variant: str = "calibrated") -> dict:
     """Build the optimal bracket under the requested objective and constraints."""
-    br, sims, summary, W, _ = state()
+    br, sims, summary, W, _ = state(variant)
     forced = {}
     if keep_final_four:
         # Hold the region finals onward at the unconstrained optimum, so any
         # upsets have to come from games that do not change the Final Four.
-        base = optimize(objective, champion, None, gap, False)
+        base = optimize(objective, champion, None, gap, False, variant)
         forced = {g: br.tidx[t] for g, t in base["picks"].items() if g.startswith(FINAL_FOUR_GAMES)}
     if champion:
         forced["R6"] = br.tidx[champion]
@@ -237,7 +250,7 @@ def api_optimize():
     try:
         n_upsets = int(upsets) if upsets else None
         keep = n_upsets is not None and request.args.get("keep_final_four") == "1"
-        return jsonify(optimize(objective, champion, n_upsets, gap, keep))
+        return jsonify(optimize(objective, champion, n_upsets, gap, keep, model_variant()))
     except ValueError as e:
         abort(422, str(e))
 
@@ -253,8 +266,8 @@ POOL_PRESETS = {
 
 
 @lru_cache(maxsize=8)
-def pool_for(mix: tuple, rho: float) -> Pool:
-    br, sims, summary, W, _ = state()
+def pool_for(mix: tuple, rho: float, variant: str = "calibrated") -> Pool:
+    br, sims, summary, W, _ = state(variant)
     return Pool(br, sims, W.mean(0), summary, PoolSpec(mix=mix, rho=rho))
 
 
@@ -269,9 +282,9 @@ def _pool_spec_from(req: dict) -> tuple[int, tuple, float]:
 
 
 @lru_cache(maxsize=64)
-def pool_result(n: int, mix: tuple, rho: float) -> dict:
-    br, sims, summary, W, _ = state()
-    pool = pool_for(mix, rho)
+def pool_result(n: int, mix: tuple, rho: float, variant: str = "calibrated") -> dict:
+    br, sims, summary, W, _ = state(variant)
+    pool = pool_for(mix, rho, variant)
     res = best_pool_bracket(pool, n, summary)
     named = {g: br.teams[t] for g, t in res["picks"].items()}
     mp = {g: br.teams[t] for g, t in res["max_points_picks"].items()}
@@ -307,12 +320,13 @@ def api_pool():
         _, mix_, rho_ = POOL_PRESETS[request.args["preset"]]
         req = {"n": req.get("n", 100), "mix": mix_, "rho": rho_}
     n, mix, rho = _pool_spec_from(req)
-    out = dict(pool_result(n, mix, rho))
+    v = model_variant()
+    out = dict(pool_result(n, mix, rho, v))
     picks = req.get("picks") if isinstance(req, dict) else None
     br = state()[0]
     if picks and len(resolve_picks(br, picks)) == len(br.games):
         idx = {g: br.tidx[t] for g, t in picks.items()}
-        out["finish_yours"] = pool_for(mix, rho).finish(idx, n)
+        out["finish_yours"] = pool_for(mix, rho, v).finish(idx, n)
     return jsonify(out)
 
 
@@ -325,10 +339,14 @@ def api_pool_presets():
 @app.route("/api/simulate_one")
 def api_simulate_one():
     """One random tournament, played game by game from the model (?seed= to replay one)."""
-    br, _, _, W, post = state()
+    v = model_variant()
+    br, _, summary, W, post = state(v)
     seed = request.args.get("seed")
     seed = int(seed) if seed not in (None, "") else int(np.random.default_rng().integers(2**31))
-    sim = simulate_tournament(br, post, 1, seed=seed, full_box=True)
+    from ncaa.simulate import calibration
+
+    with calibration((summary.get("calibration") or {}).get("skill_scale", 1.0) if v == "raw" else None):
+        sim = simulate_tournament(br, post, 1, seed=seed, full_box=True)
     games = {}
     for i, g in enumerate(br.games):
         a, b = (int(x) for x in sim["sides"][0, i])
@@ -350,7 +368,7 @@ def api_simulate_one():
 @app.route("/api/upsets")
 def api_upsets():
     """How many upsets the simulated tournaments contain, for each seed-gap definition."""
-    br, sims, *_ = state()
+    br, sims, *_ = state(model_variant())
     return jsonify({gap: upset_distribution(br, sims, gap) for gap in (1, 3, 5)})
 
 
@@ -480,7 +498,7 @@ def api_matchup():
 @app.route("/api/h2h")
 def api_h2h():
     """Head-to-head win probabilities between tournament teams (row beats column)."""
-    br, _, _, W, _ = state()
+    br, _, _, W, _ = state(model_variant())
     return jsonify({"teams": br.teams, "p": np.round(W.mean(0), 4).tolist()})
 
 
@@ -1099,8 +1117,11 @@ def api_game():
     led = season_mod.load_ledger(season)
     if len(led) and gid in set(led.game_id):
         lr = led[led.game_id == gid].iloc[0]
-        meta["ledger"] = {"p_home": 1 - float(lr.p_home) if season_mod.ledger_swapped(lr, row.home, row.away) else float(lr.p_home),
-                          "unusualness": float(lr.unusualness), "model": lr.model}
+        sw = season_mod.ledger_swapped(lr, row.home, row.away)
+        orient = lambda p: 1 - float(p) if sw else float(p)
+        meta["ledger"] = {"p_home": orient(lr.p_home), "unusualness": float(lr.unusualness), "model": lr.model,
+                          "restated": bool(lr.restated),
+                          "p_home_logged": orient(lr.p_home_logged) if bool(lr.restated) else None}
     timeline, kind, state_ = None, "pre", None
     now = pd.Timestamp.now(tz="UTC")
     from ncaa import tracker
@@ -1436,6 +1457,14 @@ def api_dashboard():
     out = {"season": season, "posterior": label, "status": json.loads(path.read_text()) if path.exists() else {}}
     ranks = rank_map(season)
     led = season_mod.load_ledger(season)
+    # basis=calibrated (default): every forecast on the simulator's current calibration, older ones restated;
+    # basis=logged: every forecast exactly as first written
+    basis = "logged" if request.args.get("basis") == "logged" else "calibrated"
+    out["basis"] = basis
+    out["restated"] = int(led.restated.sum()) if len(led) else 0
+    out["calibrations"] = sorted({float(x) for x in led.calibration_logged}) if len(led) else []
+    if basis == "logged" and len(led):
+        led = season_mod.as_logged(led)
     out["games"] = int(len(led))
     if len(led):
         led = led.sort_values("date")

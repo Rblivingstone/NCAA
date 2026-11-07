@@ -338,22 +338,33 @@ def actual_picks(bracket: Bracket) -> dict[str, str]:
     return picks
 
 
-def save_simulation(season: int, bracket: Bracket, sims: dict, summary: dict, W=None, draw_ids=None):
+# Saved simulations: the calibrated model (no suffix) and, for comparison, the uncalibrated one ("raw").
+VARIANTS = {"calibrated": "", "raw": "_raw"}
+
+
+def save_simulation(season: int, bracket: Bracket, sims: dict, summary: dict, W=None, draw_ids=None,
+                    variant: str = "calibrated"):
     out = artifact_dir(season)
     out.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out / "tournament_sims.npz", **sims)
-    (out / "summary.json").write_text(json.dumps(summary))
+    sfx = VARIANTS[variant]
+    np.savez_compressed(out / f"tournament_sims{sfx}.npz", **sims)
+    (out / f"summary{sfx}.json").write_text(json.dumps(summary))
     if W is not None:
-        np.savez_compressed(out / "win_matrix.npz", W=W.astype(np.float16), draw_ids=draw_ids)
+        np.savez_compressed(out / f"win_matrix{sfx}.npz", W=W.astype(np.float16), draw_ids=draw_ids)
 
 
-def load_simulation(season: int) -> tuple[dict, dict, np.ndarray | None]:
+def has_simulation(season: int, variant: str = "calibrated") -> bool:
+    return (artifact_dir(season) / f"tournament_sims{VARIANTS[variant]}.npz").exists()
+
+
+def load_simulation(season: int, variant: str = "calibrated") -> tuple[dict, dict, np.ndarray | None]:
     d = artifact_dir(season)
-    sims = dict(np.load(d / "tournament_sims.npz"))
-    summary = json.loads((d / "summary.json").read_text())
+    sfx = VARIANTS[variant]
+    sims = dict(np.load(d / f"tournament_sims{sfx}.npz"))
+    summary = json.loads((d / f"summary{sfx}.json").read_text())
     W = None
-    if (d / "win_matrix.npz").exists():
-        W = np.load(d / "win_matrix.npz")["W"].astype(np.float32)
+    if (d / f"win_matrix{sfx}.npz").exists():
+        W = np.load(d / f"win_matrix{sfx}.npz")["W"].astype(np.float32)
     return sims, summary, W
 
 

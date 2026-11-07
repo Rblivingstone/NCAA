@@ -5,6 +5,10 @@
 <p class="lede">Click the winner of each game (click again to undo); partial brackets are fine. The model scores the
 games entered so far: the probability it assigned to exactly this set of outcomes, how that compares to chance, and
 how it compares with brackets the model itself generates. Or let the optimizer build one below.</p>
+<div class="toolbar" id="model-switch" hidden style="margin:0 0 8px">
+  <label>Model <select id="model-variant"><option value="calibrated">calibrated (current)</option>
+    <option value="raw">before calibration</option></select></label>
+  <span class="muted mini" id="model-note"></span></div>
 <div class="panel builder">
   <div class="toolbar" style="margin:0">
     <b>Optimal bracket</b>
@@ -84,7 +88,20 @@ how it compares with brackets the model itself generates. Or let the optimizer b
 {% block scripts %}
 <script>
 (async () => {
-  const s = await (await fetch("/api/summary")).json();
+  // Calibrated model by default; ?model=raw switches every prediction on this page to the uncalibrated one.
+  const MODEL = new URLSearchParams(location.search).get("model") === "raw" ? "raw" : "calibrated";
+  const api = (u) => u + (u.includes("?") ? "&" : "?") + "model=" + MODEL;
+  const s = await (await fetch(api("/api/summary"))).json();
+  if (s.raw_available) {
+    document.getElementById("model-switch").hidden = false;
+    const sel = document.getElementById("model-variant");
+    sel.value = s.model_variant;
+    const k = s.skill_scale;
+    document.getElementById("model-note").textContent = s.model_variant === "raw"
+      ? "The model as it was before calibration: it compressed the gaps between teams, so its favourites look less likely than they are."
+      : `The current model, calibrated on ten tournaments (skill gaps widened x${k}). Switch to compare the brackets.`;
+    sel.onchange = () => { const u = new URL(location.href); u.searchParams.set("model", sel.value); location.href = u; };
+  }
   const KEY = "ncaa-picks-{{ season }}";
   let timer = null;
   const view = new BracketView(document.getElementById("bracket"), s, {
@@ -96,7 +113,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   document.getElementById("load-actual").onclick = async () => {
     view.setPicksByName(await (await fetch("/api/actual")).json()); schedule(); };
   document.getElementById("load-fav").onclick = async () => {
-    view.setPicksByName(await (await fetch("/api/favorites")).json()); schedule(); };
+    view.setPicksByName(await (await fetch(api("/api/favorites"))).json()); schedule(); };
   document.getElementById("clear").onclick = () => { view.picks = {}; view.simGames = null; view.refresh(); schedule(); };
   document.getElementById("import").onclick = () => {
     try { view.setPicksByName(JSON.parse(document.getElementById("json").value)); schedule(); }
@@ -104,7 +121,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
 
   // ----- optimal bracket builder -----
   const $ = (id) => document.getElementById(id);
-  const upsetDist = fetch("/api/upsets").then((r) => r.json());
+  const upsetDist = fetch(api("/api/upsets")).then((r) => r.json());
   const champSel = $("champion");
   s.bracket.teams.map((t, i) => [t, s.reach[i][7]]).sort((a, b) => b[1] - a[1])
     .forEach(([t, p]) => champSel.add(new Option(`${t.name} (${t.seed}, ${fmtPct(p)} title)`, t.name)));
@@ -157,7 +174,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     const mix = {};
     for (const k of Object.keys(poolCfg.archetypes)) mix[k] = +document.querySelector(`[data-mixn="${k}"]`).value / 100;
     const yours = view.picksByName();
-    const body = { n: +$("pool-n").value, mix, rho: +$("pool-rho").value, picks: yours };
+    const body = { n: +$("pool-n").value, mix, rho: +$("pool-rho").value, picks: yours, model: MODEL };
     const r = await fetch("/api/pool", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!r.ok) { $("opt-note").textContent = await r.text(); return; }
     const o = await r.json();
@@ -211,7 +228,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
 
   $("sim-one").onclick = async () => {
     const seed = $("sim-seed").value.trim();
-    const o = await (await fetch("/api/simulate_one" + (seed ? `?seed=${encodeURIComponent(seed)}` : ""))).json();
+    const o = await (await fetch(api("/api/simulate_one" + (seed ? `?seed=${encodeURIComponent(seed)}` : "")))).json();
     view.setPicksByName(o.picks);
     view.simGames = o.games;
     view.refresh(); schedule();
@@ -234,7 +251,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
       $("opt-note").textContent = "Choose a champion first: this bracket is built from the simulated tournaments that team wins."; return; }
     $("opt-note").textContent = "Searching…";
     $("champ-table").innerHTML = "";
-    const r = await fetch("/api/optimize?" + q);
+    const r = await fetch(api("/api/optimize?" + q));
     if (!r.ok) { $("opt-note").textContent = "No bracket satisfies those constraints."; return; }
     const o = await r.json();
     view.setPicksByName(o.picks); schedule();
@@ -281,7 +298,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
     try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch {}
     document.getElementById("json").value = JSON.stringify(picks, null, 1);
     const r = await (await fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ picks }) })).json();
+      body: JSON.stringify({ picks, model: MODEL }) })).json();
     view.gameScores = Object.fromEntries((r.games || []).map((g) => [g.id, g]));
     view.refresh();
     render(r);
@@ -292,7 +309,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
 
   // ----- potential-upset flags -----
   {
-    const h2h = await (await fetch("/api/h2h")).json();
+    const h2h = await (await fetch(api("/api/h2h"))).json();
     view.h2h = h2h.p;
     const on = document.getElementById("alert-on"), at = document.getElementById("alert-at");
     const apply = () => { view.alertAt = on.checked ? +at.value : null; view.refresh(); };
@@ -301,7 +318,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
   const markBox = document.getElementById("mark-actual");
   let cmp = null;
   markBox.onchange = async () => {
-    if (markBox.checked && !cmp) cmp = await (await fetch("/api/compare")).json();
+    if (markBox.checked && !cmp) cmp = await (await fetch(api("/api/compare"))).json();
     view.compare = cmp; view.markActual = markBox.checked; view.refresh();
   };
 

@@ -1199,3 +1199,61 @@ def test_backtest_pieces():
     S = bt.summary(res)
     assert S["games"]["all"]["bpi"]["n"] == 1 and abs(S["games"]["all"]["bpi"]["model_log_loss"] + np.log(0.8)) < 1e-9
     assert S["coverage"]["bpi"] == [2030] and S["coverage"]["vegas"] == []
+
+
+def test_ledger_restated_on_new_calibration(tmp_path, monkeypatch):
+    """Forecasts logged under an older calibration are restated on the current one, once, with the originals
+    kept; new rows are tagged with the calibration they were made under; "as logged" gives the originals back."""
+    import numpy as np
+    import pandas as pd
+
+    from ncaa import season
+    from ncaa.simulate import calibration
+
+    real = model.artifact_dir(2026)
+    if not (real / "posterior.npz").exists():
+        pytest.skip("needs the 2026 posterior")
+    post = model.load_posterior(2026)
+    monkeypatch.setattr(model, "ARTIFACTS", tmp_path)
+    monkeypatch.setattr(season, "current_posterior", lambda s: (post, "test"))
+    monkeypatch.setattr(season, "schedule_with_results", lambda s: pd.DataFrame(columns=["game_id", "home", "away"]))
+    monkeypatch.setattr(season.data, "d1_set", lambda s: frozenset(post.teams[:60]))
+    rows = [{"game_id": i, "date": "2026-11-0%d" % (i + 1), "home": post.teams[i], "away": post.teams[i + 10],
+             "neutral": True, "kind": "regular season", "home_pts": 70, "away_pts": 60, "p_home": p,
+             "pred_margin": m, "margin_lo": m - 20, "margin_hi": m + 20, "margin_percentile": 0.5,
+             "unusualness": 0.5, "drivers": "", "model": "old"} for i, (p, m) in enumerate([(0.8, 9.0), (0.3, -5.0)])]
+    (tmp_path / "2027").mkdir()
+    pd.DataFrame(rows).to_csv(tmp_path / "2027" / "ledger.csv", index=False)
+    led = season.load_ledger(2027)
+    assert (led.calibration_logged == 1.0).all() and not led.restated.any()     # old rows: the raw model
+    with calibration(1.2):
+        assert season.restate_ledger(2027, log=lambda *_: None) == 2
+        assert season.restate_ledger(2027, log=lambda *_: None) == 0            # once only
+        assert season._calibration_tag()["calibration_logged"] == 1.2
+    led = season.load_ledger(2027)
+    assert led.restated.all() and (led.calibration == 1.2).all()
+    assert list(led.p_home_logged) == [0.8, 0.3] and list(led.pred_margin_logged) == [9.0, -5.0]
+    assert led.p_home.iloc[0] > 0.8 and led.p_home.iloc[1] < 0.3                # sharper both ways
+    assert abs(led.pred_margin.iloc[0]) > 9 and abs(led.margin_hi.iloc[0] - led.margin_lo.iloc[0] - 40) < 1e-9
+    back = season.as_logged(led)
+    assert list(back.p_home) == [0.8, 0.3] and list(back.pred_margin) == [9.0, -5.0]
+    # and back to the raw model: the originals return, nothing left restated
+    with calibration(1.0):
+        season.restate_ledger(2027, log=lambda *_: None)
+    led = season.load_ledger(2027)
+    assert not led.restated.any() and list(led.p_home) == [0.8, 0.3]
+
+
+def test_simulation_variants(tmp_path, monkeypatch):
+    """The bracket season keeps the calibrated simulation and the raw one side by side."""
+    import numpy as np
+
+    from ncaa import bracket as B
+
+    monkeypatch.setattr(B, "artifact_dir", lambda s: tmp_path)
+    sims = {"winners": np.zeros((2, 3), dtype=np.int16)}
+    B.save_simulation(2030, None, sims, {"v": "cal"}, np.full((1, 2, 2), 0.5), np.zeros(1))
+    assert B.has_simulation(2030) and not B.has_simulation(2030, "raw")
+    B.save_simulation(2030, None, sims, {"v": "raw"}, np.full((1, 2, 2), 0.4), np.zeros(1), variant="raw")
+    assert B.load_simulation(2030)[1] == {"v": "cal"} and B.load_simulation(2030, "raw")[1] == {"v": "raw"}
+    assert abs(B.load_simulation(2030, "raw")[2].mean() - 0.4) < 1e-3
