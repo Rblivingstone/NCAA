@@ -9,6 +9,7 @@
     python -m ncaa geo      --season 2027   # team locations and tournament sites, for the bracket rules
     python -m ncaa backtest                 # ten tournaments out of sample against seeds, efficiency, BPI, Vegas
     python -m ncaa calibrate                # fit the game simulator's calibration on those tournaments
+    python -m ncaa restate  --season 2027   # put logged forecasts on the current calibration (also done nightly)
     python -m ncaa watch    --season 2027   # all day: track every game from tip-off (win-prob history), update ratings at the final
 """
 from __future__ import annotations
@@ -56,20 +57,27 @@ def cmd_fit(a):
 
 
 def cmd_simulate(a):
+    """The bracket under the calibrated model and, for the bracket builder's comparison switch, the raw one."""
+    from .simulate import CAL, calibration
+
     post = model.load_posterior(a.season)
     br = Bracket(data.load_bracket(a.season))
-    t = time.time()
-    sims = simulate_tournament(br, post, a.sims, seed=a.seed)
-    summary = summarize(br, sims)
-    summary["bracket"] = br.to_json()
-    summary["ratings"] = team_ratings(post, br)
-    print(f"{a.sims} tournaments in {time.time() - t:.0f}s")
-    t = time.time()
-    draw_ids, W = pairwise_win_matrix(br, post, n_draws=a.win_draws, sims_per_draw=a.win_sims, seed=a.seed + 1)
-    print(f"pairwise win matrix in {time.time() - t:.0f}s")
-    save_simulation(a.season, br, sims, summary, W, draw_ids)
-    champ = sorted(((p[-1], br.teams[i]) for i, p in enumerate(summary["reach"])), reverse=True)[:8]
-    print("title odds:", json.dumps([(t, round(p, 3)) for p, t in champ]))
+    variants = [("calibrated", CAL["skill_scale"])] + ([("raw", 1.0)] if CAL["skill_scale"] != 1.0 else [])
+    for variant, k in variants:
+        with calibration(k, 1.0):
+            t = time.time()
+            sims = simulate_tournament(br, post, a.sims, seed=a.seed)
+            summary = summarize(br, sims)
+            summary["bracket"] = br.to_json()
+            summary["ratings"] = team_ratings(post, br)
+            summary["calibration"] = {"skill_scale": k, "variant": variant}
+            print(f"{variant}: {a.sims} tournaments in {time.time() - t:.0f}s")
+            t = time.time()
+            draw_ids, W = pairwise_win_matrix(br, post, n_draws=a.win_draws, sims_per_draw=a.win_sims, seed=a.seed + 1)
+            print(f"{variant}: pairwise win matrix in {time.time() - t:.0f}s")
+        save_simulation(a.season, br, sims, summary, W, draw_ids, variant=variant)
+        champ = sorted(((p[-1], br.teams[i]) for i, p in enumerate(summary["reach"])), reverse=True)[:8]
+        print(f"{variant} title odds:", json.dumps([(t, round(p, 3)) for p, t in champ]))
 
 
 def cmd_update(a):
@@ -106,6 +114,13 @@ def cmd_calibrate(a):
     calibration.run(seasons)
 
 
+def cmd_restate(a):
+    from . import season
+
+    n = season.restate_ledger(a.season)
+    print(f"{n} ledger forecasts restated on the current calibration")
+
+
 def cmd_watch(a):
     from . import season
 
@@ -115,7 +130,7 @@ def cmd_watch(a):
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="ncaa")
-    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update", "watch", "project", "geo", "backtest", "calibrate"])
+    p.add_argument("command", choices=["fetch", "fit", "simulate", "build", "update", "watch", "project", "geo", "backtest", "calibrate", "restate"])
     p.add_argument("--season", type=int, default=2026)
     p.add_argument("--method", choices=["nuts", "vi"], default="nuts",
                    help="nuts: full MCMC (slow, exact); vi: variational approximation (fast)")
@@ -135,7 +150,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     steps = {"fetch": [cmd_fetch], "fit": [cmd_fit], "simulate": [cmd_simulate],
              "build": [cmd_fetch, cmd_fit, cmd_simulate], "update": [cmd_update], "watch": [cmd_watch],
-             "project": [cmd_project], "geo": [cmd_geo], "backtest": [cmd_backtest], "calibrate": [cmd_calibrate]}[a.command]
+             "project": [cmd_project], "geo": [cmd_geo], "backtest": [cmd_backtest], "calibrate": [cmd_calibrate], "restate": [cmd_restate]}[a.command]
     for step in steps:
         step(a)
 

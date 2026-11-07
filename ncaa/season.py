@@ -30,7 +30,11 @@ from .simulate import estimate_lead_beta
 
 LEDGER_COLUMNS = ["game_id", "date", "home", "away", "neutral", "kind", "home_pts", "away_pts",
                   "p_home", "pred_margin", "margin_percentile", "unusualness", "drivers", "model",
-                  "espn_p_home", "espn_checked", "margin_lo", "margin_hi", "line_margin", "line_checked"]
+                  "espn_p_home", "espn_checked", "margin_lo", "margin_hi", "line_margin", "line_checked",
+                  "calibration_logged", "calibration", "restated",
+                  "p_home_logged", "pred_margin_logged", "margin_lo_logged", "margin_hi_logged"]
+# Forecast columns that change with the simulator's calibration (see restate_ledger).
+CALIBRATED_COLUMNS = ("p_home", "pred_margin", "margin_lo", "margin_hi")
 
 
 NO_RESULT_AFTER = pd.Timedelta(hours=6)    # a game this long past tip-off with no result was probably not played
@@ -103,7 +107,106 @@ def load_ledger(season: int) -> pd.DataFrame:
         if c not in led:
             led[c] = np.nan
     led["line_checked"] = (led.line_checked if "line_checked" in led else pd.Series(False, index=led.index)).fillna(False).astype(bool)
+    for c in ("calibration_logged", "calibration") + tuple(f"{c}_logged" for c in CALIBRATED_COLUMNS):
+        if c not in led:
+            led[c] = np.nan
+    led["calibration_logged"] = led.calibration_logged.fillna(1.0)   # rows from before calibration: the raw model
+    led["calibration"] = led.calibration.fillna(led.calibration_logged)
+    led["restated"] = (led.restated if "restated" in led else pd.Series(False, index=led.index)).fillna(False).astype(bool)
     return led
+
+
+def as_logged(led: pd.DataFrame) -> pd.DataFrame:
+    """The ledger with every forecast as it was first written, before any restatement."""
+    led = led.copy()
+    for c in CALIBRATED_COLUMNS:
+        led[c] = led[f"{c}_logged"].where(led.restated, led[c])
+    return led
+
+
+def calibration_map(post: model.Posterior, k_from: float, k_to: float, n_games: int = 300, n: int = 1000,
+                    seed: int = 0, teams=None) -> dict:
+    """How forecasts made under skill calibration ``k_from`` translate to ``k_to``, fitted on simulated
+    matchups of this season's teams: log-odds of the first team's win chance, and the predicted margin, each a
+    linear function of the old value and whether that team is at home (+1), away (-1) or on a neutral floor."""
+    from .simulate import calibration, simulate_games
+
+    rng = np.random.default_rng(seed)
+    teams = set(teams or post.teams)
+    d1 = [i for i, t in enumerate(post.teams) if t in teams]
+    a = rng.choice(d1, n_games); b = rng.choice(d1, n_games)
+    keep = a != b; a, b = a[keep], b[keep]
+    h = rng.choice([-1, 0, 1], len(a))
+    k = rng.integers(post.n_draws, size=len(a) * n)
+    out = {}
+    for name, cal in (("from", k_from), ("to", k_to)):
+        with calibration(cal, 1.0):
+            r = simulate_games(post, k, np.repeat(a, n), np.repeat(b, n), np.random.default_rng(seed + 1),
+                               home=np.repeat(h, n), full_box=False)
+        p = np.clip(r["a_wins"].reshape(-1, n).mean(1), 1 / n, 1 - 1 / n)
+        out[name] = (np.log(p / (1 - p)), (r["pts"][:, 0] - r["pts"][:, 1]).reshape(-1, n).mean(1))
+    X = np.c_[out["from"][0], h]
+    lc = np.linalg.lstsq(X, out["to"][0], rcond=None)[0]
+    Xm = np.c_[out["from"][1], h]
+    mc = np.linalg.lstsq(Xm, out["to"][1], rcond=None)[0]
+    return {"logit": lc.tolist(), "margin": mc.tolist(), "k_from": k_from, "k_to": k_to}
+
+
+def restate_ledger(season: int, log=print) -> int:
+    """Put every forecast in the ledger on the simulator's current calibration.
+
+    A forecast is written once, before its game is scored, and never recomputed: that is what keeps the ledger
+    out of sample. When the calibration changes, forecasts written under the old one are restated: calibration
+    changes no team's rating, only how a matchup becomes a win chance and margin, so each logged forecast is
+    translated with a map fitted on simulated matchups (``calibration_map``). The original numbers stay in the
+    ``*_logged`` columns, and ``restated`` marks the rows. Returns the number of rows restated."""
+    from .simulate import CAL
+
+    path = ledger_path(season)
+    led = load_ledger(season)
+    k_to = float(CAL["skill_scale"])
+    todo = led[(led.calibration - k_to).abs() > 1e-9]
+    if not len(todo):
+        return 0
+    post, _ = current_posterior(season)
+    if post is None:
+        return 0
+    sched = schedule_with_results(season).set_index("game_id")
+    for c in CALIBRATED_COLUMNS:                                       # keep the first-written numbers
+        first = ~led.restated
+        led.loc[first, f"{c}_logged"] = led.loc[first, c]
+    maps = {k0: calibration_map(post, float(k0), k_to, teams=data.d1_set(season)) for k0 in todo.calibration_logged.unique()}
+    for i in todo.index:
+        row = led.loc[i]
+        k0 = float(row.calibration_logged)
+        if abs(k0 - k_to) < 1e-9:                                      # back to the calibration it was made under
+            for c in CALIBRATED_COLUMNS:
+                led.loc[i, c] = row[f"{c}_logged"]
+            led.loc[i, ["calibration", "restated"]] = [k_to, False]
+            continue
+        m = maps[k0]
+        h = 0
+        if not bool(row.neutral) and int(row.game_id) in sched.index:
+            g = sched.loc[int(row.game_id)]
+            g = g.iloc[0] if isinstance(g, pd.DataFrame) else g
+            h = -1 if ledger_swapped(row, g.home, g.away) else 1
+        p0 = float(row.p_home_logged)
+        if p0 == p0:
+            lo = np.log(np.clip(p0, 1e-4, 1 - 1e-4) / (1 - np.clip(p0, 1e-4, 1 - 1e-4)))
+            led.loc[i, "p_home"] = float(1 / (1 + np.exp(-(m["logit"][0] * lo + m["logit"][1] * h))))
+        mg = float(row.pred_margin_logged)
+        if mg == mg:
+            new = m["margin"][0] * mg + m["margin"][1] * h
+            led.loc[i, "pred_margin"] = new
+            for c in ("margin_lo", "margin_hi"):                       # the same spread around the new centre
+                v = float(row[f"{c}_logged"])
+                if v == v:
+                    led.loc[i, c] = v + (new - mg)
+        led.loc[i, ["calibration", "restated"]] = [k_to, True]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    led.to_csv(path, index=False)
+    log(f"restated {len(todo)} ledger forecasts on the current calibration (skill x{k_to})")
+    return len(todo)
 
 
 def _espn_for_row(row, raw: dict) -> float:
@@ -316,7 +419,7 @@ def _process_final(season: int, games: pd.DataFrame, source: str, n: int, log) -
                          "unusualness": u["p_value"],
                          "drivers": "; ".join(f"{[a, b][d['team'] == 'b']} {d['stat']}" for d in u["drivers"]
                                               if d["share"] > 0.1),
-                         "model": f"{label} + updates"})
+                         "model": f"{label} + updates", **_calibration_tag()})
         box_a = {s_: int(getattr(r, s_)) for s_ in LIVE_BOX}
         box_b = {s_: int(getattr(r, "opp_" + s_)) for s_ in LIVE_BOX}
         # A named non-D1 school also gets its own rating, updated against the D1 team's pre-game belief.
@@ -417,12 +520,20 @@ def score_new_games(season: int, post: model.Posterior, label: str, n: int = 200
                      "unusualness": u["p_value"],
                      "drivers": "; ".join(f"{[r.team, r.opponent][d['team'] == 'b']} {d['stat']}"
                                           for d in u["drivers"] if d["share"] > 0.1),
-                     "model": label})
+                     "model": label, **_calibration_tag()})
     if rows:
         ledger = pd.concat([ledger, pd.DataFrame(rows)], ignore_index=True)
         ledger_path(season).parent.mkdir(parents=True, exist_ok=True)
         ledger.to_csv(ledger_path(season), index=False)
     return ledger
+
+
+def _calibration_tag() -> dict:
+    """Which calibration a forecast is written under (see restate_ledger)."""
+    from .simulate import CAL
+
+    k = float(CAL["skill_scale"])
+    return {"calibration_logged": k, "calibration": k, "restated": False}
 
 
 def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dict:
@@ -444,6 +555,10 @@ def update(season: int, refit: str = "vi", fetch: bool = True, log=print) -> dic
         fill_espn(season, feed=FallbackFeed(), log=log)
     except Exception as e:                         # never fail the nightly update over the comparison
         log(f"could not record ESPN forecasts: {e}")
+    try:
+        restate_ledger(season, log=log)
+    except Exception as e:                                             # never block the nightly update over it
+        log(f"could not restate the ledger: {e}")
     ledger = load_ledger(season)
     log(f"scored {len(ledger) - before} new games out of sample")
 

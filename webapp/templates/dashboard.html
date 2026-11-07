@@ -4,6 +4,8 @@
 <div class="toolbar" style="margin-bottom:2px">
   <h1 style="margin:0">{{ season_label }} season dashboard</h1>
   <label>Season <select id="season"><option>{{ live_season }}</option><option>{{ season }}</option></select></label>
+  <label title="The model's calibration changed during the season. Calibrated basis puts every forecast on the current one (older forecasts restated); as logged shows each exactly as first written.">Forecasts
+    <select id="basis"><option value="calibrated">calibrated basis</option><option value="logged">as originally logged</option></select></label>
   <span class="muted" id="model"></span>
 </div>
 <p class="lede">How the Bayesian model is reading the {{ season_label }} season, scored only on forecasts made <em>before</em> each game. Every finished
@@ -136,12 +138,16 @@ it flagged. <b>ROC-AUC</b>: the chance a random upset got a higher pre-game scor
     aucMode = b.dataset.m; document.querySelectorAll("#auc-mode button").forEach((x) => x.classList.toggle("on", x === b)); aucSeries(aucData);
   }));
   $("season").onchange = load;
+  $("basis").onchange = load;
   await load();
 
   async function load() {
-    const d = await (await fetch(`/api/dashboard?season=${$("season").value}`)).json();
+    const d = await (await fetch(`/api/dashboard?season=${$("season").value}&basis=${$("basis").value}`)).json();
     const st = d.status || {};
-    $("model").textContent = `model: ${d.posterior}` + (st.updated ? ` · last nightly update ${new Date(st.updated).toLocaleString()}` : "");
+    $("model").textContent = `model: ${d.posterior}` + (st.updated ? ` · last nightly update ${new Date(st.updated).toLocaleString()}` : "") +
+      (d.restated ? (d.basis === "calibrated"
+        ? ` · ${d.restated} forecasts made before the calibration changed are restated on the current one`
+        : ` · showing every forecast as first logged (${d.restated} were made under an earlier calibration)`) : "");
     const m = d.metrics, v = d.vs_espn;
     const tile = (val, k) => `<div class="stat"><div class="v">${val}</div><div class="k">${k}</div></div>`;
     $("tiles").innerHTML = tile(d.games, "games scored out of sample") +

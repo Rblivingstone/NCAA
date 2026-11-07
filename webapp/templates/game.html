@@ -52,7 +52,9 @@
       : EXPLAIN[d.kind];
     const notes = [];
     if (m.note) notes.push(m.note);
-    if (m.ledger) notes.push(`Forecast logged before the game (${m.ledger.model}): ${m.home} ${fmtPct(m.ledger.p_home)}; whole-box-score unusualness ${m.ledger.unusualness.toFixed(3)}.`);
+    if (m.ledger) notes.push(`Forecast logged before the game (${m.ledger.model}): ${m.home} ${fmtPct(m.ledger.p_home)}` +
+      (m.ledger.restated ? ` (restated on the current calibration; first logged as ${fmtPct(m.ledger.p_home_logged)})` : "") +
+      `; whole-box-score unusualness ${m.ledger.unusualness.toFixed(3)}.`);
     else if (d.kind === "post") notes.push("This game has no pre-game ledger entry, so the prior shown comes from the current model (for regular-season games of a finished season, that model was fitted on this game too).");
     $("note").textContent = notes.join(" ");
     $("upset").innerHTML = upsetBanner(m, d.kind);
