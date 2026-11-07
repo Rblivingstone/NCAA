@@ -13,6 +13,7 @@ import numpy as np
 from flask import Flask, abort, jsonify, render_template, request
 
 from ncaa import data, model
+from ncaa.bracket import TILTS, tilted_bracket
 from ncaa.bracket import (Bracket, has_simulation, Constraints, actual_picks, bracket_log_likelihood, conditional_points_bracket,
                           espn_points, expected_points, favourites, is_upset, load_simulation,
                           max_expected_points_bracket, most_likely_bracket, path_clearing, resolve_picks, score_bracket,
@@ -34,6 +35,10 @@ def state(variant: str = "calibrated"):
     sims, summary, W = load_simulation(SEASON, variant)
     post = model.load_posterior(SEASON)
     return br, sims, summary, W, post
+
+
+# Default settings of the two arrival-aware brackets (see ncaa.bracket.tilt_values and the backtest).
+TILT_DEFAULTS = {"arrival": 0.5, "edge": 4.0}
 
 
 def model_variant() -> str:
@@ -175,14 +180,14 @@ FINAL_FOUR_GAMES = ("R4", "R5", "R6")  # region finals onward decide the Final F
 
 @lru_cache(maxsize=256)
 def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep_final_four: bool,
-             variant: str = "calibrated") -> dict:
+             variant: str = "calibrated", param: float | None = None) -> dict:
     """Build the optimal bracket under the requested objective and constraints."""
     br, sims, summary, W, _ = state(variant)
     forced = {}
     if keep_final_four:
         # Hold the region finals onward at the unconstrained optimum, so any
         # upsets have to come from games that do not change the Final Four.
-        base = optimize(objective, champion, None, gap, False, variant)
+        base = optimize(objective, champion, None, gap, False, variant, param)
         forced = {g: br.tidx[t] for g, t in base["picks"].items() if g.startswith(FINAL_FOUR_GAMES)}
     if champion:
         forced["R6"] = br.tidx[champion]
@@ -194,6 +199,9 @@ def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep
         picks = cond["picks"]
     elif objective == "points":
         picks = max_expected_points_bracket(br, summary, c)["picks"]
+    elif objective in TILTS:
+        param = TILT_DEFAULTS[objective] if param is None else param
+        picks = tilted_bracket(br, sims, objective, param, c)["picks"]
     else:
         res = most_likely_bracket(br, W, c, n_champions=1 if champion else 10)
         picks, by_champion = res["picks"], res["by_champion"]
@@ -243,14 +251,16 @@ def api_optimize():
     champion = request.args.get("champion", "")
     upsets = request.args.get("upsets", "")
     gap = int(request.args.get("gap", 1))
-    if objective not in ("likelihood", "points", "conditional") or (champion and champion not in br.tidx):
+    if objective not in ("likelihood", "points", "conditional", *TILTS) or (champion and champion not in br.tidx):
         abort(400, "bad objective or champion")
+    param = request.args.get("param")
+    param = float(param) if param not in (None, "") else None
     if objective == "conditional" and not champion:
         abort(400, "Choose a champion first: this bracket is built from the tournaments that team wins.")
     try:
         n_upsets = int(upsets) if upsets else None
         keep = n_upsets is not None and request.args.get("keep_final_four") == "1"
-        return jsonify(optimize(objective, champion, n_upsets, gap, keep, model_variant()))
+        return jsonify(optimize(objective, champion, n_upsets, gap, keep, model_variant(), param))
     except ValueError as e:
         abort(422, str(e))
 

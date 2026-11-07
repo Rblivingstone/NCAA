@@ -367,3 +367,82 @@ def summary(results: list[dict]) -> dict:
                                                             "portfolio_best", "title_favourite", "p_title_actual")})
         out["by_season"].append(row)
     return out
+
+
+# --- arrival-aware bracket methods ------------------------------------------------
+
+TILT_GRID = {"arrival": [1.0, 0.75, 0.5, 0.25, 0.0], "edge": [0.0, 1.0, 2.0, 4.0, 8.0, 16.0]}
+METHODS_FILE = RESULTS / "methods.json"
+
+
+def run_methods(seasons=None, sims: int = 10000, log=print) -> dict:
+    """Score the two arrival-aware bracket methods (``ncaa.bracket.tilt_values``) on every season, for every
+    setting on the grid, with the calibrated model each season would have had (fitted on the others): the
+    bracket's ESPN score, what the model expected of it, its champion, and a five-bracket portfolio (the same
+    method with each of the five likeliest champions held fixed)."""
+    from .bracket import Constraints, arrival_and_win, simulate_tournament, tilted_bracket
+    from .calibration import leave_one_out
+    from .simulate import calibration
+
+    out = {}
+    for season in seasons or SEASONS:
+        t0 = time.time()
+        br = Bracket(data.load_bracket(season))
+        actual = actual_picks(br)
+        post = model.load_posterior(season)
+        cal = leave_one_out(season) or (1.0, 1.0)
+        with calibration(*cal):
+            sim = simulate_tournament(br, post, sims, seed=0)
+        A, Wn = arrival_and_win(br, sim)
+        title = Wn[br.gidx["R6"]]
+        top5 = [int(t) for t in np.argsort(-title)[:PORTFOLIO]]
+        rows = {}
+        for method, grid in TILT_GRID.items():
+            for param in grid:
+                res = tilted_bracket(br, sim, method, param, A=A, Wn=Wn)
+                named = {g: br.teams[t] for g, t in res["picks"].items()}
+                score = lambda picks: float(sum(ESPN_POINTS[br.games[br.gidx[g]].round]
+                                                for g, t in picks.items() if actual.get(g) == br.teams[t]))
+                port = [score(tilted_bracket(br, sim, method, param, Constraints(forced={"R6": t}), A=A, Wn=Wn)["picks"])
+                        for t in top5]
+                rows[f"{method}:{param}"] = {"method": method, "param": param, "espn": score(res["picks"]),
+                                             "expected": res["expected_points"], "champion": named["R6"],
+                                             "champion_right": named["R6"] == actual.get("R6"),
+                                             "final_four": [named[g] for g in sorted(named) if g.startswith("R4")],
+                                             "portfolio_best": max(port), "picks": named}
+        out[str(season)] = {"season": season, "champion": actual.get("R6"), "calibration": cal, "rows": rows}
+        log(f"{season}: {len(rows)} brackets in {time.time() - t0:.0f}s")
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    METHODS_FILE.write_text(json.dumps(out, default=float))
+    return out
+
+
+def methods_summary(res: dict | None = None) -> dict:
+    """Averages over the seasons for every setting, and each method with its setting chosen out of sample
+    (for each season, the setting with the best average ESPN score over the *other* seasons)."""
+    res = res if res is not None else (json.loads(METHODS_FILE.read_text()) if METHODS_FILE.exists() else {})
+    if not res:
+        return {}
+    seasons = sorted(res)
+    grid = {}
+    for key in res[seasons[0]]["rows"]:
+        rows = [res[s]["rows"][key] for s in seasons]
+        grid[key] = {"method": rows[0]["method"], "param": rows[0]["param"],
+                     "espn": float(np.mean([r["espn"] for r in rows])),
+                     "expected": float(np.mean([r["expected"] for r in rows])),
+                     "portfolio_best": float(np.mean([r["portfolio_best"] for r in rows])),
+                     "champions_right": int(sum(r["champion_right"] for r in rows))}
+    tuned = {}
+    for method in TILT_GRID:
+        keys = [k for k in grid if grid[k]["method"] == method]
+        picks, scores, ports, champs = [], [], [], 0
+        for s in seasons:
+            best = max(keys, key=lambda k: np.mean([res[x]["rows"][k]["espn"] for x in seasons if x != s]))
+            r = res[s]["rows"][best]
+            picks.append({"season": int(s), "param": r["param"], "espn": r["espn"], "champion": r["champion"],
+                          "champion_right": r["champion_right"], "portfolio_best": r["portfolio_best"]})
+            scores.append(r["espn"]); ports.append(r["portfolio_best"]); champs += r["champion_right"]
+        tuned[method] = {"espn": float(np.mean(scores)), "portfolio_best": float(np.mean(ports)),
+                         "champions_right": champs, "by_season": picks}
+    base = {"max_points": grid.get("arrival:1.0")}
+    return {"seasons": [int(s) for s in seasons], "grid": grid, "tuned": tuned, **base}
