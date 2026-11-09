@@ -1,7 +1,7 @@
 # NCAA Bayesian Basketball
 
-A generative Bayesian model of NCAA men's basketball that follows the current
-season (2026–27) live: every team's rating is updated by Bayes' rule after each
+A generative Bayesian model of NCAA basketball, men's and women's (a toggle at the top of every page
+switches leagues), that follows the current season (2026–27) live: every team's rating is updated by Bayes' rule after each
 game, every game is forecast before tip-off and tracked in-game, and a dashboard
 shows how the model is doing. Built on the same model: a Monte Carlo tournament
 simulator, with the 2026 **distribution bracket** and a tool to score a real
@@ -519,7 +519,9 @@ Set `NCAA_SEASON` to serve a different season for the bracket pages and
 Everything runs from `docker-compose.yml`:
 
 - **web**: gunicorn serving the Flask app on `127.0.0.1:$WEB_PORT`, reachable from the server only.
-- **worker**: the first build, the live-game watcher and the nightly update.
+- **worker**: the first build, the live-game watcher and the nightly update, for the men's league.
+- **worker-womens**: the same for the women's league (`NCAA_LEAGUE=womens`). Its files live under `data/wbb` and
+  `artifacts/wbb`; its nightly run is two hours after the men's (`WOMENS_NIGHTLY_HOUR`).
 - **caddy** (optional): a reverse proxy that gets and renews a Let's Encrypt certificate for your domain.
 
 Models, ledgers and team ratings live in Docker volumes (`ncaa_artifacts`, `ncaa_data`), so they survive rebuilds.
@@ -558,6 +560,7 @@ Settings live in `/opt/ncaa/.env`:
 | `BOOTSTRAP_FIT` | vi | first-build fit: `vi` takes about 10 min; `nuts` is the exact posterior and takes 1–3 h |
 | `NIGHTLY_FIT` | vi | nightly refit method (`none` only folds in new games) |
 | `NIGHTLY_HOUR` | 10 | UTC hour of the nightly update |
+| `WOMENS_NIGHTLY_HOUR` | 12 | UTC hour of the women's league's nightly update |
 | `WATCH_EVERY` | 60 | seconds between polls of games in progress |
 | `WEB_PORT` | 8000, or the first free port after it | local port the app listens on |
 | `COMPOSE_PROFILES` | `caddy` or empty | set by the script: whether the bundled Caddy runs |

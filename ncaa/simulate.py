@@ -7,48 +7,70 @@ for both teams.  Ties go to five-minute overtimes until someone wins.
 """
 from __future__ import annotations
 
+import contextvars
 import json
 from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
 
+from . import league
 from .model import FT_TRIP, PACE, S, STATS, Posterior, def_index
 
 # Calibration of the game simulator (see ncaa.calibration): tested on ten tournaments out of sample, the raw
 # model was underconfident because it compressed the gaps between teams and made single games noisier than
 # real ones. ``skill_scale`` widens the matchup's skill gap; ``phi_scale`` tightens game-night noise (a larger
-# beta-binomial precision). Fitted values live in calibration.json; without it the model runs raw.
-CALIBRATION_FILE = Path(__file__).with_name("calibration.json")
+# beta-binomial precision). Fitted values live in calibration.json (the women's league in calibration_wbb.json);
+# without the file the league's model runs raw.
 
 
-def _load_calibration() -> dict:
+def calibration_file(league_key: str | None = None) -> Path:
+    k = league_key or league.key()
+    return Path(__file__).with_name("calibration.json" if k == "mens" else f"calibration_{league.LEAGUES[k].subdir}.json")
+
+
+_FILE_CAL: dict = {}
+_override = contextvars.ContextVar("calibration_override", default=None)
+
+
+def _load_calibration(k: str) -> dict:
     cal = {"skill_scale": 1.0, "phi_scale": 1.0}
-    if CALIBRATION_FILE.exists():
-        cal.update({k: float(v) for k, v in json.loads(CALIBRATION_FILE.read_text()).items() if k in cal})
+    f = calibration_file(k)
+    if f.exists():
+        cal.update({x: float(v) for x, v in json.loads(f.read_text()).items() if x in cal})
     return cal
 
 
-CAL = _load_calibration()
+def cal() -> dict:
+    """The calibration in force: an override set by ``calibration()`` in this context, else the league's file."""
+    o = _override.get()
+    if o is not None:
+        return o
+    k = league.key()
+    if k not in _FILE_CAL:
+        _FILE_CAL[k] = _load_calibration(k)
+    return _FILE_CAL[k]
 
 
 @contextmanager
 def calibration(skill_scale: float | None = None, phi_scale: float | None = None):
-    """Run the simulator with other calibration values for a while (1, 1 = the raw model)."""
-    old = dict(CAL)
+    """Run the simulator with other calibration values for a while (1, 1 = the raw model). The override
+    belongs to this thread / request only."""
+    new = dict(cal())
     if skill_scale is not None:
-        CAL["skill_scale"] = float(skill_scale)
+        new["skill_scale"] = float(skill_scale)
     if phi_scale is not None:
-        CAL["phi_scale"] = float(phi_scale)
+        new["phi_scale"] = float(phi_scale)
+    token = _override.set(new)
     try:
-        yield CAL
+        yield new
     finally:
-        CAL.clear(); CAL.update(old)
+        _override.reset(token)
 
 
 def game_phi(post: Posterior) -> np.ndarray:
     """Game-night precision of every rate (draws x stats), calibrated."""
-    return post.phi * CAL["phi_scale"]
+    return post.phi * cal()["phi_scale"]
 
 J = {s: j for j, s in enumerate(STATS)}
 EXTRA_FTA = 1 / FT_TRIP - 2  # and-ones / three-shot fouls per trip
@@ -61,7 +83,7 @@ def matchup_eta(post: Posterior, k, o, d, home=None) -> np.ndarray:
     di = def_index()
     zo = post.z[k, o, :S]
     zd = post.z[k, d][:, np.maximum(di, 0)] * (di >= 0)
-    eta = post.mu[k] + CAL["skill_scale"] * (zo + zd)
+    eta = post.mu[k] + cal()["skill_scale"] * (zo + zd)
     if home is not None:
         eta = eta + post.hfa[k] * np.asarray(home, dtype=float)[:, None]
     return eta

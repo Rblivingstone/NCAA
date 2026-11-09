@@ -43,7 +43,15 @@ from .bracket import (ESPN_POINTS, Bracket, actual_picks, bracket_log_likelihood
 
 SEASONS = [2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025, 2026]      # no tournament in 2020
 SEED_HISTORY_FROM = 2012                     # the archive's first season with seeds and pre-game lines
-RESULTS = Path(__file__).resolve().parent.parent / "results" / "backtest"
+RESULTS_ROOT = Path(__file__).resolve().parent.parent / "results"
+
+
+def results_dir() -> Path:
+    """results/backtest (men), results/wbb/backtest (women)."""
+    from . import league
+
+    sub = league.current().subdir
+    return RESULTS_ROOT / sub / "backtest" if sub else RESULTS_ROOT / "backtest"
 MARGIN_SD = 11.0
 PORTFOLIO = 5
 SOURCES = {
@@ -72,7 +80,7 @@ def seed_curve(season: int, log=print) -> float:
         if y == 2020:
             continue
         try:
-            s = data._fetch_parquet(f"{data.BASE}/schedules/parquet/mbb_schedule_{y}.parquet")
+            s = data._fetch_parquet(data.schedule_url(y))
         except Exception as e:                                          # pragma: no cover - network
             log(f"seed history {y}: {e}")
             continue
@@ -146,12 +154,12 @@ def _vegas_p_home(pc: dict) -> float | None:
 
 def game_day_forecasts(game_ids, log=print) -> dict:
     """{game_id: {"home", "away", "bpi", "vegas"}} (home win chances) from ESPN's archived game files."""
-    from .live import RAW_GAME_JSON, espn_pregame
+    from .live import espn_pregame
 
     out = {}
     for gid in game_ids:
         try:
-            with urllib.request.urlopen(RAW_GAME_JSON.format(game_id=int(gid)), timeout=60) as r:
+            with urllib.request.urlopen(data.raw_game_url(gid), timeout=60) as r:
                 d = json.loads(r.read())
         except Exception as e:                                          # pragma: no cover - network
             log(f"game {gid}: {e}")
@@ -288,7 +296,7 @@ def run(seasons=None, sims: int = 10000, force: bool = False, log=print) -> list
     from .calibration import leave_one_out
 
     out = []
-    RESULTS.mkdir(parents=True, exist_ok=True)
+    results_dir().mkdir(parents=True, exist_ok=True)
     for season in seasons or SEASONS:
         t0 = time.time()
         if not (data.season_dir(season) / "bracket.json").exists():
@@ -306,7 +314,7 @@ def run(seasons=None, sims: int = 10000, force: bool = False, log=print) -> list
             runs["model"] = runs["model_raw"]
         res = evaluate(season, runs, log)
         res["calibration"] = {"skill_scale": cal[0], "phi_scale": cal[1]} if cal else None
-        p = RESULTS / f"{season}.json"
+        p = results_dir() / f"{season}.json"
         p.write_text(json.dumps(res, default=float))
         log(f"{season}: scored in {time.time() - t0:.0f}s -> {p}")
         out.append(p)
@@ -314,9 +322,9 @@ def run(seasons=None, sims: int = 10000, force: bool = False, log=print) -> list
 
 
 def load_all() -> list[dict]:
-    if not RESULTS.exists():
+    if not results_dir().exists():
         return []
-    return [json.loads(p.read_text()) for p in sorted(RESULTS.glob("[0-9][0-9][0-9][0-9].json"))]   # seasons only
+    return [json.loads(p.read_text()) for p in sorted(results_dir().glob("[0-9][0-9][0-9][0-9].json"))]   # seasons only
 
 
 def summary(results: list[dict]) -> dict:
@@ -372,7 +380,8 @@ def summary(results: list[dict]) -> dict:
 # --- arrival-aware bracket methods ------------------------------------------------
 
 TILT_GRID = {"arrival": [1.0, 0.75, 0.5, 0.25, 0.0], "edge": [0.0, 1.0, 2.0, 4.0, 8.0, 16.0]}
-METHODS_FILE = RESULTS / "methods.json"
+def methods_file() -> Path:
+    return results_dir() / "methods.json"
 
 
 def run_methods(seasons=None, sims: int = 10000, log=print) -> dict:
@@ -412,15 +421,15 @@ def run_methods(seasons=None, sims: int = 10000, log=print) -> dict:
                                              "portfolio_best": max(port), "picks": named}
         out[str(season)] = {"season": season, "champion": actual.get("R6"), "calibration": cal, "rows": rows}
         log(f"{season}: {len(rows)} brackets in {time.time() - t0:.0f}s")
-    RESULTS.mkdir(parents=True, exist_ok=True)
-    METHODS_FILE.write_text(json.dumps(out, default=float))
+    results_dir().mkdir(parents=True, exist_ok=True)
+    methods_file().write_text(json.dumps(out, default=float))
     return out
 
 
 def methods_summary(res: dict | None = None) -> dict:
     """Averages over the seasons for every setting, and each method with its setting chosen out of sample
     (for each season, the setting with the best average ESPN score over the *other* seasons)."""
-    res = res if res is not None else (json.loads(METHODS_FILE.read_text()) if METHODS_FILE.exists() else {})
+    res = res if res is not None else (json.loads(methods_file().read_text()) if methods_file().exists() else {})
     if not res:
         return {}
     seasons = sorted(res)

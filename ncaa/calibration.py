@@ -7,7 +7,7 @@ the time. Two things caused it, and both are measurable from the games:
 * single games looked too noisy (13.3 points of spread against 12.0), but that turned out to be the seasons
   without half-time scores, which had no second-half lead erosion; with it, the spread matches.
 
-The simulator therefore widens every matchup's skill gap by ``skill_scale`` (``ncaa.simulate.CAL``), fitted on
+The simulator therefore widens every matchup's skill gap by ``skill_scale`` (``ncaa.simulate.cal()``), fitted on
 the margins of each tournament game as forecast on Selection Sunday. The live site uses the value fitted on all
 ten tournaments; the backtest scores each season with the value fitted on the other nine. (``phi_scale``, the
 game-night precision, stays at 1.)
@@ -24,7 +24,7 @@ import time
 import numpy as np
 
 from . import data, model
-from .simulate import CALIBRATION_FILE, calibration, simulate_games
+from .simulate import calibration, calibration_file, simulate_games
 
 N_SIMS = 1000
 
@@ -98,16 +98,17 @@ def run(seasons=None, log=print) -> dict:
     from .backtest import SEASONS
 
     out = fit(seasons or SEASONS, log)
-    CALIBRATION_FILE.write_text(json.dumps(out, indent=1))
+    calibration_file().write_text(json.dumps(out, indent=1))
     log(f"calibration: skill x{out['skill_scale']}, game-night precision x{out['phi_scale']}; tournament log loss "
         f"{out['log_loss_raw']:.4f} -> {out['log_loss']:.4f} (each season fitted on the others: "
-        f"{out['log_loss_out_of_sample']:.4f}) -> {CALIBRATION_FILE}")
+        f"{out['log_loss_out_of_sample']:.4f}) -> {calibration_file()}")
     return out
 
 
 def leave_one_out(season: int) -> tuple[float, float] | None:
     """The calibration fitted without ``season``, for scoring it honestly; None if there is none."""
-    if not CALIBRATION_FILE.exists():
+    f = calibration_file()
+    if not f.exists():
         return None
-    c = json.loads(CALIBRATION_FILE.read_text()).get("leave_one_out", {}).get(str(season))
+    c = json.loads(f.read_text()).get("leave_one_out", {}).get(str(season))
     return (c["skill_scale"], c["phi_scale"]) if c else None

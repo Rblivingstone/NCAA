@@ -173,8 +173,10 @@ class Bracketer:
     (lat, lon)), ``regionals`` and ``pods`` (lists of sites with ``lat``, ``lon``, ``days``), ``blocked``
     (team column -> set of site ids it may not play at). ``sunday``: team columns that can't play on Sunday."""
 
-    def __init__(self, conf: np.ndarray, geo: dict | None = None, sunday: set | None = None):
+    def __init__(self, conf: np.ndarray, geo: dict | None = None, sunday: set | None = None,
+                 protect_conferences: bool = True):
         self.conf = conf
+        self.protect = protect_conferences     # the women's bracket places its top 16 by true seed alone
         self.geo = geo
         self.sunday = sunday or set()
         if geo:
@@ -206,6 +208,8 @@ class Bracketer:
 
     def _protected_ok(self, teams, r, st) -> bool:
         """Top-four-line teams from one conference go to different regions."""
+        if not self.protect:
+            return True
         for t in teams:
             if t not in st["top4"]:                 # only a conference's top four on the seed list
                 continue

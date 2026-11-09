@@ -33,6 +33,7 @@ import numpy as np
 
 from .evaluate import JOINT_STATS, unusualness
 from .live import STATS, LiveState
+from . import league
 from .model import FT_TRIP, PACE, S, STATS as RATE_STATS, Posterior
 from .simulate import (SEGMENTS, _lead_adjusted, _merge, _play, expected_efficiency, game_phi, matchup_eta,
                        simulate_games)
@@ -141,7 +142,7 @@ def forecast(post: Posterior, a: int, b: int, home: float, state: LiveState, n: 
         post_mu, post_var = prior_mu, prior_var
     per_min = np.exp(post_mu + np.sqrt(post_var) * rng.standard_normal(n))
     # Regulation splits into ordinary play and the last two minutes (fouling regime).
-    late = min(remaining, LATE_MINUTES) if state.period <= 2 and state.status != "post" else 0.0
+    late = min(remaining, LATE_MINUTES) if league.in_regulation(state.period) and state.status != "post" else 0.0
     normal = remaining - late
     left = rng.poisson(per_min * normal)
 

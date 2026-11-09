@@ -58,7 +58,11 @@ ARTIFACTS = Path(__file__).resolve().parent.parent / "artifacts"
 
 
 def artifact_dir(season: int) -> Path:
-    return ARTIFACTS / str(season)
+    """Where a season's fits and simulations live: artifacts/<season> (men), artifacts/wbb/<season> (women)."""
+    from . import league
+
+    sub = league.current().subdir
+    return (ARTIFACTS / sub / str(season)) if sub else ARTIFACTS / str(season)
 
 
 def def_index() -> np.ndarray:

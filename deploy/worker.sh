@@ -7,6 +7,8 @@
 #               projection. Geography for the bracket (`ncaa geo`) is built when missing and refreshed weekly.
 set -uo pipefail
 cd /app
+LEAGUE="${NCAA_LEAGUE:-mens}"       # mens or womens: one worker per league
+SUB=""; [ "$LEAGUE" = "womens" ] && SUB="wbb/"   # the women's league keeps its files under data/wbb, artifacts/wbb
 SEASON="${NCAA_SEASON:-2026}"
 LIVE="${NCAA_LIVE_SEASON:-2027}"
 FIT="${BOOTSTRAP_FIT:-vi}"          # vi: ~10 min; nuts: ~1-3 h (exact MCMC)
@@ -15,9 +17,9 @@ HOUR="${NIGHTLY_HOUR:-10}"
 WATCH_EVERY="${WATCH_EVERY:-60}"
 PROJECT_SIMS="${PROJECT_SIMS:-1000}"   # Road to March: ~5 min here per 1000 (about 0.7 GB)
 
-log() { echo "[$(date -u +%FT%TZ)] $*"; }
+log() { echo "[$(date -u +%FT%TZ)] [$LEAGUE] $*"; }
 
-if [ ! -f "artifacts/$SEASON/summary.json" ]; then
+if [ ! -f "artifacts/${SUB}$SEASON/summary.json" ]; then
   log "first start: building the $SEASON models (fit method: $FIT)"
   python -m ncaa fetch --season "$SEASON" &&
   python -m ncaa fit --season "$SEASON" --method "$FIT" &&
@@ -28,7 +30,7 @@ fi
 geo() {   # team locations and tournament sites; keeps a hand-edited sites.json
   python -m ncaa geo --season "$LIVE" || log "geography build failed (the bracket is placed without it)"
 }
-[ -f "data/$LIVE/geo_teams.csv" ] && [ -f "data/$LIVE/sites.json" ] || geo
+[ -f "data/${SUB}$LIVE/geo_teams.csv" ] && [ -f "data/${SUB}$LIVE/sites.json" ] || geo
 
 log "catching up the $LIVE season"
 python -m ncaa update --season "$LIVE" --refit none || log "catch-up failed (will retry tonight)"

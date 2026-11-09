@@ -9,6 +9,8 @@
 <body>
 <nav>
   <a href="/" class="brand">🏀 {{ site_name }} <span class="brand-season">{{ season_label }} season</span></a>
+  <span class="league-toggle" role="group" aria-label="League">{% for k, label in leagues %}<a href="?league={{ k }}"
+    class="{{ 'on' if league == k }}" aria-pressed="{{ 'true' if league == k else 'false' }}">{{ label }}</a>{% endfor %}</span>
   <a href="/" class="{{ 'active' if page == 'dashboard' }}">Dashboard</a>
   <a href="/live" class="{{ 'active' if page == 'live' }}">Live</a>
   <a href="/games" class="{{ 'active' if page == 'games' }}">Games</a>

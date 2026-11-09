@@ -21,7 +21,7 @@ import urllib.request
 
 import pandas as pd
 
-from . import data
+from . import data, league
 
 CITIES_URL = "https://raw.githubusercontent.com/kelvins/US-Cities-Database/main/csv/us_cities.csv"
 GEO_DIR = data.DATA_DIR / "geo"
@@ -146,7 +146,7 @@ def sites_from_schedule(raw: pd.DataFrame) -> dict | None:
 def build(season: int, force: bool = False, raw: pd.DataFrame | None = None, log=print) -> dict:
     """Write geo_teams.csv, geo_venues.csv and (unless it exists and ``force`` is off) sites.json."""
     if raw is None:
-        raw = data._fetch_parquet(f"{data.BASE}/schedules/parquet/mbb_schedule_{season}.parquet")
+        raw = data._fetch_parquet(data.schedule_url(season))
     table = cities()
     out = data.season_dir(season)
     out.mkdir(parents=True, exist_ok=True)
@@ -158,7 +158,7 @@ def build(season: int, force: bool = False, raw: pd.DataFrame | None = None, log
         + (": " + ", ".join(f"{r.team} ({r.city}, {r.state})" for r in missing.itertuples()) if len(missing) else ""))
     sp = out / "sites.json"
     sites = sites_from_schedule(raw)
-    if sites is None and (force or not sp.exists()) and season in TEMPLATES:
+    if sites is None and (force or not sp.exists()) and season in TEMPLATES and league.key() == "mens":
         sites = json.loads(json.dumps(TEMPLATES[season]))
     if sites is not None and (force or not sp.exists() or sites.get("source", "").startswith("read")):
         for s in sites["pods"] + sites["regionals"] + ([sites["final_four"]] if "final_four" in sites else []):
