@@ -121,7 +121,10 @@ def _game_arrays(box_a: dict, box_b: dict, minutes: float):
 
     (ka, na), (kb, nb) = _counts(box_a, box_b), _counts(box_b, box_a)
     pa, pb = max(possessions(box_a), 1.0), max(possessions(box_b), 1.0)
+    from .model import blowout_weight
+
     return {"k": np.stack([ka, kb]), "n": np.stack([na, nb]),
+            "weight": float(blowout_weight(box_a["pts"] - box_b["pts"])),
             "pf": np.array([box_b["pf"], box_a["pf"]], dtype=float),   # fouls committed by the defense
             "poss": np.array([round(pa), round(pb)], dtype=float),
             "log_pace": float(np.log(0.5 * (pa + pb) * 40.0 / minutes))}
@@ -158,7 +161,7 @@ def _make_objective(base: Posterior):
 
     def objective(x, g, home, m0, P0):
         d = x - m0
-        return loglik(x, g, home) - 0.5 * d @ P0 @ d
+        return g["weight"] * loglik(x, g, home) - 0.5 * d @ P0 @ d       # weight: the blowout damper
 
     grad = jax.jit(jax.grad(objective))
     hess = jax.jit(jax.hessian(objective))

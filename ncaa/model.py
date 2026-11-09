@@ -98,9 +98,29 @@ class ModelData:
     form: bool = True     # whether teams' form may wander over the season
     form_sigma: float | None = None  # fix the form step size instead of learning it (diagnostics)
     prior_mean: np.ndarray | None = None  # T x D: last season's skill per team (0 for new teams)
+    weight: np.ndarray | None = None      # per row: how much the game's likelihood counts (blowout damper)
 
 
 PERIOD_DAYS = 14
+
+
+def blowout_weight(margin, threshold: float | None = None) -> np.ndarray:
+    """How much a game's evidence counts, from its final margin: fully up to ``threshold`` points, then in
+    proportion threshold / |margin| (a 50-point win counts half, a 100-point win a quarter).
+
+    Past a certain margin a game stops saying much more about the teams: the starters sit, the losing side
+    gives up, and every box-score rate, not just the score, comes from garbage time. Counted in full, a few
+    record blowouts against the weakest teams can move a rating more than a month of close games. Raising
+    the likelihood to this power (a tempered likelihood) keeps the game's direction and shrinks its weight.
+    The threshold is the league's (``league.blowout_margin``) unless given."""
+    if threshold is None:
+        from . import league
+
+        threshold = league.current().blowout_margin
+    m = np.abs(np.asarray(margin, dtype=float))
+    if threshold is None:
+        return np.ones_like(m)
+    return np.where(m > threshold, threshold / np.maximum(m, 1e-9), 1.0)
 
 
 def form_period(dates: pd.Series, end=None) -> np.ndarray:
@@ -180,6 +200,7 @@ def prepare(games: pd.DataFrame, form: bool = True) -> ModelData:
         n_periods=int(period.max()) + 1,
         lam_off=np.zeros(D), lam_def=np.zeros(D),
         form=form,
+        weight=blowout_weight((g.pts - g.opp_pts).to_numpy()),
     )
 
 
@@ -258,10 +279,11 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
     lg = jax.scipy.special.gammaln
     table = lg(jnp.arange(md.n.max() + 1)[None, :] + phi)  # lgamma(n + phi)
     ll = lg(k + a) + lg(n - k + b) - lg(a) - lg(b) + lg(phi) - jnp.take_along_axis(table, n, axis=1)
-    numpyro.factor("lik_counts", ll.sum())
+    w = jnp.ones(ll.shape[1]) if md.weight is None else jnp.asarray(md.weight)   # blowout damper, per row
+    numpyro.factor("lik_counts", (ll * w[None, :]).sum())
     # Personal fouls: Poisson with possessions as exposure.
     log_rate = jnp.log(jnp.asarray(md.poss)) + eta[:, S - 1]
-    numpyro.factor("lik_pf", (jnp.asarray(md.pf) * log_rate - jnp.exp(log_rate)).sum())
+    numpyro.factor("lik_pf", (w * (jnp.asarray(md.pf) * log_rate - jnp.exp(log_rate))).sum())
 
     mu_pace = numpyro.sample("mu_pace", dist.Normal(np.log(68.0), 0.2))
     sigma_pace = numpyro.sample("sigma_pace", dist.HalfNormal(0.2))
