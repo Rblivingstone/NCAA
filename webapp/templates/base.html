@@ -3,25 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Dashboard{% endblock %} · {{ site_name }} {{ season_label }}</title>
+<title>{% block title %}Dashboard{% endblock %} · {{ league_label }} · {{ site_name }} {{ season_label }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>
+// The league travels with every page link and every API call (as ?league=), so it never depends on a cookie
+// surviving the trip through a proxy or a privacy setting.
+const LEAGUE = "{{ league }}";
+function withLeague(url) {
+  const u = new URL(url, location.origin);
+  if (u.origin === location.origin && !u.searchParams.has("league")) u.searchParams.set("league", LEAGUE);
+  return u.origin === location.origin ? u.pathname + u.search + u.hash : u.href;
+}
+(() => {
+  const _fetch = window.fetch.bind(window);
+  window.fetch = (input, init) => _fetch(typeof input === "string" && input.startsWith("/") ? withLeague(input) : input, init);
+  const fix = (e) => {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a || a.dataset.league !== undefined) return;            // the toggle's own links set the league
+    const href = a.getAttribute("href");
+    if (href && (href.startsWith("/") || href.startsWith("?")) && !href.startsWith("//")) a.setAttribute("href", withLeague(href));
+  };
+  document.addEventListener("click", fix, true);
+  document.addEventListener("auxclick", fix, true);
+})();
+</script>
 </head>
 <body>
 <nav>
-  <a href="/" class="brand">🏀 {{ site_name }} <span class="brand-season">{{ season_label }} season</span></a>
-  <span class="league-toggle" role="group" aria-label="League">{% for k, label in leagues %}<a href="?league={{ k }}"
-    class="{{ 'on' if league == k }}" aria-pressed="{{ 'true' if league == k else 'false' }}">{{ label }}</a>{% endfor %}</span>
-  <a href="/" class="{{ 'active' if page == 'dashboard' }}">Dashboard</a>
-  <a href="/live" class="{{ 'active' if page == 'live' }}">Live</a>
-  <a href="/games" class="{{ 'active' if page == 'games' }}">Games</a>
-  <a href="/season" class="{{ 'active' if page == 'season' }}">Season</a>
-  <a href="/rankings" class="{{ 'active' if page == 'rankings' }}">Rankings</a>
-  <a href="/march" class="{{ 'active' if page == 'march' }}">Road to March</a>
-  <a href="/matchup" class="{{ 'active' if page == 'matchup' }}">Simulate</a>
-  <a href="/track-record" class="{{ 'active' if page == 'track' }}">Track record</a>
+  <a href="/?league={{ league }}" class="brand">🏀 {{ site_name }} <span class="brand-season">{{ league_label }} · {{ season_label }} season</span></a>
+  <span class="league-switch" role="radiogroup" aria-label="Choose a league">
+    <span class="ls-label">League</span>{% for k, label in leagues %}<a href="{{ '/' if request.path.startswith(('/team/', '/game/')) else request.path }}?league={{ k }}" data-league="{{ k }}"
+      role="radio" aria-checked="{{ 'true' if league == k else 'false' }}" class="{{ 'on' if league == k }}"
+      title="{{ 'Showing the ' ~ label ~ ' league' if league == k else 'Switch to the ' ~ label ~ ' league' }}">{{ label }}</a>{% endfor %}</span>
+  <a href="/?league={{ league }}" class="{{ 'active' if page == 'dashboard' }}">Dashboard</a>
+  <a href="/live?league={{ league }}" class="{{ 'active' if page == 'live' }}">Live</a>
+  <a href="/games?league={{ league }}" class="{{ 'active' if page == 'games' }}">Games</a>
+  <a href="/season?league={{ league }}" class="{{ 'active' if page == 'season' }}">Season</a>
+  <a href="/rankings?league={{ league }}" class="{{ 'active' if page == 'rankings' }}">Rankings</a>
+  <a href="/march?league={{ league }}" class="{{ 'active' if page == 'march' }}">Road to March</a>
+  <a href="/matchup?league={{ league }}" class="{{ 'active' if page == 'matchup' }}">Simulate</a>
+  <a href="/track-record?league={{ league }}" class="{{ 'active' if page == 'track' }}">Track record</a>
   <span class="sep"></span><span class="group">{{ season }} tournament</span>
-  <a href="/bracket" class="{{ 'active' if page == 'bracket' }}">Bracket</a>
-  <a href="/score" class="{{ 'active' if page == 'score' }}">Score</a>
+  <a href="/bracket?league={{ league }}" class="{{ 'active' if page == 'bracket' }}">Bracket</a>
+  <a href="/score?league={{ league }}" class="{{ 'active' if page == 'score' }}">Score</a>
 </nav>
 <main>{% block content %}{% endblock %}</main>
 <div id="tooltip"></div>
