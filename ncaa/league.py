@@ -35,6 +35,7 @@ class League:
     period_minutes: float
     headline: str                   # regex for the NCAA tournament's headlines
     protect_conferences: bool = True  # a conference's top four on seed lines 1-4 in different regions
+    blowout_margin: float | None = None  # final margins beyond this count for less (see model.blowout_weight)
 
     @property
     def half_periods(self) -> int:
@@ -42,6 +43,8 @@ class League:
 
 
 OT_MINUTES = 5.0
+# Blowout damper threshold by league, in points of final margin (None = off). See ncaa.model.blowout_weight.
+BLOWOUT_MARGIN = {"mens": 25.0, "womens": 25.0}
 
 LEAGUES = {
     "mens": League(
@@ -49,14 +52,15 @@ LEAGUES = {
         data_base="https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-data/main/mbb", file_prefix="mbb",
         raw_game_json="https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-raw/main/mbb/json/final/{game_id}.json",
         espn_base="https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball",
-        subdir="", periods=2, period_minutes=20.0, headline=r"(?<!wo)men's basketball championship"),
+        subdir="", periods=2, period_minutes=20.0, headline=r"(?<!wo)men's basketball championship",
+        blowout_margin=BLOWOUT_MARGIN["mens"]),
     "womens": League(
         key="womens", label="Women's",
         data_base="https://raw.githubusercontent.com/sportsdataverse/wehoop-wbb-data/main/wbb", file_prefix="wbb",
         raw_game_json="https://raw.githubusercontent.com/sportsdataverse/wehoop-wbb-raw/main/wbb/json/final/{game_id}.json",
         espn_base="https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball",
         subdir="wbb", periods=4, period_minutes=10.0, headline=r"women's basketball championship",
-        protect_conferences=False),
+        protect_conferences=False, blowout_margin=BLOWOUT_MARGIN["womens"]),
 }
 
 _current = contextvars.ContextVar("ncaa_league", default=os.environ.get("NCAA_LEAGUE", "mens"))
