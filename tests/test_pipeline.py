@@ -588,7 +588,7 @@ def test_fallback_feed_uses_the_archive_when_espn_fails(monkeypatch):
     urls = []
     monkeypatch.setattr(live, "_get_json", lambda url, timeout=20: urls.append(url) or raw)
     feed = live.FallbackFeed(Blocked())
-    assert feed.game(401856600).status == "post" and urls == [live.RAW_GAME_JSON.format(game_id=401856600)]
+    assert feed.game(401856600).status == "post" and urls == [live.raw_game_url(401856600)]
 
     def missing(url, timeout=20):
         raise OSError("404")
@@ -1285,3 +1285,65 @@ def test_tilted_brackets():
     V = B.tilt_values(br, A, Wn, "arrival", 0.0)
     i = br.gidx["R6"]; t = int(np.argmax(Wn[i]))
     assert abs(V[i, t] - 320 * Wn[i, t] / A[i, t]) < 1e-9
+
+
+def test_leagues():
+    """Men's and women's leagues: the clock (halves vs quarters), folders, data sources, tournament headlines and
+    region names, and calibration overrides that stay in their own thread."""
+    import threading
+
+    import pandas as pd
+
+    from ncaa import data, league, live
+    from ncaa.simulate import cal, calibration
+
+    with league.using("mens"):
+        assert league.elapsed(1, 20) == 0 and league.elapsed(2, 5) == 35 and league.elapsed(3, 1) == 44
+        assert league.remaining(1, 10) == 30 and league.period_at(25) == (2, 15) and league.period_name(3) == "OT"
+        assert league.overtimes(4) == 2 and data.season_dir(2027).name == "2027" and "wbb" not in str(model.artifact_dir(2027))
+        assert "mens-college-basketball" in live.espn_base() and "hoopR-mbb" in data.schedule_url(2027)
+    with league.using("womens"):
+        assert league.elapsed(1, 10) == 0 and league.elapsed(3, 5) == 25 and league.elapsed(5, 2) == 43
+        assert league.remaining(2, 4) == 24 and league.period_at(25) == (3, 5) and league.period_at(41) == (5, 4)
+        assert league.period_name(4) == "Q4" and league.period_name(6) == "OT2" and league.overtimes(5) == 1
+        assert data.season_dir(2027).parent.name == "wbb" and model.artifact_dir(2027).parent.name == "wbb"
+        assert "womens-college-basketball" in live.espn_base() and "wehoop-wbb" in data.schedule_url(2027)
+        heads = pd.Series(["NCAA Women's Basketball Championship - Regional 4 in Sacramento - 1st Round",
+                           "NCAA Women's Basketball Championship - Final Four"])
+        rnd, reg = data.round_and_region(heads)
+        assert list(rnd) == ["1st Round", "Final Four"] and reg.iloc[0] == "Regional 4 (Sacramento)" and pd.isna(reg.iloc[1])
+        sched = pd.DataFrame({"tournament_id": [22, 22], "notes_headline": [
+            "NCAA Women's Basketball Championship - Final Four", "Men's Basketball Championship - Final Four"]})
+        assert list(data.is_ncaa_tournament(sched)) == [True, False]
+    with league.using("mens"):
+        assert list(data.is_ncaa_tournament(sched)) == [False, True]       # "men's" never matches "women's"
+        rnd, reg = data.round_and_region(pd.Series(["Men's Basketball Championship - East Region - Sweet 16"]))
+        assert reg.iloc[0] == "East"
+    # a calibration override belongs to its own thread
+    seen = {}
+    base = cal()["skill_scale"]
+    with calibration(3.0):
+        t = threading.Thread(target=lambda: seen.setdefault("other", cal()["skill_scale"]))
+        t.start(); t.join()
+        assert cal()["skill_scale"] == 3.0
+    assert seen["other"] == base and cal()["skill_scale"] == base
+
+
+def test_league_toggle_in_the_app():
+    """The web app follows ?league= (and remembers it), and keeps each league's cached results apart."""
+    import webapp.app as A
+
+    c = A.app.test_client()
+    r = c.get("/healthz?league=womens")
+    assert "league=womens" in r.headers.get("Set-Cookie", "")
+    calls = []
+
+    @A.league_cache(maxsize=4)
+    def which():
+        calls.append(1)
+        return A.league.key()
+    with A.league.using("mens"):
+        assert which() == "mens" and which() == "mens"
+    with A.league.using("womens"):
+        assert which() == "womens"
+    assert len(calls) == 2

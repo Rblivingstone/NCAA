@@ -20,10 +20,18 @@ import re
 import urllib.request
 from dataclasses import dataclass, field
 
-ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball"
-RAW_GAME_JSON = "https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-raw/main/mbb/json/final/{game_id}.json"
+from . import league
+
 STATS = ["pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "tov", "ast", "stl", "blk", "pf"]
-HALF, OT = 20.0, 5.0
+
+
+def espn_base() -> str:
+    """ESPN's site API for the current league (men's or women's college basketball)."""
+    return league.current().espn_base
+
+
+def raw_game_url(game_id) -> str:
+    return league.current().raw_game_json.format(game_id=int(game_id))
 
 
 @dataclass
@@ -33,7 +41,7 @@ class LiveState:
     team_ids: list[str]
     neutral: bool
     status: str                      # "pre", "in" or "post"
-    period: int                      # 1-2 halves, 3+ overtimes
+    period: int                      # regulation periods (2 halves for men, 4 quarters for women), then overtimes
     clock: float                     # minutes left in the period
     box: dict = field(default_factory=dict)   # team name -> {stat: count}
     espn_home_wp: float | None = None
@@ -45,18 +53,14 @@ class LiveState:
         """Minutes played so far (regulation 40, plus 5 per overtime)."""
         if self.status == "pre":
             return 0.0
-        if self.period <= 2:
-            return (self.period - 1) * HALF + (HALF - self.clock)
-        return 2 * HALF + (self.period - 3) * OT + (OT - self.clock)
+        return league.elapsed(self.period, self.clock)
 
     @property
     def remaining(self) -> float:
         """Minutes left, counting only regulation or the current overtime."""
         if self.status == "post":
             return 0.0
-        if self.period <= 2:
-            return (2 - self.period) * HALF + self.clock
-        return self.clock
+        return league.remaining(self.period, self.clock)
 
     def to_json(self) -> dict:
         return {"game_id": self.game_id, "teams": self.teams, "neutral": self.neutral, "status": self.status,
@@ -87,7 +91,7 @@ def _clock_minutes(text) -> float:
 def play_elapsed(p: dict) -> float:
     period = int(p.get("period.number") or 1)
     left = _clock_minutes(p.get("clock.displayValue"))
-    return (period - 1) * HALF + (HALF - left) if period <= 2 else 2 * HALF + (period - 3) * OT + (OT - left)
+    return league.elapsed(period, left)
 
 
 def box_from_plays(plays: list[dict], team_ids: list[str], until: float | None = None) -> dict:
@@ -208,8 +212,7 @@ def parse_summary(d: dict, until: float | None = None) -> LiveState:
         until = min(until, last)
         box = box_from_plays(plays, ids, until)
         state = "post" if until >= last - 1e-9 else ("pre" if until <= 0 else "in")
-        period = 1 if until <= HALF else 2 if until <= 2 * HALF else 3 + int((until - 2 * HALF - 1e-9) // OT)
-        clock = (HALF * min(period, 2) - until if period <= 2 else OT - (until - 2 * HALF - (period - 3) * OT))
+        period, clock = league.period_at(until)
         wp = _espn_wp_at(d, flat, until)
         ball = ball_after(plays, ids, until)
     else:
@@ -232,7 +235,7 @@ def _detail(state, period, clock) -> str:
         return "Final"
     if state == "pre":
         return "Scheduled"
-    name = {1: "1st", 2: "2nd"}.get(period, f"OT{period - 2 if period > 3 else ''}")
+    name = league.period_name(period)
     return f"{int(clock)}:{int(round(clock % 1 * 60)):02d} - {name}"
 
 
@@ -303,8 +306,7 @@ def summary_at(d: dict, minute: float) -> dict:
     plays and win probabilities so far, status in progress, no final box score."""
     plays = [p for p in d.get("plays") or [] if play_elapsed(flatten(p)) <= minute + 1e-9]
     ids = {str(flatten(p).get("id")) for p in plays}
-    period = 1 if minute <= HALF else 2 if minute <= 2 * HALF else 3 + int((minute - 2 * HALF - 1e-9) // OT)
-    clock = HALF * period - minute if period <= 2 else OT - (minute - 2 * HALF - (period - 3) * OT)
+    period, clock = league.period_at(minute)
     header = json.loads(json.dumps(d["header"]))
     comp = header["competitions"][0]
     comp["status"] = {"period": period, "displayClock": f"{int(clock)}:{int(round(clock % 1 * 60)):02d}",
@@ -323,8 +325,12 @@ def _get_json(url: str, timeout: float = 20) -> dict:
 class ESPNFeed:
     """Today's games and live game states from ESPN's public site API."""
 
-    def __init__(self, base: str = ESPN_BASE):
-        self.base = base
+    def __init__(self, base: str | None = None):
+        self._base = base
+
+    @property
+    def base(self) -> str:
+        return self._base or espn_base()                # the league in force when it's used
 
     def scoreboard(self, date: str) -> list[dict]:
         """Games on ``date`` (YYYYMMDD): id, teams (home first), status."""
@@ -365,7 +371,7 @@ class FallbackFeed:
             return d
         except Exception as e:
             try:
-                return _get_json(RAW_GAME_JSON.format(game_id=game_id), timeout=60)
+                return _get_json(raw_game_url(game_id), timeout=60)
             except Exception:
                 raise RuntimeError(f"live feed failed ({e}) and the game archive has no final for it yet") from e
 
@@ -381,7 +387,7 @@ class ReplayFeed:
 
     def raw(self, game_id: int) -> dict:
         if game_id not in self.cache:
-            self.cache[game_id] = _get_json(RAW_GAME_JSON.format(game_id=game_id), timeout=60)
+            self.cache[game_id] = _get_json(raw_game_url(game_id), timeout=60)
         return self.cache[game_id]
 
     def game(self, game_id: int, minute: float) -> LiveState:

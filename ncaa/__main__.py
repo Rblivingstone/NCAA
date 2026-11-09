@@ -58,11 +58,12 @@ def cmd_fit(a):
 
 def cmd_simulate(a):
     """The bracket under the calibrated model and, for the bracket builder's comparison switch, the raw one."""
-    from .simulate import CAL, calibration
+    from .simulate import cal, calibration
 
     post = model.load_posterior(a.season)
     br = Bracket(data.load_bracket(a.season))
-    variants = [("calibrated", CAL["skill_scale"])] + ([("raw", 1.0)] if CAL["skill_scale"] != 1.0 else [])
+    k_cal = cal()["skill_scale"]
+    variants = [("calibrated", k_cal)] + ([("raw", 1.0)] if k_cal != 1.0 else [])
     for variant, k in variants:
         with calibration(k, 1.0):
             t = time.time()
@@ -147,7 +148,12 @@ def main(argv=None):
     p.add_argument("--force", action="store_true", help="geo: rewrite sites.json even if it exists (loses hand edits); "
                    "backtest: refit and resimulate")
     p.add_argument("--seasons", default="", help="backtest: comma-separated seasons (default: the last ten tournaments)")
+    p.add_argument("--league", choices=["mens", "womens"], default=None,
+                   help="men's or women's college basketball (default: $NCAA_LEAGUE, else men's)")
     a = p.parse_args(argv)
+    if a.league:
+        from . import league
+        league.set_league(a.league)
     steps = {"fetch": [cmd_fetch], "fit": [cmd_fit], "simulate": [cmd_simulate],
              "build": [cmd_fetch, cmd_fit, cmd_simulate], "update": [cmd_update], "watch": [cmd_watch],
              "project": [cmd_project], "geo": [cmd_geo], "backtest": [cmd_backtest], "calibrate": [cmd_calibrate], "restate": [cmd_restate]}[a.command]

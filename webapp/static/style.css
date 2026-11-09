@@ -260,3 +260,8 @@ nav .brand-season { font-weight: 500; color: var(--muted); margin-left: 4px; }
 .mini td:first-child, .mini .nw { white-space: nowrap; }
 
 nav { gap: 16px; }
+
+/* men's / women's league toggle */
+nav .league-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+nav .league-toggle a { padding: 3px 12px; font-size: 13px; color: var(--muted); }
+nav .league-toggle a.on { background: var(--accent); color: #fff; font-weight: 600; }

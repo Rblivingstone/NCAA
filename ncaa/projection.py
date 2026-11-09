@@ -28,7 +28,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import committee, data, geo, model
+from . import committee, data, geo, league, model
 from .simulate import expected_efficiency, simulate_games
 
 ROUNDS = ["First Four", "Round of 64", "Round of 32", "Sweet 16", "Elite 8", "Final Four", "Final", "Champion"]
@@ -238,7 +238,8 @@ def project(season: int, post, sched: pd.DataFrame, n_sims: int = 1000, seed: in
         geo_cols = {"loc": {col[t]: v for t, v in gdat["loc"].items() if t in col},
                     "regionals": gdat["sites"]["regionals"], "pods": gdat["sites"]["pods"],
                     "blocked": {col[t]: v for t, v in gdat["blocked"].items() if t in col}}
-    bracketer = committee.Bracketer(conf_arr, geo_cols, sunday={col[t] for t in committee.SUNDAY_RESTRICTED if t in col})
+    bracketer = committee.Bracketer(conf_arr, geo_cols, sunday={col[t] for t in committee.SUNDAY_RESTRICTED if t in col},
+                                    protect_conferences=league.current().protect_conferences)
     region_names = [r.get("region", f"Region {i + 1}") for i, r in enumerate(gdat["sites"]["regionals"])] if gdat \
         else [f"Region {i + 1}" for i in range(4)]
     pod_names = [f"{p_['city']}, {p_['state']}" for p_ in gdat["sites"]["pods"]] if gdat else []

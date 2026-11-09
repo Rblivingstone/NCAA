@@ -33,6 +33,25 @@ services:
       - artifacts:/app/artifacts
       - data:/app/data
 
+  # The women's league: the same jobs, its own files (data/wbb, artifacts/wbb). Its nightly run is two hours after the
+  # men's so the two refits never compete for memory.
+  worker-womens:
+    build: .
+    restart: unless-stopped
+    command: ["deploy/worker.sh"]
+    environment:
+      NCAA_LEAGUE: womens
+      NCAA_SEASON: ${NCAA_SEASON:-2026}
+      NCAA_LIVE_SEASON: ${NCAA_LIVE_SEASON:-2027}
+      BOOTSTRAP_FIT: ${BOOTSTRAP_FIT:-vi}
+      NIGHTLY_FIT: ${NIGHTLY_FIT:-vi}
+      NIGHTLY_HOUR: ${WOMENS_NIGHTLY_HOUR:-12}
+      WATCH_EVERY: ${WATCH_EVERY:-60}
+      PROJECT_SIMS: ${PROJECT_SIMS:-1000}
+    volumes:
+      - artifacts:/app/artifacts
+      - data:/app/data
+
   # Bundled HTTPS proxy, only for servers where nothing else uses ports 80/443 (COMPOSE_PROFILES=caddy in .env).
   caddy:
     image: caddy:2

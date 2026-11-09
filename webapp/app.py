@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import json
 import os
-from functools import lru_cache
+from functools import lru_cache, wraps
 
 import numpy as np
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, g, jsonify, redirect, render_template, request
 
-from ncaa import data, model
+from ncaa import data, league, model
 from ncaa.bracket import TILTS, tilted_bracket
 from ncaa.bracket import (Bracket, has_simulation, Constraints, actual_picks, bracket_log_likelihood, conditional_points_bracket,
                           espn_points, expected_points, favourites, is_upset, load_simulation,
@@ -28,7 +28,44 @@ app = Flask(__name__)
 app.json.sort_keys = False  # keep box-score stats in their natural order
 
 
-@lru_cache(maxsize=2)
+def league_cache(maxsize: int = 128):
+    """lru_cache with the current league in the key, so the men's and women's leagues never share a result."""
+    def deco(f):
+        @lru_cache(maxsize=maxsize * len(league.LEAGUES))
+        def inner(league_key, *a, **k):
+            return f(*a, **k)
+
+        @wraps(f)
+        def wrapper(*a, **k):
+            return inner(league.key(), *a, **k)
+        wrapper.cache_clear = inner.cache_clear
+        return wrapper
+    return deco
+
+
+@app.before_request
+def _league():
+    """The league for this request: ?league= (remembered in a cookie), else the cookie, else men's."""
+    want = request.args.get("league") or request.cookies.get("league") or "mens"
+    g.league_token = league.set_league(want if want in league.LEAGUES else "mens")
+
+
+@app.teardown_request
+def _league_done(exc=None):
+    token = g.pop("league_token", None)
+    if token is not None:
+        league.reset(token)
+
+
+@app.after_request
+def _remember_league(resp):
+    want = request.args.get("league")
+    if want in league.LEAGUES:
+        resp.set_cookie("league", want, max_age=365 * 24 * 3600, samesite="Lax")
+    return resp
+
+
+@league_cache(maxsize=2)
 def state(variant: str = "calibrated"):
     """The bracket season's saved simulation: the calibrated model, or the raw one for comparison."""
     br = Bracket(data.load_bracket(SEASON))
@@ -48,7 +85,7 @@ def model_variant() -> str:
     return "raw" if want == "raw" and has_simulation(SEASON, "raw") else "calibrated"
 
 
-@lru_cache(maxsize=1)
+@league_cache(maxsize=1)
 def actual() -> dict[str, str]:
     """The real tournament results as {game id: winner}."""
     return actual_picks(state()[0])
@@ -66,10 +103,12 @@ def _building():
     """Until the first build finishes, every page says so instead of erroring."""
     if request.path.startswith(("/static", "/healthz")) or (model.artifact_dir(SEASON) / "summary.json").exists():
         return None
+    other = next(k for k in league.LEAGUES if k != league.key())
     return ("<!doctype html><meta http-equiv='refresh' content='60'><body style='font-family:system-ui;padding:40px'>"
-            "<h1>NCAA Bayesian Basketball</h1><h2>Building the models…</h2><p>The first start downloads the data, "
-            "fits the model and simulates last season's tournament, then follows this season live. This takes "
-            "20–90 minutes depending on the server; the page refreshes itself.</p>", 503)
+            f"<h1>NCAA Bayesian Basketball · {league.current().label}</h1><h2>Building the models…</h2><p>The first start "
+            "downloads the data, fits the model and simulates last season's tournament, then follows this season live. "
+            "This takes 20–90 minutes depending on the server; the page refreshes itself.</p>"
+            f"<p><a href='?league={other}'>Switch to the {league.LEAGUES[other].label} league</a></p>", 503)
 
 
 @app.route("/")
@@ -100,10 +139,10 @@ def teams_page():
 @app.route("/api/summary")
 def api_summary():
     v = model_variant()
-    from ncaa.simulate import CAL
+    from ncaa.simulate import cal
 
     return jsonify({**state(v)[2], "model_variant": v, "raw_available": has_simulation(SEASON, "raw"),
-                    "skill_scale": CAL["skill_scale"]})
+                    "skill_scale": cal()["skill_scale"]})
 
 
 @app.route("/api/actual")
@@ -111,7 +150,7 @@ def api_actual():
     return jsonify(actual())
 
 
-@lru_cache(maxsize=2)
+@league_cache(maxsize=2)
 def compare(variant: str = "calibrated") -> dict:
     """The real tournament set against the model's pre-tournament distribution.
 
@@ -178,7 +217,7 @@ def api_favorites():
 FINAL_FOUR_GAMES = ("R4", "R5", "R6")  # region finals onward decide the Final Four and beyond
 
 
-@lru_cache(maxsize=256)
+@league_cache(maxsize=256)
 def optimize(objective: str, champion: str, n_upsets: int | None, gap: int, keep_final_four: bool,
              variant: str = "calibrated", param: float | None = None) -> dict:
     """Build the optimal bracket under the requested objective and constraints."""
@@ -275,7 +314,7 @@ POOL_PRESETS = {
 }
 
 
-@lru_cache(maxsize=8)
+@league_cache(maxsize=8)
 def pool_for(mix: tuple, rho: float, variant: str = "calibrated") -> Pool:
     br, sims, summary, W, _ = state(variant)
     return Pool(br, sims, W.mean(0), summary, PoolSpec(mix=mix, rho=rho))
@@ -291,7 +330,7 @@ def _pool_spec_from(req: dict) -> tuple[int, tuple, float]:
     return n, mix, rho
 
 
-@lru_cache(maxsize=64)
+@league_cache(maxsize=64)
 def pool_result(n: int, mix: tuple, rho: float, variant: str = "calibrated") -> dict:
     br, sims, summary, W, _ = state(variant)
     pool = pool_for(mix, rho, variant)
@@ -387,7 +426,7 @@ def api_teams():
     return jsonify(state()[2]["ratings"])
 
 
-@lru_cache(maxsize=1)
+@league_cache(maxsize=1)
 def real_games():
     """Every real game with box scores: the tournament (out of sample) and the season (used in fitting)."""
     import pandas as pd
@@ -402,7 +441,7 @@ def _meeting_rows(a: str, b: str):
     return g[(g.team == a) & (g.opponent == b)].sort_values("date", ascending=False)
 
 
-@lru_cache(maxsize=1)
+@league_cache(maxsize=1)
 def tournament_report() -> dict:
     """Every tournament game's whole-box-score unusualness, plus how they spread."""
     games = tournament_unusualness(state()[4], data.load_tournament_games(SEASON))
@@ -542,7 +581,9 @@ SITE_NAME = "NCAA Bayesian Basketball"
 @app.context_processor
 def _site():
     """The site's name and the season it follows, for every page."""
-    return {"site_name": SITE_NAME, "season_label": f"{LIVE_SEASON - 1}\u2013{LIVE_SEASON % 100:02d}"}
+    return {"site_name": SITE_NAME, "season_label": f"{LIVE_SEASON - 1}\u2013{LIVE_SEASON % 100:02d}",
+            "league": league.key(), "league_label": league.current().label,
+            "leagues": [(k, v.label) for k, v in league.LEAGUES.items()]}
 
 
 _espn, _replay = FallbackFeed(), ReplayFeed()   # ESPN, or the game archive once a game is final
@@ -562,7 +603,7 @@ def _tracked(season: int, gid: int):
     if tracker.is_stale(track):
         try:
             with _track_lock:
-                fc = _forecasters.setdefault(season, tracker.Forecaster(season))
+                fc = _forecasters.setdefault((league.key(), season), tracker.Forecaster(season))
                 track = tracker.track_game(season, gid, _espn, fc, log=lambda *_: None)
         except Exception as e:
             app.logger.warning("could not refresh game %s: %r", gid, e)
@@ -574,7 +615,7 @@ def _tracked(season: int, gid: int):
     return track, parse_summary(raw, until=999) if track.get("status") == "post" else parse_summary(raw)
 
 
-@lru_cache(maxsize=4)
+@league_cache(maxsize=4)
 def _season_post(season: int, stamp: float):
     return season_mod.current_posterior(season)
 
@@ -716,7 +757,7 @@ def api_replay_games():
                      "score": [int(r.pts), int(r.opp_pts)]} for r in t.itertuples()])
 
 
-@lru_cache(maxsize=64)
+@league_cache(maxsize=64)
 def _pregame_cached(post_id: int, a: int, b: int, home: int, n: int = 3000):
     return pregame(_posts[post_id], a, b, home, n=n, seed=0, samples=True)
 
@@ -756,7 +797,7 @@ def _model_view(post, state, n=3000):
             "densities": stat_densities(f["samples"], pre["samples"]), "shift_level": SHIFT_LEVEL}
 
 
-@lru_cache(maxsize=64)
+@league_cache(maxsize=64)
 def _replay_timeline(season: int, game_id: int) -> list:
     post, _ = season_post(season)
     length = _replay.length(game_id)
@@ -806,7 +847,7 @@ def api_live_game():
     return jsonify({"state": state.to_json(), "model": view, "posterior": label, "timeline": timeline})
 
 
-@lru_cache(maxsize=32)
+@league_cache(maxsize=32)
 def _bracket_asof(asof: str) -> dict:
     """The distribution bracket conditioned on every result final before ``asof``."""
     br, _, _, _, post = state()
@@ -857,7 +898,7 @@ from ncaa.ratings import team_ratings
 SEASONS = sorted({SEASON, LIVE_SEASON})
 
 
-@lru_cache(maxsize=4)
+@league_cache(maxsize=4)
 def _ratings(season: int, stamp: float):
     post, label = season_post(season)
     br = state()[0] if season == SEASON else None
@@ -954,7 +995,7 @@ def _end_of_data(season: int):
     return g.date.max() if len(g) else pd.Timestamp.now(tz="UTC")
 
 
-@lru_cache(maxsize=4)
+@league_cache(maxsize=4)
 def _streak_league(season: int, stamp: float) -> dict:
     from ncaa import streaks
 
@@ -1194,7 +1235,7 @@ UPSET_GAP = 20          # ranking places between the teams before a game counts 
 UPSET_WATCH = 0.35      # the model gives the underdog at least this chance: "upset watch"
 
 
-@lru_cache(maxsize=4)
+@league_cache(maxsize=4)
 def _rank_map(season: int, stamp: float) -> dict:
     rows, _ = ratings_for(season)
     d1 = data.d1_set(season)
@@ -1267,7 +1308,7 @@ def _pregame_rankers(season: int):
     return at
 
 
-@lru_cache(maxsize=4)
+@league_cache(maxsize=4)
 def _preseason_ranks_cached(season: int, stamp: float) -> dict:
     base, _ = season_mod.base_posterior(season)
     if base is None:

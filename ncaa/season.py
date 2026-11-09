@@ -24,7 +24,7 @@ from contextlib import contextmanager
 import numpy as np
 import pandas as pd
 
-from . import data, model
+from . import data, league, model
 from .evaluate import game_unusualness
 from .simulate import estimate_lead_beta
 
@@ -160,11 +160,11 @@ def restate_ledger(season: int, log=print) -> int:
     changes no team's rating, only how a matchup becomes a win chance and margin, so each logged forecast is
     translated with a map fitted on simulated matchups (``calibration_map``). The original numbers stay in the
     ``*_logged`` columns, and ``restated`` marks the rows. Returns the number of rows restated."""
-    from .simulate import CAL
+    from .simulate import cal
 
     path = ledger_path(season)
     led = load_ledger(season)
-    k_to = float(CAL["skill_scale"])
+    k_to = float(cal()["skill_scale"])
     todo = led[(led.calibration - k_to).abs() > 1e-9]
     if not len(todo):
         return 0
@@ -453,7 +453,7 @@ def live_final_row(season: int, state) -> pd.DataFrame:
     date = row.date.iloc[0] if len(row) else pd.Timestamp.now(tz="UTC")
     h, a = state.teams
     rec = {"game_id": state.game_id, "date": date, "team": h, "opponent": a, "home": 0 if state.neutral else 1,
-           "ot": max(state.period - 2, 0), "kind": "regular season"}
+           "ot": league.overtimes(state.period), "kind": "regular season"}
     for s_ in LIVE_BOX:
         rec[s_], rec["opp_" + s_] = state.box[h][s_], state.box[a][s_]
     return pd.DataFrame([rec])
@@ -530,9 +530,9 @@ def score_new_games(season: int, post: model.Posterior, label: str, n: int = 200
 
 def _calibration_tag() -> dict:
     """Which calibration a forecast is written under (see restate_ledger)."""
-    from .simulate import CAL
+    from .simulate import cal
 
-    k = float(CAL["skill_scale"])
+    k = float(cal()["skill_scale"])
     return {"calibration_logged": k, "calibration": k, "restated": False}
 
 

@@ -1,9 +1,9 @@
-"""Download and clean NCAA men's basketball box scores and the tournament bracket.
+"""Download and clean NCAA basketball box scores and the tournament bracket, men's or women's (``ncaa.league``).
 
-Source: the sportsdataverse ``hoopR-mbb-data`` mirror of ESPN data, which is
-served from raw.githubusercontent.com as parquet files.
+Source: the sportsdataverse mirrors of ESPN data (``hoopR-mbb-data`` for men, ``wehoop-wbb-data`` for
+women), served from raw.githubusercontent.com as parquet files.
 
-Two products are written to ``data/<season>/``:
+Two products are written to ``data/<season>/`` (women's: ``data/wbb/<season>/``):
 
 * ``games.csv``   one row per *team-game* (offense perspective) for every game
                   played before the NCAA tournament began; used to fit the model.
@@ -21,10 +21,26 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-BASE = "https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-data/main/mbb"
+from . import league
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
-# ESPN tournament id for the NCAA men's tournament.
+
+def base() -> str:
+    """The current league's data mirror."""
+    return league.current().data_base
+
+
+def schedule_url(season: int) -> str:
+    lg = league.current()
+    return f"{lg.data_base}/schedules/parquet/{lg.file_prefix}_schedule_{season}.parquet"
+
+
+def raw_game_url(game_id: int) -> str:
+    return league.current().raw_game_json.format(game_id=int(game_id))
+
+
+# ESPN tournament id for the NCAA tournament (the same for men and women).
 NCAA_TOURNAMENT_ID = 22
 # Without conference data, teams with fewer games than this (non-D1 opponents) are pooled into one team.
 MIN_GAMES = 8
@@ -58,24 +74,27 @@ _ROUND_CANON = {r.lower(): r for r in ROUND_NAMES}
 # counted as a win for bracket scoring, as pools did, but never as a game for forecast accuracy.
 NO_CONTESTS = {2021: [{"region": "West", "seeds": {7: "Oregon", 10: "VCU"}, "winner": "Oregon",
                        "date": "2021-03-20T00:00:00+00:00"}]}
-CHAMPIONSHIP_HEADLINE = r"men's basketball championship"     # older seasons write headlines in capitals
-
-
 def is_ncaa_tournament(sched: pd.DataFrame) -> pd.Series:
-    """Rows of the schedule that are NCAA tournament games (any capitalisation of the headline)."""
+    """Rows of the schedule that are NCAA tournament games (any capitalisation of the headline: older seasons
+    write it in capitals)."""
     return sched.tournament_id.eq(NCAA_TOURNAMENT_ID) & sched.notes_headline.fillna("").str.contains(
-        CHAMPIONSHIP_HEADLINE, case=False, regex=True)
+        league.current().headline, case=False, regex=True)
 
 
 def round_and_region(headlines: pd.Series) -> tuple[pd.Series, pd.Series]:
-    """Round name (as in ROUND_NAMES) and region (title case) from tournament headlines."""
+    """Round name (as in ROUND_NAMES) and region from tournament headlines. Men's regions are named ("East
+    Region"); women's are numbered with a host city ("Regional 1 in Fort Worth"), and two regions can share a
+    city, so they go by number and city: "Regional 1 (Fort Worth)"."""
     rnd = headlines.str.split(" - ").str[-1].str.strip().str.lower().map(_ROUND_CANON)
-    region = headlines.str.extract(r"- (\w+) Region -", flags=2, expand=False).str.title()   # 2 = re.IGNORECASE
-    return rnd, region
+    named = headlines.str.extract(r"- (\w+) Region -", flags=2, expand=False).str.title()   # 2 = re.IGNORECASE
+    num = headlines.str.extract(r"- Regional (\d+) in ([^-]+?) -", flags=2, expand=True)
+    numbered = ("Regional " + num[0] + " (" + num[1].str.strip() + ")").where(num[0].notna())
+    return rnd, named.fillna(numbered)
 
 
 def season_dir(season: int) -> Path:
-    return DATA_DIR / str(season)
+    sub = league.current().subdir
+    return (DATA_DIR / sub / str(season)) if sub else DATA_DIR / str(season)
 
 
 def _fetch_parquet(url: str) -> pd.DataFrame:
@@ -87,9 +106,9 @@ def fetch_raw(season: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Box scores and schedule.  Early in a season the box-score file may not exist yet."""
     import urllib.error
 
-    sched = _fetch_parquet(f"{BASE}/schedules/parquet/mbb_schedule_{season}.parquet")
+    sched = _fetch_parquet(schedule_url(season))
     try:
-        box = _fetch_parquet(f"{BASE}/team_box/parquet/team_box_{season}.parquet")
+        box = _fetch_parquet(f"{base()}/team_box/parquet/team_box_{season}.parquet")
     except urllib.error.HTTPError as e:
         if e.code != 404:
             raise
@@ -131,9 +150,11 @@ def _tournament_games(sched: pd.DataFrame) -> pd.DataFrame:
 
 
 def _first_half(linescores) -> float:
-    """Points in the first period from ESPN's linescore field (stored as text)."""
+    """Points in the first half from ESPN's linescore field (stored as text): the first period for men, the
+    first two quarters for women."""
     vals = re.findall(r"'value': ([0-9.]+)", str(linescores))
-    return float(vals[0]) if vals else np.nan
+    k = league.current().half_periods
+    return float(sum(float(v) for v in vals[:k])) if len(vals) >= k else np.nan
 
 
 def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
@@ -166,8 +187,9 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
 
     neutral = sched.neutral_site.reindex(df.game_id).to_numpy()
     df["home"] = np.where(neutral, 0, np.where(df.team_home_away == "home", 1, -1))
-    periods = sched.status_period.reindex(df.game_id).fillna(2).to_numpy()
-    df["ot"] = np.clip(periods - 2, 0, None).astype(int)
+    n_reg = league.current().periods
+    periods = sched.status_period.reindex(df.game_id).fillna(n_reg).to_numpy()
+    df["ot"] = np.clip(periods - n_reg, 0, None).astype(int)
     # First-half points (used to estimate how leads erode in the second half).
     is_home = (df.team_home_away == "home").to_numpy()
     if "home_linescores" in sched:                  # older schedules have no half-time scores
@@ -202,9 +224,6 @@ def build_games(box: pd.DataFrame, sched: pd.DataFrame, cutoff: pd.Timestamp,
     return df[cols].sort_values(["date", "game_id", "team"]).reset_index(drop=True)
 
 
-RAW_GAME_JSON = "https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-raw/main/mbb/json/final/{game_id}.json"
-
-
 def with_seeds(t: pd.DataFrame, log=print) -> pd.DataFrame:
     """Tournament games with ``home_current_rank`` / ``away_current_rank`` (the seeds). Schedules before 2023
     have no seed columns; those seeds come from ESPN's archived game files (cached in data/archive_seeds)."""
@@ -212,13 +231,13 @@ def with_seeds(t: pd.DataFrame, log=print) -> pd.DataFrame:
         return t
     t = t.copy()
     season = int(t.season.iloc[0]) if "season" in t else 0
-    cache = DATA_DIR / "archive_seeds" / f"{season}.json"
+    cache = DATA_DIR / "archive_seeds" / (f"{league.current().subdir}_{season}.json" if league.current().subdir else f"{season}.json")
     seeds = json.loads(cache.read_text()) if cache.exists() else {}
     for gid in t.game_id.astype(int):
         if str(gid) in seeds:
             continue
         try:
-            with urllib.request.urlopen(RAW_GAME_JSON.format(game_id=gid), timeout=60) as r:
+            with urllib.request.urlopen(raw_game_url(gid), timeout=60) as r:
                 comp = json.loads(r.read())["header"]["competitions"][0]
             seeds[str(gid)] = {c["homeAway"]: c.get("rank") for c in comp["competitors"]}
         except Exception as e:                                          # pragma: no cover - network
@@ -329,9 +348,10 @@ def d1_set(season: int) -> frozenset:
     """d1_teams as a set, re-read only when the schedule file changes."""
     path = season_dir(season) / "schedule.csv"
     stamp = path.stat().st_mtime if path.exists() else 0.0
-    if _D1_CACHE.get(season, (None,))[0] != stamp:
-        _D1_CACHE[season] = (stamp, frozenset(d1_teams(season)))
-    return _D1_CACHE[season][1]
+    key = (league.key(), season)
+    if _D1_CACHE.get(key, (None,))[0] != stamp:
+        _D1_CACHE[key] = (stamp, frozenset(d1_teams(season)))
+    return _D1_CACHE[key][1]
 
 
 def d1_teams(season: int) -> list[str]:
