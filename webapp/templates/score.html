@@ -106,7 +106,7 @@ how it compares with brackets the model itself generates. Or let the optimizer b
       : `The current model, calibrated on ten tournaments (skill gaps widened x${k}). Switch to compare the brackets.`;
     sel.onchange = () => { const u = new URL(location.href); u.searchParams.set("model", sel.value); location.href = u; };
   }
-  const KEY = "ncaa-picks-{{ season }}";
+  const KEY = "ncaa-picks-{{ league }}-{{ season }}";      // each league keeps its own picks
   let timer = null;
   const view = new BracketView(document.getElementById("bracket"), s, {
     mode: "pick", onPick: () => schedule() });
