@@ -1364,7 +1364,8 @@ def test_blowout_damper():
 
     w = blowout_weight([0, 10, 25, 50, -100], threshold=25)
     assert np.allclose(w, [1, 1, 1, 0.5, 0.25])
-    assert np.allclose(blowout_weight([80]), [league.current().blowout_margin / 80])   # no threshold: the league's
+    with league.using("mens"):
+        assert np.allclose(blowout_weight([80]), [1])                 # off for the men's league
     with league.using("womens"):
         assert blowout_weight([100])[0] == league.current().blowout_margin / 100
     real = model.artifact_dir(2026)
@@ -1375,6 +1376,7 @@ def test_blowout_damper():
     a, b = final.teams
     box_a, box_b = dict(final.box[a]), dict(final.box[b])
     moves = []
+    token = league.set_league("womens")                              # where the damper is on
     for margin_pts in (box_a["pts"], box_b["pts"] + 90):             # the real result, then a 90-point blowout
         st = updates.init_state(post, "2026")
         before = st.mean[st.index(a)].copy()
@@ -1384,9 +1386,12 @@ def test_blowout_damper():
         updates.laplace_update(st, post, a, b, 0.0, ba, box_b)
         moves.append(np.abs(st.mean[st.index(a)] - before).sum())
     assert moves[1] < moves[0]                       # same box score, far less weight: a smaller move
+    league.reset(token)
     games = pd.DataFrame([{"team": "A", "opponent": "B", "home": 0, "ot": 0, "date": pd.Timestamp("2027-01-01"),
                            "game_id": 1, "pts": 120, "opp_pts": 40, "fga": 70, "fgm": 45, "fg3a": 25, "fg3m": 12,
                            "fta": 20, "ftm": 15, "oreb": 15, "tov": 8, "ast": 25, "opp_stl": 3, "opp_blk": 2,
                            "opp_pf": 15, "opp_fga": 60, "opp_oreb": 8, "opp_tov": 25, "opp_fta": 10}])
-    md = prepare(games)
-    assert np.allclose(md.weight, [league.current().blowout_margin / 80])
+    with league.using("womens"):
+        md = prepare(games)
+        assert np.allclose(md.weight, [league.current().blowout_margin / 80])
+    assert np.allclose(prepare(games).weight, [1])

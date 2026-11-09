@@ -44,7 +44,12 @@ class League:
 
 OT_MINUTES = 5.0
 # Blowout damper threshold by league, in points of final margin (None = off). See ncaa.model.blowout_weight.
-BLOWOUT_MARGIN = {"mens": 25.0, "womens": 25.0}
+# Women's: on at 25. Replaying the 2026-27 season from preseason, it gave the best forecasts of the later games
+# (log loss 0.3197 -> 0.3171; 40 and 15 points did worse) and stopped two 90-100-point wins over the weakest teams
+# from making LSU a runaway favourite. Men's: off. Refitting ten tournaments' seasons with it at 25 made the
+# ratings more compressed and tournament forecasts worse, even recalibrated (log loss 0.5511 -> 0.5548): men's
+# blowouts, mostly against overmatched opponents, still carry real information.
+BLOWOUT_MARGIN = {"mens": None, "womens": 25.0}
 
 LEAGUES = {
     "mens": League(
