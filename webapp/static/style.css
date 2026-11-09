@@ -261,12 +261,8 @@ nav .brand-season { font-weight: 500; color: var(--muted); margin-left: 4px; }
 
 nav { gap: 16px; }
 
-/* men's / women's league switch: a labelled two-way control; the league in view is filled in */
-nav .league-switch { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 8px;
-  overflow: hidden; background: var(--bg); }
-nav .league-switch .ls-label { padding: 4px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--muted); border-right: 1px solid var(--line); }
-nav .league-switch a { padding: 4px 14px; font-size: 13px; color: var(--muted); text-decoration: none; }
-nav .league-switch a:hover { color: var(--ink); background: var(--accent-soft); }
-nav .league-switch a.on { background: var(--accent); color: #fff; font-weight: 600; cursor: default; }
-nav .league-switch a.on::before { content: "✓ "; }
+/* league picker: a labelled drop-down in the nav */
+nav .league-select { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--muted); }
+nav .league-select select { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--ink);
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }

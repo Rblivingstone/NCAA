@@ -1337,8 +1337,8 @@ def test_league_toggle_in_the_app():
     r = c.get("/healthz?league=womens")
     assert "league=womens" in r.headers.get("Set-Cookie", "")
     html = c.get("/track-record?league=womens").get_data(as_text=True)
-    assert 'href="/games?league=womens"' in html and 'href="/track-record?league=mens"' in html   # nav + switch
-    assert "Women&#39;s · " in html and 'aria-checked="true"' in html
+    assert 'href="/games?league=womens"' in html and 'value="/track-record?league=mens"' in html   # nav + picker
+    assert "Women&#39;s · " in html and 'value="/track-record?league=womens" selected' in html
     assert 'href="/games?league=womens"' in c.get("/track-record").get_data(as_text=True)   # remembered
     html = A.app.test_client().get("/track-record").get_data(as_text=True)   # a new visitor: men's
     assert 'href="/games?league=mens"' in html

@@ -64,7 +64,7 @@ LEAGUES = {
         data_base="https://raw.githubusercontent.com/sportsdataverse/wehoop-wbb-data/main/wbb", file_prefix="wbb",
         raw_game_json="https://raw.githubusercontent.com/sportsdataverse/wehoop-wbb-raw/main/wbb/json/final/{game_id}.json",
         espn_base="https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball",
-        subdir="wbb", periods=4, period_minutes=10.0, headline=r"women's basketball championship",
+        subdir="wbb", periods=4, period_minutes=10.0, headline=r"ncaa women's (?:basketball )?championship",   # before 2026: "NCAA Women's Championship"
         protect_conferences=False, blowout_margin=BLOWOUT_MARGIN["womens"]),
 }
 
