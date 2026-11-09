@@ -70,6 +70,8 @@ TEAM_ALIASES = {"St. Thomas": "St. Thomas-Minnesota", "LSU New Orleans": "New Or
 ROUND_NAMES = ["First Four", "1st Round", "2nd Round", "Sweet 16", "Elite 8",
                "Final Four", "National Championship"]
 _ROUND_CANON = {r.lower(): r for r in ROUND_NAMES}
+# Some women's tournaments name the regional rounds "Semifinal" and "Final" (the Sweet 16 and Elite 8).
+_ROUND_CANON |= {"semifinal": "Sweet 16", "final": "Elite 8", "regional semifinal": "Sweet 16", "regional final": "Elite 8"}
 # Tournament games declared no-contests (the winner advanced without playing): seeded into the bracket and
 # counted as a win for bracket scoring, as pools did, but never as a game for forecast accuracy.
 NO_CONTESTS = {2021: [{"region": "West", "seeds": {7: "Oregon", 10: "VCU"}, "winner": "Oregon",
@@ -86,7 +88,7 @@ def round_and_region(headlines: pd.Series) -> tuple[pd.Series, pd.Series]:
     Region"); women's are numbered with a host city ("Regional 1 in Fort Worth"), and two regions can share a
     city, so they go by number and city: "Regional 1 (Fort Worth)"."""
     rnd = headlines.str.split(" - ").str[-1].str.strip().str.lower().map(_ROUND_CANON)
-    named = headlines.str.extract(r"- (\w+) Region -", flags=2, expand=False).str.title()   # 2 = re.IGNORECASE
+    named = headlines.str.extract(r"- ([\w .']+?) Region -", flags=2, expand=False).str.title()   # 2 = re.IGNORECASE
     num = headlines.str.extract(r"- Regional (\d+) in ([^-]+?) -", flags=2, expand=True)
     numbered = ("Regional " + num[0] + " (" + num[1].str.strip() + ")").where(num[0].notna())
     return rnd, named.fillna(numbered)
@@ -146,6 +148,36 @@ def build_schedule(sched: pd.DataFrame) -> pd.DataFrame:
 def _tournament_games(sched: pd.DataFrame) -> pd.DataFrame:
     t = sched[is_ncaa_tournament(sched)].copy()
     t["round_name"], t["region"] = round_and_region(t.notes_headline)
+    return _regions_from_bracket(t)
+
+
+def _regions_from_bracket(t: pd.DataFrame) -> pd.DataFrame:
+    """Settle each game's region from the bracket itself: teams that meet before the Final Four are in the same
+    region, so the games up to the Elite 8 split into four groups, each named by its regional (Sweet 16 and
+    Elite 8) games. Headlines alone can't be trusted: some years name the first weekend after its host sites."""
+    early = t[t.round_name.isin(["First Four", "1st Round", "2nd Round", "Sweet 16", "Elite 8"])]
+    if not len(early) or "home_id" not in t:
+        return t
+    parent: dict = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in zip(early.home_id, early.away_id):
+        parent[find(a)] = find(b)
+    group = early.home_id.map(find)
+    names = {}
+    for gkey in group.unique():
+        g = early[group == gkey]
+        late = g[g.round_name.isin(["Sweet 16", "Elite 8"])].region.dropna()
+        pick = (late if len(late) else g.region.dropna()).mode()
+        names[gkey] = pick.iat[0] if len(pick) else None
+    t = t.copy()
+    t.loc[early.index, "region"] = group.map(names).to_numpy()
     return t
 
 

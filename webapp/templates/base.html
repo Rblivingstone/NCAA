@@ -31,10 +31,10 @@ function withLeague(url) {
 <body>
 <nav>
   <a href="/?league={{ league }}" class="brand">🏀 {{ site_name }} <span class="brand-season">{{ league_label }} · {{ season_label }} season</span></a>
-  <span class="league-switch" role="radiogroup" aria-label="Choose a league">
-    <span class="ls-label">League</span>{% for k, label in leagues %}<a href="{{ '/' if request.path.startswith(('/team/', '/game/')) else request.path }}?league={{ k }}" data-league="{{ k }}"
-      role="radio" aria-checked="{{ 'true' if league == k else 'false' }}" class="{{ 'on' if league == k }}"
-      title="{{ 'Showing the ' ~ label ~ ' league' if league == k else 'Switch to the ' ~ label ~ ' league' }}">{{ label }}</a>{% endfor %}</span>
+  <label class="league-select" title="Which league the whole site shows">League
+    <select aria-label="League" onchange="location.href = this.value">{% for k, label in leagues %}
+      <option value="{{ '/' if request.path.startswith(('/team/', '/game/')) else request.path }}?league={{ k }}"{{ ' selected' if league == k }}>{{ label }} basketball</option>{% endfor %}
+    </select></label>
   <a href="/?league={{ league }}" class="{{ 'active' if page == 'dashboard' }}">Dashboard</a>
   <a href="/live?league={{ league }}" class="{{ 'active' if page == 'live' }}">Live</a>
   <a href="/games?league={{ league }}" class="{{ 'active' if page == 'games' }}">Games</a>
