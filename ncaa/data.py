@@ -91,6 +91,8 @@ def round_and_region(headlines: pd.Series) -> tuple[pd.Series, pd.Series]:
     named = headlines.str.extract(r"- ([\w .']+?) Region -", flags=2, expand=False).str.title()   # 2 = re.IGNORECASE
     num = headlines.str.extract(r"- Regional (\d+) in ([^-]+?) -", flags=2, expand=True)
     numbered = ("Regional " + num[0] + " (" + num[1].str.strip() + ")").where(num[0].notna())
+    alt = headlines.str.extract(r"- ([\w .']+?) Regional (\d+) -", flags=2, expand=True)      # "Seattle Regional 3"
+    numbered = numbered.fillna(("Regional " + alt[1] + " (" + alt[0].str.strip() + ")").where(alt[1].notna()))
     return rnd, named.fillna(numbered)
 
 
@@ -171,11 +173,11 @@ def _regions_from_bracket(t: pd.DataFrame) -> pd.DataFrame:
         parent[find(a)] = find(b)
     group = early.home_id.map(find)
     names = {}
-    for gkey in group.unique():
+    for i, gkey in enumerate(group.unique()):
         g = early[group == gkey]
         late = g[g.round_name.isin(["Sweet 16", "Elite 8"])].region.dropna()
         pick = (late if len(late) else g.region.dropna()).mode()
-        names[gkey] = pick.iat[0] if len(pick) else None
+        names[gkey] = pick.iat[0] if len(pick) else f"Region {i + 1}"      # no usable name: a number
     t = t.copy()
     t.loc[early.index, "region"] = group.map(names).to_numpy()
     return t
