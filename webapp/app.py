@@ -919,8 +919,18 @@ def api_track_record():
     """The out-of-sample backtest: every season's games and brackets, and the totals (see ncaa.backtest)."""
     from ncaa import backtest
 
+    from ncaa.simulate import calibration_file
+
     results = backtest.load_all()
+    cal = None
+    f = calibration_file()
+    if f.exists():
+        c = json.loads(f.read_text())
+        loo = [v["skill_scale"] for v in c.get("leave_one_out", {}).values()]
+        cal = {"skill_scale": c.get("skill_scale"), "margin_slope": c.get("margin_slope_raw"),
+               "loo_min": min(loo) if loo else None, "loo_max": max(loo) if loo else None}
     return jsonify({"summary": backtest.summary(results) if results else None, "methods": backtest.methods_summary(),
+                    "calibration": cal,
                     "seasons": [{k: r[k] for k in ("season", "champion", "games", "brackets", "cutoff", "seed_slope")}
                                 for r in results]})
 

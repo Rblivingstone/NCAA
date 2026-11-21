@@ -10,7 +10,8 @@ be recovered.</p>
 
 <div class="panel" style="margin-top:12px">
   <div class="toolbar" style="margin:0"><b>Game forecasts</b>
-    <label><input type="radio" name="scope" value="all" checked> all 67 games a year</label>
+    <label><input type="radio" name="scope" value="all" checked> every tournament game{% if league == "womens" %} (63 a year
+      before the 2022 First Four, 67 since){% else %} (67 a year){% endif %}</label>
     <label><input type="radio" name="scope" value="no_first_four"> the 63 from the round of 64 on</label></div>
   <div class="muted mini" style="margin:4px 0 6px">Each source's chance that the eventual winner would win that game. Lower
     log loss and Brier score are better. Every row is compared with the model on exactly the games that source covers.
@@ -51,9 +52,12 @@ be recovered.</p>
       during the tournament. It was designed with knowledge of recent seasons, so this is out of sample for the fitted
       numbers, not for every modelling choice.</li>
     <li><b>Calibration</b>: the raw model ("before calibration") was underconfident. It compressed the gaps between teams:
-      real margins ran about 1.2 times its predictions. The simulator now widens every matchup's skill gap by that factor,
-      fitted on these tournaments' margins. Each year here uses the factor fitted on the other nine years, never its own;
-      it comes out between 1.17 and 1.23 whichever year is left out.</li>
+      real margins ran <span id="cal-slope">well over</span> its predictions. The simulator now widens every matchup's
+      skill gap by a factor fitted on these tournaments' margins (<span id="cal-k">see the calibration file</span>). Each
+      year here uses the factor fitted on the other nine years, never its own<span id="cal-range"></span>.</li>
+    {% if league == "womens" %}<li><b>Blowouts</b>: the women's model counts a game decided by more than 25 points for
+      less, in proportion to the margin (a 50-point win counts half), so a few routs of the weakest teams can't run away
+      with a rating.</li>{% endif %}
     <li>Seasons before 2023 have no half-time scores. Those years use the usual rate at which leads erode in the second
       half, which every later season puts at about the same value.</li>
     <li><b>Seeds</b>: a curve in the seed difference fitted on the tournaments before each year (from 2012).</li>
@@ -68,8 +72,10 @@ be recovered.</p>
         <li>FiveThirtyEight: its public archive ends in 2015, and it stopped forecasting after 2023;</li>
         <li>BracketProof: no record of its forecasts could be found.</li>
       </ul></li>
-    <li>2020 had no tournament. In 2021, VCU–Oregon was declared a no-contest: Oregon advanced for bracket scoring, but
-      no game is counted for forecast accuracy.</li>
+    <li>2020 had no tournament.{% if league == "mens" %} In 2021, VCU–Oregon was declared a no-contest: Oregon advanced
+      for bracket scoring, but no game is counted for forecast accuracy.{% else %} Before 2022 the women's field had 64
+      teams and no First Four. The 2016 season's public box scores cover only about a third of its games, so that
+      year's model had less to go on.{% endif %}</li>
   </ul></div>
 {% endblock %}
 {% block scripts %}
@@ -79,6 +85,12 @@ be recovered.</p>
   const d = await (await fetch("/api/track-record")).json();
   if (!d.summary) { $("tiles").innerHTML = `<div class="muted">The backtest hasn't been run yet.</div>`; return; }
   const S = d.summary, names = S.sources, years = S.seasons;
+  if (d.calibration) {
+    const c = d.calibration;
+    if (c.margin_slope) $("cal-slope").textContent = `about ${c.margin_slope.toFixed(2)} times`;
+    $("cal-k").textContent = `×${c.skill_scale} on the live site`;
+    if (c.loo_min != null) $("cal-range").textContent = `; it comes out between ${c.loo_min} and ${c.loo_max} whichever year is left out`;
+  }
   const colour = { model: "var(--accent)", model_raw: "#93c5fd", efficiency: "var(--hl)", seed: "var(--muted)", bpi: "#8b5cf6", vegas: "var(--win)" };
   const f3 = (v) => v.toFixed(3), f0 = (v) => Math.round(v).toLocaleString();
   const stat = (v, k) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`;
