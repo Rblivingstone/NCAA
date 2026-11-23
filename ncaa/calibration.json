@@ -1,5 +1,5 @@
 {
- "skill_scale": 1.2,
+ "skill_scale": 1.21,
  "phi_scale": 1.0,
  "seasons": [
   2016,
@@ -14,72 +14,72 @@
   2026
  ],
  "games": 667,
- "log_loss_raw": 0.5547084172878932,
- "log_loss": 0.5511460102466748,
- "log_loss_out_of_sample": 0.551131992321106,
- "margin_slope_raw": 1.2012151341746067,
- "sim_sd_raw": 12.156443915052469,
- "resid_sd": 11.926848214237719,
+ "log_loss_raw": 0.553358193792125,
+ "log_loss": 0.5500228821977003,
+ "log_loss_out_of_sample": 0.5490513320962321,
+ "margin_slope_raw": 1.2089157372546266,
+ "sim_sd_raw": 12.156403723308483,
+ "resid_sd": 11.910644348209368,
  "leave_one_out": {
   "2016": {
-   "skill_scale": 1.18,
+   "skill_scale": 1.19,
    "phi_scale": 1.0,
-   "log_loss_raw": 0.5679095430089592,
-   "log_loss": 0.5624444432109177
+   "log_loss_raw": 0.5680027646483246,
+   "log_loss": 0.5673012168952682
   },
   "2017": {
-   "skill_scale": 1.21,
-   "phi_scale": 1.0,
-   "log_loss_raw": 0.5064710437692626,
-   "log_loss": 0.4915835203798097
-  },
-  "2018": {
-   "skill_scale": 1.23,
-   "phi_scale": 1.0,
-   "log_loss_raw": 0.5928412578727028,
-   "log_loss": 0.60288705999777
-  },
-  "2019": {
-   "skill_scale": 1.2,
-   "phi_scale": 1.0,
-   "log_loss_raw": 0.4967330803710033,
-   "log_loss": 0.4843915735097162
-  },
-  "2021": {
-   "skill_scale": 1.21,
-   "phi_scale": 1.0,
-   "log_loss_raw": 0.6108690785361796,
-   "log_loss": 0.6139479948506037
-  },
-  "2022": {
-   "skill_scale": 1.21,
-   "phi_scale": 1.0,
-   "log_loss_raw": 0.6388311780745495,
-   "log_loss": 0.6537600198526707
-  },
-  "2023": {
    "skill_scale": 1.22,
    "phi_scale": 1.0,
-   "log_loss_raw": 0.6379558284246285,
-   "log_loss": 0.6397387809742088
+   "log_loss_raw": 0.5006953799372162,
+   "log_loss": 0.48609045253607885
+  },
+  "2018": {
+   "skill_scale": 1.24,
+   "phi_scale": 1.0,
+   "log_loss_raw": 0.5990144720755907,
+   "log_loss": 0.5935324521323709
+  },
+  "2019": {
+   "skill_scale": 1.21,
+   "phi_scale": 1.0,
+   "log_loss_raw": 0.4949842949705243,
+   "log_loss": 0.48242046382329423
+  },
+  "2021": {
+   "skill_scale": 1.22,
+   "phi_scale": 1.0,
+   "log_loss_raw": 0.6069645990712943,
+   "log_loss": 0.6161352110214192
+  },
+  "2022": {
+   "skill_scale": 1.22,
+   "phi_scale": 1.0,
+   "log_loss_raw": 0.629933239514118,
+   "log_loss": 0.6339827086475506
+  },
+  "2023": {
+   "skill_scale": 1.23,
+   "phi_scale": 1.0,
+   "log_loss_raw": 0.6353082980293805,
+   "log_loss": 0.6479375611309734
   },
   "2024": {
    "skill_scale": 1.18,
    "phi_scale": 1.0,
-   "log_loss_raw": 0.5504471153911255,
-   "log_loss": 0.5463986190719392
+   "log_loss_raw": 0.5576488085085431,
+   "log_loss": 0.5419424605982434
   },
   "2025": {
-   "skill_scale": 1.17,
+   "skill_scale": 1.18,
    "phi_scale": 1.0,
-   "log_loss_raw": 0.4877752146460069,
-   "log_loss": 0.46726183168365726
+   "log_loss_raw": 0.4797922470543117,
+   "log_loss": 0.471363502971732
   },
   "2026": {
-   "skill_scale": 1.2,
+   "skill_scale": 1.19,
    "phi_scale": 1.0,
-   "log_loss_raw": 0.45664913001154367,
-   "log_loss": 0.4480660656297206
+   "log_loss_raw": 0.46046590541895155,
+   "log_loss": 0.448929113889046
   }
  }
 }
