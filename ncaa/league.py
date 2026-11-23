@@ -54,6 +54,7 @@ BLOWOUT_MARGIN = {"mens": None, "womens": 25.0}
 # Shrinking each team toward its conference's learned mean, instead of toward the league average, by league.
 # Men's: on. Refitting ten tournaments' seasons with it (variational fits, as the site runs), the tournament
 # forecasts improved in 7 of 10 seasons (Brier 0.1889 -> 0.1882, log loss 0.5555 -> 0.5539, uncalibrated).
+# Women's: off. The same test moved Brier 0.1420 -> 0.1417, better in only 5 of 10 seasons: no clear gain.
 CONFERENCE_SHRINKAGE = {"mens": True, "womens": False}
 
 LEAGUES = {
