@@ -1401,3 +1401,39 @@ def test_blowout_damper():
         md = prepare(games)
         assert np.allclose(md.weight, [league.current().blowout_margin / 80])
     assert np.allclose(prepare(games).weight, [1])
+
+
+def test_conference_shrinkage():
+    """Each team is shrunk toward its conference's learned level (men's league): the conferences come from the
+    schedule, every team gets one (or the no-conference group), and the model adds the conference's effect to
+    the team's skill."""
+    import numpyro
+    from numpyro import handlers
+
+    from ncaa import league
+
+    assert league.LEAGUES["mens"].conference_shrinkage and not league.LEAGUES["womens"].conference_shrinkage
+    conf = data.conferences(2026)
+    if not conf:
+        pytest.skip("needs the 2026 schedule")
+    assert len(set(conf.values())) >= 30                               # every Division I conference
+    games = data.load_games(2026).head(600)
+    md = model._with_directions(model.prepare(games))
+    model.set_conferences(md, conf)
+    assert md.conf.shape == (len(md.teams),) and md.n_conf == len(set(conf.values())) + 1
+    none = [t for t in md.teams if t not in conf]
+    assert all(md.conf[md.teams.index(t)] == md.n_conf - 1 for t in none)
+    init = model.init_values(md)
+    assert init["conf_eps"].shape == (md.n_conf, model.D)
+    with numpyro.handlers.seed(rng_seed=0):
+        tr = handlers.trace(model.numpyro_model).get_trace(md, model.base_rates(md))
+    z, eps = np.asarray(tr["z"]["value"]), np.asarray(tr["conf_eps"]["value"])
+    tau_c = np.asarray(tr["tau_conf"]["value"])
+    assert eps.shape == (md.n_conf, model.D) and tau_c.shape == (model.D,)
+    conf_idx = md.conf
+    md.conf = None                                                     # off: no conference sites at all
+    with numpyro.handlers.seed(rng_seed=0):
+        tr = handlers.trace(model.numpyro_model).get_trace(md, model.base_rates(md))
+    assert "conf_eps" not in tr and "tau_conf" not in tr
+    # with the same random draws for everything else, the skills differ by exactly each team's conference effect
+    assert np.allclose(z - np.asarray(tr["z"]["value"]), (eps * tau_c)[conf_idx], atol=1e-5)

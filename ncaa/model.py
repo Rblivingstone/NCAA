@@ -99,6 +99,8 @@ class ModelData:
     form_sigma: float | None = None  # fix the form step size instead of learning it (diagnostics)
     prior_mean: np.ndarray | None = None  # T x D: last season's skill per team (0 for new teams)
     weight: np.ndarray | None = None      # per row: how much the game's likelihood counts (blowout damper)
+    conf: np.ndarray | None = None        # per team: conference index (conference shrinkage; None = off)
+    n_conf: int = 0                       # conferences, plus one group for teams without one
 
 
 PERIOD_DAYS = 14
@@ -236,6 +238,14 @@ def numpyro_model(md: ModelData, prior_mu: np.ndarray):
     L = numpyro.sample("L_omega", dist.LKJCholesky(D, concentration=2.0))
     eps = numpyro.sample("eps", dist.Normal(0.0, 1.0).expand([T, D]))
     z = eps @ (tau[:, None] * L).T                           # T x D, cov = diag(tau) Ω diag(tau)
+    if md.conf is not None:
+        # Conference shrinkage: each team is pulled toward its conference's level, which is itself learned
+        # (and pulled toward the league average by tau_conf), rather than toward the league average directly.
+        # A single league-wide prior drags the best teams of the strong conferences, the ones that decide a
+        # tournament, toward the middle.
+        tau_conf = numpyro.sample("tau_conf", dist.HalfNormal(0.3).expand([D]))
+        conf_eps = numpyro.sample("conf_eps", dist.Normal(0.0, 1.0).expand([md.n_conf, D]))
+        z = z + (conf_eps * tau_conf)[jnp.asarray(md.conf)]
     if md.prior_mean is not None:
         # Preseason prior: last season's skill carries over, shrunk by rho (rosters
         # turn over), and this season's deviations are what the LKJ prior describes.
@@ -391,9 +401,20 @@ def init_values(md: ModelData) -> dict:
            "mu_pace": float(np.mean(md.log_pace)), "sigma_pace": 0.1}
     if md.prior_mean is not None:
         out["rho"] = 0.65
+    if md.conf is not None:
+        out |= {"tau_conf": np.full(D, 0.1), "conf_eps": np.zeros((md.n_conf, D))}
     if md.form:
         out |= ({"sigma_form": np.full(2, 1.0)} if md.form_sigma is None else {}) | {"form_raw": np.zeros((len(md.teams), 2, md.n_periods - 1))}
     return out
+
+
+def set_conferences(md: ModelData, conferences: dict) -> ModelData:
+    """Turn on conference shrinkage: index every team's conference (the last group: teams with none)."""
+    names = sorted({c for c in conferences.values() if c is not None})
+    ci = {c: i for i, c in enumerate(names)}
+    md.conf = np.array([ci.get(conferences.get(t), len(names)) for t in md.teams])
+    md.n_conf = len(names) + 1
+    return md
 
 
 def _init_strategy(md: ModelData):
@@ -417,7 +438,8 @@ def _fit_vi(md: ModelData, key, steps: int, progress: bool):
 
 
 def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_samples=250, num_chains=4,
-        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, form=True, form_sigma=None, prior: "Posterior | None" = None) -> Path:
+        seed=0, progress=True, max_tree_depth=8, vi_steps=10000, form=True, form_sigma=None, prior: "Posterior | None" = None,
+        conferences: dict | None = None) -> Path:
     """Fit the model and save the posterior draws needed for simulation.
 
     ``method="nuts"`` runs full MCMC (the default).  A variational fit is run
@@ -425,6 +447,9 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     NUTS warm-up far quicker and more reliable in ~8,000 dimensions.
     ``method="vi"`` stops after the variational fit: fast, but it understates
     posterior uncertainty.
+
+    With the league's conference shrinkage on, each team is shrunk toward its conference's learned level;
+    ``conferences`` (team -> conference) defaults to the season's schedule.
     """
     os.environ.setdefault("XLA_FLAGS", f"--xla_force_host_platform_device_count={num_chains}")
     import jax
@@ -437,6 +462,10 @@ def fit(games: pd.DataFrame, season: int, method="nuts", num_warmup=500, num_sam
     numpyro.set_host_device_count(num_chains)
     md = _with_directions(prepare(games, form=form))
     md.form_sigma = form_sigma
+    from . import data, league
+
+    if league.current().conference_shrinkage:
+        set_conferences(md, data.conferences(season) if conferences is None else conferences)
     if prior is not None:
         md.prior_mean = carryover_mean(prior, md.teams)
     key = jax.random.PRNGKey(seed)
