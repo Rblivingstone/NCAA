@@ -398,17 +398,6 @@ def d1_teams(season: int) -> list[str]:
     return sorted(t.dropna().team.unique())
 
 
-def conferences(season: int) -> dict[str, str]:
-    """Each Division I team's conference this season, from the schedule (team -> conference id)."""
-    s = load_schedule(season)
-    if not len(s) or "home_conf" not in s:
-        return {}
-    t = pd.concat([s[["home", "home_conf"]].set_axis(["team", "conf"], axis=1),
-                   s[["away", "away_conf"]].set_axis(["team", "conf"], axis=1)]).dropna()
-    t["conf"] = t.conf.map(lambda c: str(int(c)) if isinstance(c, float) and c.is_integer() else str(c))
-    return dict(zip(t.team, t.conf))
-
-
 def load_schedule(season: int) -> pd.DataFrame:
     path = season_dir(season) / "schedule.csv"
     return pd.read_csv(path, parse_dates=["date"]) if path.exists() else pd.DataFrame()

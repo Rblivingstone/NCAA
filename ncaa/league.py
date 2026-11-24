@@ -36,7 +36,6 @@ class League:
     headline: str                   # regex for the NCAA tournament's headlines
     protect_conferences: bool = True  # a conference's top four on seed lines 1-4 in different regions
     blowout_margin: float | None = None  # final margins beyond this count for less (see model.blowout_weight)
-    conference_shrinkage: bool = False   # shrink team skill toward a learned conference mean (see model.fit)
 
     @property
     def half_periods(self) -> int:
@@ -51,11 +50,6 @@ OT_MINUTES = 5.0
 # ratings more compressed and tournament forecasts worse, even recalibrated (log loss 0.5511 -> 0.5548): men's
 # blowouts, mostly against overmatched opponents, still carry real information.
 BLOWOUT_MARGIN = {"mens": None, "womens": 25.0}
-# Shrinking each team toward its conference's learned mean, instead of toward the league average, by league.
-# Men's: on. Refitting ten tournaments' seasons with it (variational fits, as the site runs), the tournament
-# forecasts improved in 7 of 10 seasons (Brier 0.1889 -> 0.1882, log loss 0.5555 -> 0.5539, uncalibrated).
-# Women's: off. The same test moved Brier 0.1420 -> 0.1417, better in only 5 of 10 seasons: no clear gain.
-CONFERENCE_SHRINKAGE = {"mens": True, "womens": False}
 
 LEAGUES = {
     "mens": League(
@@ -64,15 +58,14 @@ LEAGUES = {
         raw_game_json="https://raw.githubusercontent.com/sportsdataverse/hoopR-mbb-raw/main/mbb/json/final/{game_id}.json",
         espn_base="https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball",
         subdir="", periods=2, period_minutes=20.0, headline=r"(?<!wo)men's basketball championship",
-        blowout_margin=BLOWOUT_MARGIN["mens"], conference_shrinkage=CONFERENCE_SHRINKAGE["mens"]),
+        blowout_margin=BLOWOUT_MARGIN["mens"]),
     "womens": League(
         key="womens", label="Women's",
         data_base="https://raw.githubusercontent.com/sportsdataverse/wehoop-wbb-data/main/wbb", file_prefix="wbb",
         raw_game_json="https://raw.githubusercontent.com/sportsdataverse/wehoop-wbb-raw/main/wbb/json/final/{game_id}.json",
         espn_base="https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball",
         subdir="wbb", periods=4, period_minutes=10.0, headline=r"ncaa women's (?:basketball )?championship",   # before 2026: "NCAA Women's Championship"
-        protect_conferences=False, blowout_margin=BLOWOUT_MARGIN["womens"],
-        conference_shrinkage=CONFERENCE_SHRINKAGE["womens"]),
+        protect_conferences=False, blowout_margin=BLOWOUT_MARGIN["womens"]),
 }
 
 _current = contextvars.ContextVar("ncaa_league", default=os.environ.get("NCAA_LEAGUE", "mens"))
